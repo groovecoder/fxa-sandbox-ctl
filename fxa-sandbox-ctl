@@ -183,6 +183,7 @@ PIPELINE COMMANDS:
   tokens <ISSUE-KEY>           Token and model usage (run BEFORE the VM stops)
   record <ISSUE-KEY>           Append the run to the telemetry log
   costs [--reprice]            Rebuild the per-issue cost rollup; --reprice prices old runs from the LLM proxy
+  ci-cause <KEY|PR>            The failed CircleCI jobs on the open PR: failed tests and each failed step's end
   skip <KEY> [kind] [reason]   Record an admission skip (kind: needs_decision underspecified depends_on already_done); prints comment|silent <n>
   hold <KEY> <BLOCKER> [reason] A skip that waits for BLOCKER to merge; quiet until then
   skipped [KEY]                List recorded skips
@@ -1670,6 +1671,20 @@ cmd_state() {
   esac
 }
 cmd_skip()      { pipeline_skip "$(_key "$1")" "${@:2}"; }
+# ci-cause KEY|PR   The failed CircleCI jobs on the ticket's open PR: failed tests and each failed step's end,
+# so a red PR is judged on its real failure and not on the first line that says "error".
+# ponytail: CircleCI only; a failed GitHub Actions check prints nothing here.
+cmd_ci_cause() {
+  local a="${1:-}" pr links
+  [ -n "$a" ] || { echo "ERROR: ci-cause takes <KEY> or <PR number>" >&2; return 1; }
+  if [[ "$a" =~ ^[0-9]+$ ]]; then pr="$a"
+  else pr="$(gh pr list --repo "$PIPE_REPO_SLUG" --state open --head "$(worktree_branch_for "$(_key "$a")")" --json number -q '.[0].number' 2>/dev/null || true)"; fi
+  [ -n "$pr" ] || { echo "ERROR: no open PR for ${a}" >&2; return 1; }
+  # gh exits 1 when a check failed, which is the case this command is for.
+  links="$(gh pr checks "$pr" --repo "$PIPE_REPO_SLUG" 2>/dev/null | awk -F'\t' '$2 == "fail" { print $4 }' || true)"
+  [ -n "$links" ] || { echo "PR #${pr}: no failed check"; return 0; }
+  circleci_digests "$links" "$(openssl rand -hex 6)"
+}
 # cmd_comment <KEY> <text>   Post the text as it is: jira_comment renders its Markdown subset.
 cmd_comment() {
   [ $# = 2 ] && [ -n "$2" ] || { echo "ERROR: comment takes <KEY> <text>." >&2; return 1; }
@@ -3296,6 +3311,7 @@ main() {
     record)     cmd_record "$@" ;;
     costs)      cmd_costs "$@" ;;
     skip)       cmd_skip "$@" ;;
+    ci-cause)   cmd_ci_cause "$@" ;;
     comment)    cmd_comment "$@" ;;
     hold)       cmd_hold "$@" ;;
     skipped)    cmd_skipped "$@" ;;

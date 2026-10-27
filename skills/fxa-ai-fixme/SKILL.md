@@ -38,8 +38,9 @@ token comes from `~/.circleci/cli.yml`. Never print it.
    CLOSED PR as merged**; the label is the only record of what reviewers threw away. `none -`:
    do not relabel, report as an anomaly. `CONFLICT`: see conflicts. `CONFLICT? mergeability-
    uncomputed`: report, do not rebase on a guess. `RED`: leave the label, put it under ⚠️ with
-   the failing job. **Assume repo infrastructure before the PR** and read the job log
-   (INCIDENTS: Reconcile and CI). `label KEY done` posts the PR-ready comment itself, once per PR. `label KEY merged` posts the one telemetry comment itself, then assigns the ticket to the
+   the failing job. **Assume repo infrastructure before the PR**, then prove it: read
+   `$CTL ci-cause KEY` and judge on its `Failed tasks:`, `Failed to compile`, lint and test
+   lines. A failure in a file the PR changed is the PR's (INCIDENTS: Reconcile and CI). `label KEY done` posts the PR-ready comment itself, once per PR. `label KEY merged` posts the one telemetry comment itself, then assigns the ticket to the
    PR's last human approver, adds it to the active FxA sprint, and transitions it to Done. It
    sets assignee and sprint only when they are empty, so it never overwrites a human's choice.
    **Reap.** `$CTL reap --stray` before slot selection.
@@ -125,7 +126,7 @@ supporting evidence (INCIDENTS: Reconcile and CI).
 | `done` with `CONFLICT` | See conflicts. |
 | PR open, `fail>0 running=0`, thin check set | Settled by failure. An early job failed; reconcile now. |
 | Failure is a flake | `deps.sh rerun <pr>`. Max 2 per head SHA. |
-| Failure is real | Relaunch on the same slot with the failure log, then `deps.sh gate <pr>`. |
+| Failure is real | Relaunch on the same slot with the `ci-cause` lines as the context file, then `deps.sh gate <pr>`. |
 | 2 real fix attempts spent | `blocked attempts`. Report the job and one line of cause. |
 
 `$CTL attempts KEY bump` tracks real fixes. `progress` reports `stalled` when the VM is up, the

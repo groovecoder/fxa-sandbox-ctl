@@ -82,6 +82,11 @@ you; do not read this file on a quiet pass. `SKILL.md` names the section beside 
   "login"`. Repo infrastructure, not the PR; the same job failed on `fxa-14373` the same day.
 - **Reviewer question unanswerable (2026-08-25, #21101).** Whether a comment was addressed needed
   a diff of `localization.ts` against the comment text. Hence the 👍 on fixed comments.
+- **Sentry line read as infrastructure (2026-10-26, FXA-6803, #21608).** `Build (PR)` failed on an
+  ESLint error in the PR's own `AppLayout/index.tsx` (a `useEffect` with no dependency list; CI=true
+  makes warnings errors). The pass stopped at `sentry-cli`'s "Auth token is required" line, called
+  it infrastructure, and spent no fix attempt. That line shows in every fxa-settings build and is
+  harmless: the source maps upload right after it. Judge on `$CTL ci-cause`'s failed task lines.
 - **Missing team review (2026-08-13, #21019).** CODEOWNERS usually requests `fxa-devs`; this PR
   opened without it. The launcher now requests it explicitly.
 
