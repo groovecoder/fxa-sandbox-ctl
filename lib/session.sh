@@ -176,7 +176,10 @@ Every turn, including later ones:
   The final message is all the engineer sees: put your answer, or your questions
   with their OPTION lines, above the status line. Your notes files are not shown.
 - If you changed no files (an answer, an investigation), do not suggest a push
-  or a pull request: there is nothing to ship.${slack}${jira}
+  or a pull request: there is nothing to ship.
+- When the engineer asks you to open or update the PR, and the change is done and
+  verified, put the line 'ship: pr' above 'status: ready'. The host then opens the
+  PR, or updates the open one. Never write it when they did not ask.${slack}${jira}
 EOF
 }
 
@@ -1068,12 +1071,13 @@ def fin($t): ($t | tostring) as $t
       elif ($l | test("^OPTION: *")) then (if length == 0 then [{q: null, options: []}] else . end)
         | .[length - 1].options += [$l | sub("^OPTION: *"; "")]
       else . end) | map(select(.options | length > 0))) as $groups
-  | ($t | gsub("(?m)^(status:|OPTION:|QUESTION:|jira-draft:).*\n?"; "") | sub("\\s+$"; "")) as $body
+  | ($t | gsub("(?m)^(status:|ship:|OPTION:|QUESTION:|jira-draft:).*\n?"; "") | sub("\\s+$"; "")) as $body
   | (if $t | test("(?m)^jira-draft: *ready *$") then {jira_draft: true} else {} end) as $jd
   | if ($groups | length) > 1 then {type: "question", text: $body, questions: ($groups | .[0:5])} + $jd
     elif ($groups | length) == 1 then {type: "question", options: $groups[0].options,
       text: (if $groups[0].q then ($body + (if $body == "" then "" else "\n\n" end) + "**" + $groups[0].q + "**") else $body end)} + $jd
-    else {type: "turn_end", status: $status, text: $body} + $jd end;'
+    else {type: "turn_end", status: $status, text: $body} + $jd
+      + (if $t | test("(?m)^ship: *pr *$") then {ship: true} else {} end) end;'
 _session_parse() {
   # Claude ends a turn with one result event. Codex sends its message (say) and
   # the turn end (turn_done) separately; _session_fold joins them.

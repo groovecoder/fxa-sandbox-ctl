@@ -25,6 +25,9 @@ check "options become a question" "question keep A,drop A" "$(jq -r '.[1] | "\(.
 check "marker lines leave the text" "Plan." "$(jq -r '.[1].text' <<< "$ev")"
 check "ready marker" "ready Done." "$(jq -r '.[2] | "\(.status) \(.text)"' <<< "$ev")"
 check "missing marker means needs-input" "needs-input" "$(jq -r '.[3].status' <<< "$ev")"
+check "a turn without a ship line asks for no PR" "null" "$(jq -c '.[2].ship' <<< "$ev")"
+sh="$(fin "$(printf 'Done, tests pass.\nship: pr\nstatus: ready')")"
+check "a ship line asks the host for the PR, and leaves the text" "true|ready|Done, tests pass." "$(jq -r '"\(.ship)|\(.status)|\(.text)"' <<< "$sh")"
 
 # Codex: its reply and turn end are separate events, joined by _session_fold.
 cx="$(printf '%s\n' 'Reading additional input from stdin...' \
