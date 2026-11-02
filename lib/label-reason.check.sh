@@ -40,4 +40,11 @@ if [ "$(id -u)" != 0 ]; then
   chmod 500 "$tmp"; out="$(cmd_label FXA-6 blocked stalled 2>&1; echo "rc=$?")"; chmod 700 "$tmp"
   check "a write that fails is a WARN, and the label still succeeds" "rc=0|1" "$(tail -1 <<< "$out")|$(grep -c 'could not keep' <<< "$out")"
 fi
+# A blocked review round pushed nothing: the comments it acted on are unhandled again; others stay seen.
+eval "$(sed -n '/^_feedback_unack() {/,/^}/p' "$here/../fxa-sandbox-ctl")"
+gh_feedback_has_acted() { [ -s "${PIPE_STATE_DIR}/${1}.feedback-acted" ]; }
+printf '11\n22\n33\n' > "$tmp/FXA-7.feedback-seen"; printf '22\n' > "$tmp/FXA-7.feedback-acted"
+cmd_label FXA-7 blocked stalled 2>/dev/null
+check "a blocked round's acted comments are unseen again, and its acted list is gone" "11,33,|no" \
+  "$(tr '\n' ',' < "$tmp/FXA-7.feedback-seen")|$([ -e "$tmp/FXA-7.feedback-acted" ] && echo yes || echo no)"
 exit "$fail"

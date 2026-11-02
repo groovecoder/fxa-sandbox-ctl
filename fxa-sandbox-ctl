@@ -1921,6 +1921,10 @@ cmd_label() {
   if [ "$state" = "done" ] && gh_feedback_has_acted "$key"; then
     gh_feedback "$key" thumbsup
   fi
+  # A blocked round pushed no fix: its comments are unhandled again, for the round after an operator's relabel.
+  if [ "$state" = "blocked" ] && gh_feedback_has_acted "$key"; then
+    _feedback_unack "$key"
+  fi
   # `done` is the last moment the slot still holds this run's transcript: the
   # next launch on the slot truncates it. Record the run here, every time.
   if [ "$state" = "done" ]; then
@@ -1949,6 +1953,15 @@ cmd_label() {
 
 # _jira_ready_comment <KEY>   Tell the ticket its PR is green and ready for review, once
 # per PR: a fix round that turns green again does not say it twice.
+# _feedback_unack <KEY>   Drop the round's acted ids from the seen file, and the acted file.
+_feedback_unack() {
+  local seen="${PIPE_STATE_DIR}/${1}.feedback-seen" acted="${PIPE_STATE_DIR}/${1}.feedback-acted" t
+  if [ -f "$seen" ]; then
+    t="$(mktemp "${seen}.XXXXXX")" && { grep -vxF -f "$acted" "$seen" > "$t" || true; } && mv "$t" "$seen"
+  fi
+  rm -f "$acted"
+}
+
 _jira_ready_comment() {
   local key="$1" pr mark="${PIPE_STATE_DIR}/${1}.ready-noted"
   read -r _ pr _ <<< "$(gh_pr_state "$key" 2>/dev/null)"
