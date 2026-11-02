@@ -38,7 +38,8 @@ git worktree add ../fxa-sandbox-ctl-<topic> -b <topic> origin/main && cd ../fxa-
 ```
 
 Stage files by name, never with `git add -A` or a whole file you share, and read
-`git diff --cached` before each commit. `vm.sh dev` and `vm.sh promote` work from
+`git diff --cached` before each commit. In a bot worktree, `node_modules` is often a symlink
+to the main checkout: never stage it. Say both rules in the brief of an agent you fork. `vm.sh dev` and `vm.sh promote` work from
 whichever tree you run them in.
 
 ## Rules for the code
@@ -48,7 +49,9 @@ whichever tree you run them in.
    `lib/config.sh`: `_mtime`, `_btime`, `_fsize`, `_epoch_of`, `_free_gb`.
    Never call `stat -f`, `df -g` or `date -j` directly: on Linux `stat -f`
    succeeds and prints the wrong thing. No associative arrays, `mapfile` or
-   `${x,,}`. `mktemp` templates end in `XXXXXX`.
+   `${x,,}`. `mktemp` templates end in `XXXXXX`. Under `set -u`, write `local x=""`, not
+   `local x`: bash 5 leaves a bare `local x` unset, bash 3.2 makes it empty, so `$x` then
+   passes on the Mac and stops the script on Ubuntu.
 2. **set -e and pipefail.** A `grep` that finds nothing inside `$(...)` ends
    the whole command. Guard expected misses with `|| true`.
 3. **Outside calls fail.** Retry only what is safe to repeat: reads, deletes,
@@ -168,8 +171,9 @@ Buttons cannot be pressed through the API: answer with a reply. The tokens are i
    secrets) reaches live data as soon as dev runs it: test it with `vm.sh test` first.
    Ask the person "Promote now?" and run it yourself on their yes; do not hand them a `!` command.
    Run the promote from the main checkout (the shell's start folder), as exactly
-   `bash skills/fxa-manager/vm.sh promote`: no `cd`, path, env, pipe or wrapper (`perl alarm`,
-   `timeout`), since the allow rule matches only that text. From a worktree, the allow rules also match
+   `bash skills/fxa-manager/vm.sh promote`: no `cd`, path, env, pipe, wrapper (`perl alarm`,
+   `timeout`) or `&&` chain after a dev smoke, since the allow rule matches only that text. Run the
+   smoke, then the promote as its own command. From a worktree, the allow rules also match
    `bash /Users/vijaybudham/Desktop/working2/<tree>/skills/fxa-manager/vm.sh promote`, with an optional
    `FXA_DEV_BOT_ROOT=/Users/vijaybudham/Desktop/working2/<bot tree>` first. Run it in the background. With green CI it reads only origin/main and the dev record, which
    every worktree shares. Only when it must run the bot's tests itself does it need the trees
