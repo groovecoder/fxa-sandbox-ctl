@@ -211,6 +211,8 @@ gh() { printf '%s' '{"state":"OPEN","statusCheckRollup":[{"name":"extract","stat
 check "pr status: the links of real failures, not infra" "https://circleci.com/gh/mozilla/fxa/9" "$(session_pr_status agent-t2 | jq -r '.links | join(",")')"
 gh() { printf '%s' '{"state":"OPEN","isDraft":true,"mergeable":"CONFLICTING","title":"fix(auth): x","headRefName":"agent-ab12","body":"Closes: FXA-123 and FXA-9","statusCheckRollup":[]}'; }
 check "pr status: draft, mergeable, the first ticket" "true|CONFLICTING|FXA-123" "$(session_pr_status agent-t2 | jq -r '"\(.draft)|\(.mergeable)|\(.jira)"')"
+gh() { printf '%s' '{"state":"OPEN","headRefOid":"abc","reviewRequests":[{"login":"rev1"},{"name":"fxa-team"}],"statusCheckRollup":[]}'; }
+check "pr status: the head and the requested reviewers" "abc|rev1,fxa-team" "$(session_pr_status agent-t2 | jq -r '"\(.head)|\(.requested | join(","))"')"
 gh() { printf '%s' '{"state":"OPEN","title":"notFXA-1 x","statusCheckRollup":[]}'; }
 check "pr status: no ticket, not a draft" "false|null" "$(session_pr_status agent-t2 | jq -r '"\(.draft)|\(.jira)"')"
 # Each review bot's latest review only, on current lines; others' comments are not theirs.
@@ -224,7 +226,12 @@ check "copilot comments: CodeRabbit's too, without its HTML and folded prompt" '
 gh() { case "$2" in
   */reviews) printf '%s' '[{"id":5,"user":{"login":"rev1"},"body":"old"},{"id":99,"user":{"login":"rev1"},"body":"Please rename."},{"id":20,"user":{"login":"rev2"},"body":"x"}]' ;;
   *) printf '%s' '[{"id":4,"pull_request_review_id":99,"user":{"login":"rev1"},"path":"d.ts","line":1,"body":"human"},{"id":6,"pull_request_review_id":99,"user":{"login":"rev1"},"path":"e.ts","line":null,"body":"outdated"},{"id":2,"pull_request_review_id":20,"user":{"login":"rev2"},"path":"b.ts","line":5,"body":"other"}]' ;; esac; }
-check "review comments: that person's latest review, body first" '[{"id":"review","path":"","line":0,"body":"Please rename."},{"id":4,"path":"d.ts","line":1,"body":"human"}]' "$(session_review_comments agent-t2 rev1)"
+check "review comments: that person's latest review, body first" '[{"id":"review","path":"","line":0,"body":"Please rename."},{"id":4,"path":"d.ts","line":1,"body":"human","reply":false,"answered":false}]' "$(session_review_comments agent-t2 rev1)"
+gh() { case "$2" in
+  */reviews) printf '%s' '[{"id":99,"user":{"login":"rev1"},"body":""}]' ;;
+  *) printf '%s' '[{"id":4,"pull_request_review_id":99,"user":{"login":"rev1"},"path":"d.ts","line":1,"body":"Why?"},{"id":8,"in_reply_to_id":4,"pull_request_review_id":98,"user":{"login":"rev2"},"path":"d.ts","line":1,"body":"Because."},{"id":9,"in_reply_to_id":4,"pull_request_review_id":97,"user":{"login":"fxa-agent[bot]"},"path":"d.ts","line":1,"body":"bot"},{"id":5,"in_reply_to_id":3,"pull_request_review_id":99,"user":{"login":"rev1"},"path":"e.ts","line":2,"body":"ok"}]' ;; esac; }
+check "review comments: a reply, and a comment another person answered (a bot's reply does not count)" '4:false:true|5:true:false' \
+  "$(session_review_comments agent-t2 rev1 | jq -r 'map("\(.id):\(.reply):\(.answered)") | join("|")')"
 check "review comments: a bad login gives none" '[]' "$(session_review_comments agent-t2 'rev1;rm')"
 check "pr ready: refuses with no PR" "1" "$(session_pr_ready agent-zz99 2>/dev/null; echo $?)"
 # The thumbs up goes to fixed comments only, with a numeric id.

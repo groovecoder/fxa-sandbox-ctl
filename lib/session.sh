@@ -1210,14 +1210,15 @@ _session_wrap_step() {
 session_pr_status() {
   local url; url="$(session_get "$1" pr_url)"
   [ -n "$url" ] || { echo null; return 0; }
-  gh pr view "$url" --json state,reviewDecision,statusCheckRollup,latestReviews,isDraft,mergeable,title,body,headRefName 2>/dev/null \
+  gh pr view "$url" --json state,reviewDecision,statusCheckRollup,latestReviews,isDraft,mergeable,title,body,headRefName,headRefOid,reviewRequests 2>/dev/null \
     | jq -c --arg url "$url" --arg infra "${PIPE_INFRA_CHECKS:-extract=Bad credentials}" '
       ($infra | split(" ") | map(split("=")[0])) as $inf
       | [.statusCheckRollup[]? | {name: (.name // .context),
           done: (if .status then .status == "COMPLETED" else ((.state // "") | IN("PENDING", "EXPECTED") | not) end),
           bad: ((.conclusion // .state // "") | IN("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")),
           link: (.detailsUrl // .targetUrl // "")}] as $c
-      | {url: $url, state, review: .reviewDecision, draft: (.isDraft == true), mergeable,
+      | {url: $url, state, review: .reviewDecision, draft: (.isDraft == true), mergeable, head: .headRefOid,
+         requested: [.reviewRequests[]? | .login // .name // empty],
          jira: ([.title, .headRefName, .body] | map(. // "") | join(" ") | [scan("(?<![A-Za-z0-9-])FXA-[0-9]+")] | first // null),
          ci: (if ($c | length) == 0 then "none" elif any($c[]; .bad) then "fail" elif all($c[]; .done) then "pass" else "running" end),
          failing: [$c[] | select(.bad) | .name], infra: [$c[] | select(.bad) | .name | select(IN($inf[]))],
@@ -1252,6 +1253,7 @@ session_copilot_comments() {
 
 # session_review_comments <key> <login>   A person's latest review on the PR: its
 # body as id "review", then its inline comments on current lines. [] when empty.
+#   reply: the comment answers another one; answered: a person other than its author replied to it.
 session_review_comments() {
   local p r; p="$(_session_pr_parts "$1")" || { echo '[]'; return 0; }
   [[ "${2:-}" =~ ^[A-Za-z0-9-]{1,39}$ ]] || { echo '[]'; return 0; }
@@ -1259,8 +1261,10 @@ session_review_comments() {
     | jq -sc --arg u "$2" '[.[][] | select(.user.login == $u)] | max_by(.id) // empty' 2>/dev/null || true)"
   [ -n "$r" ] || { echo '[]'; return 0; }
   gh api "repos/${p%%$'\t'*}/pulls/${p#*$'\t'}/comments" --paginate 2>/dev/null \
-    | jq -sc --argjson r "$r" '[($r | select((.body // "") != "") | {id: "review", path: "", line: 0, body: (.body | .[0:4000])})]
-        + [.[][] | select(.pull_request_review_id == $r.id and .line != null) | {id, path, line, body: (.body | .[0:2000])}]' 2>/dev/null || echo '[]'
+    | jq -sc --argjson r "$r" '[.[][]] as $all | [($r | select((.body // "") != "") | {id: "review", path: "", line: 0, body: (.body | .[0:4000])})]
+        + [$all[] | select(.pull_request_review_id == $r.id and .line != null) | . as $c | {id, path, line, body: (.body | .[0:2000]),
+           reply: (.in_reply_to_id != null),
+           answered: any($all[]; .in_reply_to_id == $c.id and .user.login != $c.user.login and (.user.login | endswith("[bot]") | not))}]' 2>/dev/null || echo '[]'
 }
 
 # session_pr_ready <key>   Take the session's draft PR out of draft. GitHub then
