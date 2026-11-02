@@ -92,6 +92,9 @@ repo skills, and restarts the bot and dashboard only if they run.
 $H sys 'systemctl status fxa-agent-bot --no-pager | head -12'
 $H sys 'sudo systemctl restart fxa-agent-bot'
 $H sys 'sudo journalctl -u fxa-agent-bot -n 50 --no-pager'   # timers: -u fxa-pass
+# Why a pass did or did not act (its ⚠️ list and "Notes on each judgment"): a team's pass report, by time.
+# passes.jsonl holds only counts. Without sudo, journalctl prints nothing.
+$H sys 'sudo journalctl -u fxa-pass@entitlements --since "2026-11-02 20:14" --until "2026-11-02 20:20" --no-pager -o cat'
 ```
 
 **Add or rotate a secret.** The person runs, in a real terminal on the laptop:
