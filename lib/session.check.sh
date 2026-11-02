@@ -201,7 +201,7 @@ _session_record_summary agent-t2
 check "summary fields" "2.25|10|4|10|3 files changed, 10 insertions(+)" "$(session_get agent-t2 summary | jq -r '"\(.cost)|\(.tokens)|\(.turns)|\(.minutes)|\(.diff)"')"
 
 # The thread follows its PR: CI, reviews and state from gh.
-gh() { printf '%s' '{"state":"OPEN","reviewDecision":"CHANGES_REQUESTED","latestReviews":[{"author":{"login":"rev1"},"state":"CHANGES_REQUESTED"}],"statusCheckRollup":[{"name":"extract","status":"COMPLETED","conclusion":"FAILURE"},{"name":"unit","status":"COMPLETED","conclusion":"SUCCESS"},{"context":"ci/circleci","state":"SUCCESS"}]}'; }
+gh() { printf '%s' '{"state":"OPEN","reviewDecision":"CHANGES_REQUESTED","latestReviews":[{"author":{"login":"rev1"},"state":"CHANGES_REQUESTED"},{"author":{"login":"fxa-agent"},"state":"COMMENTED"}],"statusCheckRollup":[{"name":"extract","status":"COMPLETED","conclusion":"FAILURE"},{"name":"unit","status":"COMPLETED","conclusion":"SUCCESS"},{"context":"ci/circleci","state":"SUCCESS"}]}'; }
 session_set agent-t2 pr_url https://github.com/mozilla/fxa/pull/1
 out="$(session_pr_status agent-t2)"
 check "pr status: ci, failing, infra, review" "fail|extract|extract|rev1:CHANGES_REQUESTED" "$(jq -r '"\(.ci)|\(.failing | join(","))|\(.infra | join(","))|\(.reviews | map("\(.login):\(.state)") | join(","))"' <<< "$out")"
@@ -231,7 +231,15 @@ check "pr ready: refuses with no PR" "1" "$(session_pr_ready agent-zz99 2>/dev/n
 check "thumbs up on fixed comments only" "api -X POST repos/mozilla/fxa/pulls/comments/2/reactions -f content=+1" "$(
   gh() { echo "$*" >> "$tmp/gh-calls"; }
   vm_exec_as_agent() { echo '[{"id":2,"outcome":"fixed"},{"id":5,"outcome":"asked"},{"id":"7;rm","outcome":"fixed"}]'; }
-  session_review_ack agent-t2 x; cat "$tmp/gh-calls")"
+  session_review_ack agent-t2 x; grep reactions "$tmp/gh-calls")"
+# Each fixed or asked comment gets a reply in its thread, with the AI note; a bad id gets none.
+check "a reply in each thread: fixed names the push, asked says Slack" "comments/2/replies -f body=Fixed in abc1234567.|comments/5/replies -f body=Not changed yet: I asked the engineer in Slack.|2" "$(
+  : > "$tmp/gh-calls"
+  gh() { [[ "$*" == *replies* ]] && printf '%s\n' "$*" >> "$tmp/gh-calls"; return 0; }
+  vm_exec_as_agent() { echo '[{"id":2,"outcome":"fixed"},{"id":5,"outcome":"asked"},{"id":"7;rm","outcome":"fixed"}]'; }
+  git() { [ "$3" = rev-parse ] && echo abc1234567def; }
+  session_review_ack agent-t2 x
+  { grep -o 'comments/[0-9]*/replies -f body=[^_]*' "$tmp/gh-calls"; grep -c 'AI agent' "$tmp/gh-calls"; } | paste -sd'|' -)"
 unset -f gh
 
 # Questions: plain OPTION lines, one named QUESTION, or several groups.

@@ -1218,7 +1218,8 @@ session_pr_status() {
          failing: [$c[] | select(.bad) | .name], infra: [$c[] | select(.bad) | .name | select(IN($inf[]))],
          links: [$c[] | select(.bad and (.name | IN($inf[]) | not)) | .link | select(startswith("https://"))],
          running: any($c[]; .done | not),
-         reviews: [.latestReviews[]? | {login: .author.login, state, at: .submittedAt}]}' || echo null
+         # A thread reply of the App (session_review_ack) is a review by the App: never feedback.
+         reviews: [.latestReviews[]? | select(.author.login != "fxa-agent") | {login: .author.login, state, at: .submittedAt}]}' || echo null
 }
 
 # _session_pr_parts <key>   "owner/repo<TAB>number" of the session's PR, or nothing.
@@ -1510,15 +1511,26 @@ session_jira_queue() {
   echo "queued $2"
 }
 
-# session_review_ack <key> <pr_url>   After a PR update: a thumbs up on each Copilot
-# comment the agent fixed, from its /workspace/.fxa-review-outcomes.json.
+# session_review_ack <key> <pr_url>   After a PR update: a thumbs up on each review
+# comment the agent fixed, and a reply in each comment's thread that says what happened,
+# from its /workspace/.fxa-review-outcomes.json. The reply goes as the App, so it is not a
+# person's review that the bot reports as new feedback.
 session_review_ack() {
-  local p id ids; p="$(_session_pr_parts "$1")" || return 0
-  ids="$(vm_exec_as_agent "$(worktree_branch_for "$1")" 'cat /workspace/.fxa-review-outcomes.json 2>/dev/null; rm -f /workspace/.fxa-review-outcomes.json' 2>/dev/null \
-    | jq -r '.[]? | select(.outcome == "fixed") | .id | tostring | select(test("^[0-9]{1,15}$"))' 2>/dev/null || true)"
-  for id in $ids; do
-    gh api -X POST "repos/${p%%$'\t'*}/pulls/comments/${id}/reactions" -f content=+1 >/dev/null 2>&1 || echo "NOTE: could not react to comment ${id}" >&2
-  done
+  local p id out sha body foot=$'\n\n_This comment is from an AI agent._'; p="$(_session_pr_parts "$1")" || return 0
+  out="$(vm_exec_as_agent "$(worktree_branch_for "$1")" 'cat /workspace/.fxa-review-outcomes.json 2>/dev/null; rm -f /workspace/.fxa-review-outcomes.json' 2>/dev/null \
+    | jq -r '.[]? | select(.outcome == "fixed" or .outcome == "asked") | "\(.id | tostring) \(.outcome)" | select(test("^[0-9]{1,15} "))' 2>/dev/null || true)"
+  sha="$(git -C "$(worktree_repo_root)" rev-parse -q --verify "refs/remotes/origin/$(session_get "$1" branch)" 2>/dev/null | cut -c1-10)"
+  local GH_TOKEN="${GH_TOKEN:-}"; github_app_enabled 2>/dev/null && GH_TOKEN="$(github_app_token 2>/dev/null)" || true
+  [ -n "$GH_TOKEN" ] && export GH_TOKEN
+  while read -r id o; do
+    [ -n "$id" ] || continue
+    if [ "$o" = fixed ]; then
+      gh api -X POST "repos/${p%%$'\t'*}/pulls/comments/${id}/reactions" -f content=+1 >/dev/null 2>&1 || echo "NOTE: could not react to comment ${id}" >&2
+      body="Fixed${sha:+ in ${sha}}."
+    else body="Not changed yet: I asked the engineer in Slack."; fi
+    # A reply is not safe to repeat: no retry.
+    gh api -X POST "repos/${p%%$'\t'*}/pulls/${p##*$'\t'}/comments/${id}/replies" -f body="${body}${foot}" >/dev/null 2>&1 || echo "NOTE: could not reply on comment ${id}" >&2
+  done <<< "$out"
 }
 
 # _session_end_facts <key>   What a turn's end needs, in one ssh: the cost so
