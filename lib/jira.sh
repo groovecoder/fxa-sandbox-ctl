@@ -510,6 +510,23 @@ jira_get() {
   _jira_rest_get "$1" || { echo "ERROR: Jira GET $1 failed (HTTP error, or no PIPE_JIRA_BASIC)" >&2; return 1; }
 }
 
+# jira_write transition <KEY> <id> | label <KEY> add|remove <label>   The operator's two Jira writes with the
+#   pipeline login: a status move by transition id, or one label. Ask the person before each one.
+jira_write() {
+  local op="${1:-}" key="${2:-}" body
+  [[ "$key" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] || op=bad
+  case "$op" in
+    transition) [[ "${3:-}" =~ ^[0-9]+$ ]] || op=bad; body="{\"transition\":{\"id\":\"${3:-}\"}}" ;;
+    label) [[ "${3:-}" =~ ^(add|remove)$ && "${4:-}" =~ ^[A-Za-z0-9_+.-]+$ ]] || op=bad; body="{\"update\":{\"labels\":[{\"${3:-}\":\"${4:-}\"}]}}" ;;
+    *) op=bad ;;
+  esac
+  [ "$op" != bad ] || { echo "usage: jira-write transition <KEY> <id> | jira-write label <KEY> add|remove <label>" >&2; return 1; }
+  if [ "$op" = transition ]; then _jira_rest_json POST "/rest/api/3/issue/${key}/transitions" "$body" >/dev/null
+  else _jira_rest_json PUT "/rest/api/3/issue/${key}" "$body" >/dev/null; fi \
+    || { echo "ERROR: Jira ${op} on ${key} failed (HTTP error, or no PIPE_JIRA_BASIC)" >&2; return 1; }
+  echo "${key}: ${op} ${3} ${4:-}" | sed 's/ $//'
+}
+
 # jira_close_merged <KEY>
 #   WRITE: finish a merged ticket the way a person would. Assign the reviewer who
 #   approved, add it to the active sprint, transition it to Done.

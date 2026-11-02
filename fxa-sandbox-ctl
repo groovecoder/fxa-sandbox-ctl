@@ -152,6 +152,7 @@ PIPELINE COMMANDS:
   jira-card <ISSUE-KEY>        Summary, status and assignee as JSON for a Slack card; null for a hidden ticket
   jira-get </rest/...>         A read-only Jira REST GET with the pipeline login, as JSON
   env                          The team's loaded PIPE_* settings (backend, workspace, stack dir, repos), with no login
+  jira-write transition <KEY> <id> | label <KEY> add|remove <label>   One Jira write with the pipeline login
   sentry-card <ID|SHORT-ID>    A Sentry issue as JSON for a Slack card (no user data); null when unreadable
   ground <ISSUE-KEY>           Write /tmp/fxa-KEY-ground.md: ticket, cited paths checked on
                                origin/main, frozen/stories checks, overlapping open PRs
@@ -3264,6 +3265,7 @@ main() {
     jira-card)  jira_card "$@" ;;
     jira-get)   jira_get "$@" ;;
     env)        pipeline_require && pipeline_env ;;
+    jira-write) jira_write "$@" ;;
     sentry-card) sentry_card "$@" ;;
     ground)     cmd_ground "$@" ;;
     reporter)   cmd_reporter "$@" ;;

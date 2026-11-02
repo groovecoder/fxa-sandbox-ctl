@@ -27,6 +27,7 @@ $H api errors          # the dashboard's /api/<path> as JSON: errors, snapshot, 
 $H api teams           # {teams: [{profile, label, access, repos, mcp, test, issues, ...}], issues, error}; pick one with .teams[] | select(.profile == "<name>")
 $H run './fxa-sandbox-ctl jira-get "/rest/api/3/issue/PAY-1?fields=status"'   # a Jira read with the pipeline login; no .env sourcing
 $H run './fxa-sandbox-ctl --pipeline sync-storage env'   # a team's loaded PIPE_* settings (backend, workspace, stack dir); no sourcing libs by hand
+$H run './fxa-sandbox-ctl jira-write transition FXA-1 101'   # a Jira write (also: label FXA-1 add|remove <label>); ask the person first
 $H secret fxa-<name> --prefix xoxb-   # store a secret from a hidden prompt; grants the manager on create
 $H ssh                 # the ssh command for a person
 ```
