@@ -93,6 +93,16 @@ REMOTE_SHA="$theirs" github_app_commit "$tmp/r" fxa-2 "$theirs" "m" >/dev/null 2
 check "a change on their commit with a stale tracking ref moves the branch once" "1" "$(grep -c '^PATCH git/refs/heads/fxa-2' "$tmp/calls")"
 check "and its commit sits on their commit" "$theirs" "$(grep '^POST git/commits' "$tmp/calls" | tail -1 | cut -d' ' -f3- | jq -r '.parents | join(",")')"
 
+# A fold replaces a person's commit and a bot's: the App stays the author, and the person gets a trailer.
+t0="$(git rev-parse "${base}^{tree}")"
+ana="$(GIT_AUTHOR_NAME=Ana GIT_AUTHOR_EMAIL=ana@example.com git commit-tree "$t0" -p "$base" -m theirs)"
+fold="$(GIT_AUTHOR_NAME='fxa-agent[bot]' GIT_AUTHOR_EMAIL=bot@example.com git commit-tree "$t0" -p "$ana" -m bot)"
+git update-ref refs/remotes/origin/fxa-3 "$fold"
+: > "$tmp/calls"
+REMOTE_SHA="$fold" github_app_commit "$tmp/r" fxa-3 "$base" "fix(x): fold" >/dev/null 2>&1
+check "a fold credits the person it replaces, not the bot, and sends no author" "fix(x): fold|Co-authored-by: Ana <ana@example.com>|null" \
+  "$(grep '^POST git/commits' "$tmp/calls" | tail -1 | cut -d' ' -f3- | jq -r '"\(.message | gsub("\n\n"; "|"))|\(.author)"')"
+
 # Their commit changes the same line as ours: refused, nothing moves.
 ( cd "$tmp/them" && echo a3 > a.txt && g commit -qam clash && g push -q origin fxa-2 )
 git fetch -q origin fxa-2; git update-ref refs/remotes/origin/fxa-2 "$theirs"; git reset -q --soft "$base"
