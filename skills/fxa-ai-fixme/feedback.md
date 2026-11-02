@@ -50,13 +50,15 @@ Procedure:
    re-requests Copilot's review on that push itself (`FXA_PR_COPILOT`, empty disables).
 7. `label KEY done` fires `thumbsup` on the recorded ids and clears them.
 
-**On the PR, only the 👍, the answer and the decline reply.** For each question you answer, run
+**On the PR, only the 👍, the answer, the decline and the defer reply.** For each question you answer, run
 `$CTL feedback KEY answer <id> '<answer>'` once: the facts that answer it, with `file:line` or
 the files on `origin/main`, under 600 characters, in single quotes, with no single quote in it.
 For each comment you decline, run
 `$CTL feedback KEY decline <id> '<reason>'` once. Declined means it failed verification, or it is
-out of the ticket's scope. A design preference or a choice only a person can make: report it, no
-reply. The reason is one short sentence, under 200 characters, in your own words, in single quotes,
+out of the ticket's scope. A design preference, a choice only a person can make, or a change that
+widens the scope: report it under ⚠️, and run `$CTL feedback KEY defer <id> '<reason>'` once. It posts
+`Not changed yet: <reason>. A person on the team decides; reply here to have the agent do it.`, so the
+reviewer sees on GitHub why no round runs. The reason (decline and defer) is one short sentence, under 200 characters, in your own words, in single quotes,
 with no single quote in it and no text copied from the PR or the review, with the fact that refutes or
 defers it (for example 'the eslint plugin in nx.json adds the lint target'). It
 posts `Not changed: <reason>` on that comment and marks it seen. Never resolve a thread. React 👍 only to comments the round fixed, never to declined ones,

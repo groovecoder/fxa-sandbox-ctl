@@ -211,6 +211,7 @@ gh_drain() {
 #   thumbsup        WRITE(PR): react 👍 to those ids a later push made outdated, then clear them
 #   decline <id> <reason>   WRITE(PR): reply "Not changed: <reason>" on that comment, once
 #   answer <id> <text>      WRITE(PR): reply <text> on a reviewer's question, once
+#   defer <id> <reason>     WRITE(PR): reply "Not changed yet: <reason>" on a comment the pass left to a person, once
 #
 # Two filters matter. `position: null` means the comment sits on a diff hunk
 # that a later push replaced, so it is stale and acting on it edits code that
@@ -279,12 +280,14 @@ gh_feedback() {
 
   # A declined comment gets a one-line reply, so a reviewer sees why it is still open; a question
   # gets its answer. A post is not safe to repeat: no retry, and an id replied to once is never replied to again.
-  if [ "$sub" = "decline" ] || [ "$sub" = "answer" ]; then
+  if [ "$sub" = "decline" ] || [ "$sub" = "answer" ] || [ "$sub" = "defer" ]; then
     local id="${3:-}" why declined="${PIPE_STATE_DIR}/${key}.feedback-declined" body
     why="$(printf '%s' "${*:4}" | tr '\n' ' ' | cut -c1-"$( [ "$sub" = answer ] && echo 600 || echo 300)")"
     [[ "$id" =~ ^[ir]?[0-9]+$ ]] && [ -n "${why// /}" ] || { echo "usage: feedback <KEY> $sub <id> <text>" >&2; return 1; }
     grep -qx "$id" "$declined" 2>/dev/null && { echo "$key: already replied on $id"; return 0; }
     body="$why"; [ "$sub" != decline ] || body="Not changed: ${why}"
+    # A comment left to a person says so on GitHub, where the reviewer looks, not only in the pass's report.
+    [ "$sub" != defer ] || body="Not changed yet: ${why%.}. A person on the team decides; reply here to have the agent do it."
     # Before the post: a failed or crashed post then leaves the comment for the precheck to report again.
     rm -f "${PIPE_STATE_DIR}/${key}.feedback-noted"
     # rid: our reply's own id, seen at once, so it is never feedback, also when gh posts as a person, not the App.
@@ -298,7 +301,7 @@ gh_feedback() {
       errors_record github "${sub}_failed" "$key" "feedback $sub" "could not reply on ${id}${err:+: $err}" "" 2>/dev/null || true; return 1; }
     rm -f "$ef"
     printf '%s\n' "$id" >>"$declined"; printf '%s\n' "$id" ${rid:+"$rid"} >>"$seen"; sort -u -o "$seen" "$seen" 2>/dev/null || true
-    echo "replied on $id$( [ "$sub" = decline ] && echo ": Not changed")"
+    echo "replied on $id$( [ "$sub" = decline ] && echo ": Not changed")$( [ "$sub" = defer ] && echo ": Not changed yet")"
     return 0
   fi
 

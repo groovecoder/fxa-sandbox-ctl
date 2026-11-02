@@ -51,4 +51,6 @@ check "each reply ends with the italic AI agent note" "yes" \
   "$(gh_feedback FXA-1 answer 9 "yes" >/dev/null; tail -1 "$tmp/posts" | grep -q 'body=yes  _This comment is from an AI agent._ --jq' && echo yes)"
 check "a failed answer clears the precheck's noted ids, so the comment is reported again" "no" \
   "$(echo 7 > "$tmp/FXA-1.feedback-noted"; POST_FAILS=1 gh_feedback FXA-1 answer 7 why >/dev/null 2>&1; [ -e "$tmp/FXA-1.feedback-noted" ] && echo yes || echo no)"
+check "a defer replies on the thread that a person decides, once" "yes|1" \
+  "$(rm -f "$tmp/posts" "$PIPE_STATE_DIR/FXA-1.feedback-declined"; gh_feedback FXA-1 defer 5 "it changes which card later invoices charge" >/dev/null; posts | grep -q 'pulls/7/comments/5/replies.*body=Not changed yet: it changes which card later invoices charge. A person on the team decides' && echo yes)|$(gh_feedback FXA-1 defer 5 again >/dev/null; posts | wc -l | tr -d ' ')"
 exit "$fail"
