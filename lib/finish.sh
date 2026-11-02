@@ -606,6 +606,10 @@ _finish_push_and_pr() {
   pr_body="$(jq -r '.pr_body // empty' "$done_file")"
   # Strip the harness's Claude Code footer and session link here, whatever the VM's CLAUDE.md says.
   pr_body="$(printf '%s\n' "$pr_body" | grep -vE 'Generated with \[?Claude Code|^https://claude\.ai/code/session_|^Claude-Session:' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
+  # Jira links a PR to every key in it, and an automation then moves that ticket to In Review.
+  local own_key="$issue"; [[ "$own_key" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] || own_key="$(printf '%s' "$branch" | tr 'a-z' 'A-Z')"
+  pr_title="$(printf '%s' "$pr_title" | _finish_soft_keys "$own_key")"
+  pr_body="$(printf '%s\n' "$pr_body" | _finish_soft_keys "$own_key")"
 
   if [ -z "$branch" ] || [ -z "$pr_title" ] || [ -z "$pr_body" ]; then
     # Only the names: the file is runner-written text, and a PR URL in it read as this run's PR.
@@ -748,7 +752,7 @@ _finish_push_and_pr() {
   _finish_tooling_guard "$worktree" || { _finish_prfix_why guard:tooling; return 1; }
   _finish_check_frozen "$worktree" || { _finish_prfix_why guard:frozen; return 1; }
   local commit_body
-  commit_body="$(_finish_commit_body "$(jq -r '.commit_body // empty' "$done_file")" "$pr_body")"
+  commit_body="$(_finish_commit_body "$(jq -r '.commit_body // empty' "$done_file")" "$pr_body" | _finish_soft_keys "$own_key")"
   # The Risk section for the reviewer, before the PII guard, so the agent's notes in it are checked too. A fix run sets no body.
   # A failure keeps the agent's body as it is: the section must never cost the PR its body.
   _finish_env_gaps "$worktree" "$(jq -r '.issue // empty' "$done_file" 2>/dev/null)"
@@ -1365,6 +1369,17 @@ _finish_pii_guard() {
 # _finish_commit_body <commit_body> <pr_body>   The squash commit's body: the agent's short
 # Because / This commit / Closes body, without the harness footer, at most 30 lines. With
 # none (an older handoff), only the PR body's closing line: the PR keeps the detail.
+# _finish_soft_keys <own key>   stdin to stdout: another ticket's key gets a non-breaking hyphen (U+2011), so
+# Jira does not link the PR to it. The own key, a Closes/Fixes line and a key inside a URL stay as they are.
+# ponytail: only FXA, the team's project and the own key's project; add a project when a team cites another.
+_finish_soft_keys() {
+  local p="FXA"
+  [[ "${PIPE_JIRA_PROJECT:-}" =~ ^[A-Z][A-Z0-9]*$ ]] && p="${p}|${PIPE_JIRA_PROJECT}"
+  [[ "$1" =~ ^([A-Z][A-Z0-9]*)-[0-9]+$ ]] && p="${p}|${BASH_REMATCH[1]}"
+  OWN="$1" PROJS="$p" perl -CSD -pe 'next if /^\s*(Closes|Fixes)\b/i;
+    s{(?<![/\w-])((?:$ENV{PROJS})-\d+)\b}{my $k = $1; $k eq $ENV{OWN} ? $k : $k =~ s/-/\x{2011}/r}ge'
+}
+
 _finish_commit_body() {
   if [ -n "${1//[[:space:]]/}" ]; then
     printf '%s\n' "$1" | grep -vE 'Generated with \[?Claude Code|^https://claude\.ai/code/session_|^Claude-Session:' \
