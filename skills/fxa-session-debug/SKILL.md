@@ -34,7 +34,7 @@ The script masks known token formats. Never print a `.env` or a token.
 | `gcloud.compute.instances.create ... Internal error` | GCP's own fault | `vm_clone` now tries the next zone |
 | `stocked out` in every zone | No capacity for `c4a-standard-4` or the fallback `t2a-standard-4` | Wait, or set `FXA_GCE_ZONES` |
 | `I paused: this session reached its usage limit` | The bot's cost cap (`SESSION_COST_CAP`, default $15) | A reply resumes with a new limit; raise the cap in the bot's `.env` |
-| `Paused: nobody replied for a while` | 10 min with no activity (`FXA_SESSION_IDLE_SECONDS`, default 600) | A reply resumes; an open desktop counts as activity |
+| `Paused: my question above still waits for your answer` | 10 min with no activity (`FXA_SESSION_IDLE_SECONDS`, default 600) while the agent's question waits; a pause with no question posts nothing | A reply resumes; an open desktop counts as activity |
 | `handoff file not found` | The agent wrote no handoff, so nothing was pushed; its reason is in the reply above it | Read the reply; steer and try again |
 | `timed out after` … `waiting for handoff file` | ssh dropped after the wrap-up, or the agent is still writing | The work is still there; try Open PR again |
 | `Agent sessions are paused right now (<reason>)` | The operator's kill switch | `fxa-sandbox-ctl sessions resume` when the reason is dealt with |
