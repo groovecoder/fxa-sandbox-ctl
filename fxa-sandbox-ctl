@@ -39,7 +39,7 @@ if [ -f "${SCRIPT_DIR}/.env" ]; then
   done < "${SCRIPT_DIR}/.env"
   unset _env_key _env_val
 fi
-# FXA_FAKE_JIRA=1 (FXA_DEV_FAKE_JIRA=1 vm.sh dev): acli is skills/fxa-ctl-dev/fake-jira/acli, a JSON store.
+# FXA_FAKE_JIRA=1 (vm.sh dev, unless FXA_DEV_REAL_JIRA=1): acli is skills/fxa-ctl-dev/fake-jira/acli, a JSON store.
 if [ "${FXA_FAKE_JIRA:-}" = 1 ]; then
   export PATH="${SCRIPT_DIR}/skills/fxa-ctl-dev/fake-jira:$PATH" FAKE_JIRA_DIR="${FAKE_JIRA_DIR:-$HOME/.fxa-fake-jira}"
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A fake acli for the dev bot (FXA_DEV_FAKE_JIRA=1 vm.sh dev): the controller's Jira calls go to a JSON store
+# A fake acli for the dev bot (vm.sh dev, unless FXA_DEV_REAL_JIRA=1): the controller's Jira calls go to a JSON store
 # in FAKE_JIRA_DIR, never to Jira. It takes the arguments _acli_rest takes. Each call goes to calls.log.
 set -euo pipefail
 dir="${FAKE_JIRA_DIR:-$HOME/.fxa-fake-jira}"; mkdir -p "$dir"

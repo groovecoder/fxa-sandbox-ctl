@@ -144,9 +144,10 @@ For the bot's Slack messages alone (status lines, the PR card, CI lines), use
 no push and no real PR (a draft PR event, then CI running, then passed after 60 s).
 `!pr` stands in for Open PR. A plain `$H dev` goes back to the real controller.
 
-For a real session whose Jira writes must not reach Jira, use `FXA_DEV_FAKE_JIRA=1 $H dev`: the dev
-controller's `acli` is `fake-jira/acli`, which keeps tickets (keys from 90001) in `~fxa/dev/fake-jira` and logs
-each call to its `calls.log`, and every Jira REST call fails. The next plain `$H dev` turns it off.
+The dev bot shares live's `.env` and Jira login, so `$H dev` gives the dev controller a fake Jira: its `acli`
+is `fake-jira/acli`, which keeps tickets (keys from 90001) in `~fxa/dev/fake-jira` and logs each call to its
+`calls.log`, and every Jira REST call fails. `FXA_DEV_REAL_JIRA=1 $H dev` writes to the real Jira; the next
+plain `$H dev` turns it off.
 
 Buttons cannot be pressed through the API: answer with a reply. The tokens are in
 `fxa-agent-bot/.env.dev`. When it looks right: commit, push, `vm.sh promote`.

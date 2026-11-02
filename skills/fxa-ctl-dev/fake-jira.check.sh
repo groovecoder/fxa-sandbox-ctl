@@ -42,4 +42,8 @@ check "the next draft lists it as a likely duplicate" "FXA-90001" \
 check "undo closes it as Cancelled, a status FxA's Jira has, and the next search leaves it out" "0|Cancelled|0" \
   "$(session_jira_undo agent-a1 FXA-90001 Pat >/dev/null 2>&1; echo $?)|$(acli jira workitem view FXA-90001 --json | jq -r '.fields.status.name')|$(acli jira workitem search --jql 'project = FXA AND summary ~ "sign"' --json | jq length)"
 check "the real acli never ran" "no" "$([ -s "$tmp/real.log" ] && echo yes || echo no)"
+# vm.sh dev turns the fake on unless FXA_DEV_REAL_JIRA=1: the dev bot shares live's Jira login.
+dev="$(grep -F 'FXA_DEV_REAL_JIRA:-' "$root/skills/fxa-manager/vm.sh")"
+check "vm.sh dev gives the dev controller the fake by default, and the real Jira only on request" "1|0" \
+  "$(unset FXA_DEV_REAL_JIRA; eval "$dev" | grep -c FXA_FAKE_JIRA=1)|$(FXA_DEV_REAL_JIRA=1; eval "$dev" | grep -c FXA_FAKE_JIRA=1)"
 exit "$fail"
