@@ -86,6 +86,13 @@ check "rebuilt tree sits on their tree" "$(git -C "$tmp/them" rev-parse "${their
 check "their file is kept, ours are sent" "a.txt,c.txt,d.txt,run.sh" "$(grep '^POST git/trees' "$tmp/calls" | tail -1 | cut -d' ' -f3- | jq -r '[.tree[].path] | join(",")')"
 check "the branch moves once" "1" "$(grep -c '^PATCH git/refs/heads/fxa-2' "$tmp/calls")"
 
+# The change is already built on their amended commit, and our tracking ref is the old head they replaced: a fast forward.
+git update-ref refs/remotes/origin/fxa-2 "$(git commit-tree "$(git rev-parse "${base}^{tree}")" -p "$base" -m replaced)"
+: > "$tmp/calls"
+REMOTE_SHA="$theirs" github_app_commit "$tmp/r" fxa-2 "$theirs" "m" >/dev/null 2>&1
+check "a change on their commit with a stale tracking ref moves the branch once" "1" "$(grep -c '^PATCH git/refs/heads/fxa-2' "$tmp/calls")"
+check "and its commit sits on their commit" "$theirs" "$(grep '^POST git/commits' "$tmp/calls" | tail -1 | cut -d' ' -f3- | jq -r '.parents | join(",")')"
+
 # Their commit changes the same line as ours: refused, nothing moves.
 ( cd "$tmp/them" && echo a3 > a.txt && g commit -qam clash && g push -q origin fxa-2 )
 git fetch -q origin fxa-2; git update-ref refs/remotes/origin/fxa-2 "$theirs"; git reset -q --soft "$base"

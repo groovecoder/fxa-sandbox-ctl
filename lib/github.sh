@@ -797,7 +797,8 @@ github_app_commit() {
       || _gh_app_ref_is "$branch" "$commit" || { echo "ERROR: could not create ${branch} as the App." >&2; return 1; }
   else
     expect="$(git -C "$wt" rev-parse -q --verify "refs/remotes/origin/${branch}" || true)"
-    if [ "$remote" != "$expect" ]; then
+    # A change already built on the remote head is a fast forward, even when our tracking ref is stale.
+    if [ "$remote" != "$expect" ] && ! git -C "$wt" merge-base --is-ancestor "$remote" "$parent" 2>/dev/null; then
       # Someone pushed to the branch: rebuild this change on top of their commits, once.
       if [ -n "$expect" ] && [ -z "$first" ] && [ -z "${_GH_APP_REBUILT:-}" ] && _gh_app_rebuild "$wt" "$branch" "$expect" "$remote"; then
         _GH_APP_REBUILT=1 github_app_commit "$wt" "$branch" "$remote" "$msg"; return
