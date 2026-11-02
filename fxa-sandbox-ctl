@@ -151,6 +151,7 @@ PIPELINE COMMANDS:
   ticket <ISSUE-KEY>           Ticket text INCLUDING comments
   jira-card <ISSUE-KEY>        Summary, status and assignee as JSON for a Slack card; null for a hidden ticket
   jira-get </rest/...>         A read-only Jira REST GET with the pipeline login, as JSON
+  env                          The team's loaded PIPE_* settings (backend, workspace, stack dir, repos), with no login
   sentry-card <ID|SHORT-ID>    A Sentry issue as JSON for a Slack card (no user data); null when unreadable
   ground <ISSUE-KEY>           Write /tmp/fxa-KEY-ground.md: ticket, cited paths checked on
                                origin/main, frozen/stories checks, overlapping open PRs
@@ -1915,6 +1916,7 @@ cmd_label() {
   [ "$state" != inflight ] || jira_start_work "$key"
   # Only inflight owns a worktree, so any other state reaps the VM.
   if [ "$state" != "inflight" ]; then
+    runner_tool_check "$key" || true
     _reap_key "$key"
   fi
   # `done` means pushed and green, so the 👍 is now true.
@@ -3261,6 +3263,7 @@ main() {
     jira-state) pipeline_require; cmd_jira_state "$@" ;;
     jira-card)  jira_card "$@" ;;
     jira-get)   jira_get "$@" ;;
+    env)        pipeline_require && pipeline_env ;;
     sentry-card) sentry_card "$@" ;;
     ground)     cmd_ground "$@" ;;
     reporter)   cmd_reporter "$@" ;;

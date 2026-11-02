@@ -236,6 +236,7 @@ The `snapshot_refresh` and `snapshot_age` alerts report it.
 ```bash
 H=skills/fxa-manager/vm.sh
 $H fc              # the snapshot's fxa commit, Claude Code and Codex versions, age, and the last refresh result
+                   # "# the runner host is stopped; last read:" above it: the values are from the last read, not now
 $H fc log 120      # the last refresh's log
 $H fc refresh      # start the host if it is stopped, install the repo's scripts, start a refresh
 ```

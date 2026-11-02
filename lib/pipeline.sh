@@ -500,6 +500,15 @@ _pipeline_one_line() {
     | LC_ALL=C tr -d '\000-\037\177' | tr -s ' ' | cut -c1-300   # ponytail: GNU cut counts bytes, so a long non-ASCII reason can lose its last character
 }
 
+# pipeline_env   The loaded team's PIPE_* settings, one per line; a login (PIPE_JIRA_BASIC) or token never prints.
+pipeline_env() {
+  local v
+  for v in $(compgen -v PIPE_ | LC_ALL=C sort); do
+    case "$v" in *BASIC*|*TOKEN*|*PASS*) continue ;; esac
+    declare -p "$v" | sed 's/^declare -[^ ]* //'
+  done
+}
+
 # The kinds of a blocked label and of an admission skip (the pass skill names them; lib/skill-kinds.check.sh reads these).
 _PIPE_BLOCKED_KINDS="stalled dead_vm attempts rounds refused_ship frozen operator"
 _PIPE_SKIP_KINDS="needs_decision underspecified depends_on already_done"

@@ -134,6 +134,16 @@ _telemetry_price_for() {
 
 # Which pool worktree holds this ticket's branch. Do not assume the first slot:
 # that records a slot-2 ticket against another ticket's HEAD.
+# runner_tool_check <KEY> [<transcript>]   A run whose tool output shows a binary built for another CPU (an x86-64
+# tool on an arm64 runner) records an error: the agent works around it, so nothing else shows the broken image.
+runner_tool_check() {
+  local f="${2:-}" hit wt
+  [ -n "$f" ] || { wt="$(_telemetry_worktree_for_key "$1" 2>/dev/null)" && f="${wt}/.fxa-auto-claude.jsonl"; } || return 0
+  hit="$(grep -oE '[A-Za-z0-9_./-]+: (cannot execute binary file: )?[Ee]xec format error|[A-Za-z0-9_./-]+: 1: Syntax error: \\"\(\\" unexpected' "$f" 2>/dev/null | head -1 || true)"
+  [ -n "$hit" ] || return 0
+  errors_record pipeline runner_tool "$1" runner "a runner tool is not built for the runner's CPU: ${hit//\\/}"
+}
+
 _telemetry_worktree_for_key() {
   local br root parent slot path
   br="$(worktree_branch_for "$1")" || return 1
