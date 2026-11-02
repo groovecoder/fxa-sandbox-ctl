@@ -9,7 +9,9 @@ fail=0
 for t in "Paused: my question above still waits for your answer" "I paused: this session reached its usage limit" "handoff file not found" \
   "waiting for handoff file" "Agent sessions are paused right now" "nothing to push: no files changed" "set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN"; do
   grep -qF -- "\`$t" "$here/SKILL.md" || { echo "FAIL the table no longer quotes: $t"; fail=1; continue; }
-  if grep -rqF -- "$t" "$bot/src" "$root/lib" "$root/fxa-sandbox-ctl"; then echo "ok   in the code: $t"; else echo "FAIL the code no longer says: $t"; fail=1; fi
+  # The bot's origin/main counts too: a local bot checkout on an older branch is not a missing line.
+  if grep -rqF -- "$t" "$bot/src" "$root/lib" "$root/fxa-sandbox-ctl" || git -C "$bot" grep -qF -- "$t" origin/main -- src 2>/dev/null; then
+    echo "ok   in the code: $t"; else echo "FAIL the code no longer says: $t"; fail=1; fi
 done
 [ "$fail" = 0 ] && echo "all checks pass"
 exit "$fail"
