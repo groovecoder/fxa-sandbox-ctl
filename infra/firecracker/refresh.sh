@@ -95,7 +95,10 @@ git fetch -q --depth 200 origin main && git checkout -q FETCH_HEAD
 if [ ! -x obj-artifact/dist/bin/firefox ] || [ "$old" != "$(git rev-parse HEAD)" ]; then
   [ -d ~/.mozbuild ] || ./mach --no-interactive bootstrap --no-system-changes \
     --application-choice "Firefox for Desktop Artifact Mode" > /tmp/refresh-firefox.log 2>&1
-  ./mach build >> /tmp/refresh-firefox.log 2>&1 || { git checkout -q "$old"; tail -30 /tmp/refresh-firefox.log; exit 1; }
+  # A stale objdir can fail where a clean one builds (a generated file whose rule missed a changed input):
+  # build once more from a clean objdir, about 30 s, and keep the old one if that fails too.
+  ./mach build >> /tmp/refresh-firefox.log 2>&1 || { rm -rf obj-old && mv obj-artifact obj-old && ./mach build >> /tmp/refresh-firefox.log 2>&1 && rm -rf obj-old; } \
+    || { rm -rf obj-artifact; mv obj-old obj-artifact 2>/dev/null || true; git checkout -q "$old"; tail -30 /tmp/refresh-firefox.log; exit 1; }
 fi
 # fxa-dev-launcher sets the Nightly prefs only when FIREFOX_BIN has "Nightly" in it.
 ln -sfn /home/agent/firefox/obj-artifact/dist/bin /home/agent/Nightly
