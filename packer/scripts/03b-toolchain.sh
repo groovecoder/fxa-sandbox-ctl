@@ -41,16 +41,16 @@ opt_tool() {
 
 # The storage team's Spanner path with no Docker (profiles/sync-storage/boot.sh): CI's Spanner
 # and Pub/Sub emulators and fake GCS, idle files for every other team. The emulator pin follows
-# SPANNER_EMULATOR_VER in syncstorage-rs. x86_64 only: the emulator has no arm64 build.
+# SPANNER_EMULATOR_VER in syncstorage-rs. Each has an amd64 and an arm64 build.
 SPANNER_EMULATOR_VERSION=1.5.52
 FAKE_GCS_VERSION=1.56.1
 PUBSUB_EMULATOR_COMPONENT=google-cloud-sdk-pubsub-emulator-20261009074343
 sync_tools() {
-  [ "$(uname -m)" = x86_64 ] || return 0
+  local a=amd64; [ "$(uname -m)" = aarch64 ] && a=arm64
   opt_tool /opt/spanner-emulator "$SPANNER_EMULATOR_VERSION" \
-    "https://storage.googleapis.com/cloud-spanner-emulator/releases/${SPANNER_EMULATOR_VERSION}/cloud-spanner-emulator_linux_amd64-${SPANNER_EMULATOR_VERSION}.tar.gz"
+    "https://storage.googleapis.com/cloud-spanner-emulator/releases/${SPANNER_EMULATOR_VERSION}/cloud-spanner-emulator_linux_${a}-${SPANNER_EMULATOR_VERSION}.tar.gz"
   opt_tool /opt/fake-gcs "$FAKE_GCS_VERSION" \
-    "https://github.com/fsouza/fake-gcs-server/releases/download/v${FAKE_GCS_VERSION}/fake-gcs-server_${FAKE_GCS_VERSION}_Linux_amd64.tar.gz"
+    "https://github.com/fsouza/fake-gcs-server/releases/download/v${FAKE_GCS_VERSION}/fake-gcs-server_${FAKE_GCS_VERSION}_Linux_${a}.tar.gz"
   opt_tool /opt/pubsub-emulator "$PUBSUB_EMULATOR_COMPONENT" \
     "https://dl.google.com/dl/cloudsdk/channels/rapid/components/${PUBSUB_EMULATOR_COMPONENT}.tar.gz"
 }

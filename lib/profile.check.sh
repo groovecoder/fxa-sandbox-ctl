@@ -116,6 +116,15 @@ check "a private dep row gets a full clone too" "1" "$(grep -c 'git clone --quie
 unset -f github_repo_private
 : > "$tmp/vmx"; _gce_profile_workspace r1 >/dev/null; PIPE_WORKSPACE=/home/agent/fxa _gce_profile_workspace r1 >/dev/null
 check "FxA keeps the baked clone, with no call" "0" "$(wc -l < "$tmp/vmx" | tr -d ' ')"
+: > "$tmp/vmx"; PIPE_STACK_DIR=/home/agent/fxa PIPE_WORKSPACE=/home/agent/syncstorage PIPE_REPO_SLUG=mozilla-services/syncstorage-rs _gce_profile_workspace r1 >/dev/null
+printf 'if [ ! -d /workspace/packages ]; then exit 1; fi\ncd /workspace\n' > "$tmp/fxa-start"
+sed -i.bak "$(grep -o 's#/workspace#[^#]*#g' "$tmp/vmx")" "$tmp/fxa-start"
+check "with its own repo in /workspace, fxa-start runs FxA from the stack's tree" "1|2" \
+  "$(grep -c "export FXA_WORKSPACE=/home/agent/fxa FXA_ROOT=/home/agent/fxa" "$tmp/vmx")|$(grep -c '/home/agent/fxa' "$tmp/fxa-start")"
+: > "$tmp/vmx"; PIPE_WORKSPACE=/home/agent/monitor PIPE_REPO_SLUG=mozilla/blurts-server _gce_profile_workspace r1 >/dev/null
+check "with no stack dir, fxa-start is left alone" "0" "$(grep -c 'fxa-start' "$tmp/vmx")"
+check "a stack dir that is not plain is refused" "1" \
+  "$(PIPE_STACK_DIR='/home/agent/f;x' PIPE_WORKSPACE=/home/agent/x PIPE_REPO_SLUG=a/b _gce_profile_workspace r1 >/dev/null 2>&1; echo $?)"
 check "a workspace or slug that is not plain is refused" "1|1" \
   "$(PIPE_WORKSPACE='/home/agent/x;rm' PIPE_REPO_SLUG=a/b _gce_profile_workspace r1 >/dev/null 2>&1; echo $?)|$(PIPE_WORKSPACE=/home/agent/x PIPE_REPO_SLUG='a/b c' _gce_profile_workspace r1 >/dev/null 2>&1; echo $?)"
 check "a team works in its own clone, with FxA's stack beside it" "PIPE_STACK_DIR=/home/agent/fxa|PIPE_WORKSPACE=/home/agent/monitor" \

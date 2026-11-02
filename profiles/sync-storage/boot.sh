@@ -36,8 +36,10 @@ ru toolchain install "${want:-stable}" --profile minimal -c rustfmt -c clippy > 
   || die "could not install Rust ${want:-stable}"
 chmod -R a+rX /opt/rust
 step "rustc $(RUSTUP_HOME=$RH $CH/bin/rustc --version | cut -d' ' -f2), as the repo's CI (${want:-stable})"
+# The GCE runners are arm64, Firecracker slots x86_64: each download takes the runner's build.
+A=amd64 NX=linux; [ "$(uname -m)" = aarch64 ] && A=arm64 NX=linux-arm
 # The repo's tests run under nextest, as its CI does; a plain cargo test fails some of them.
-[ -x "$CH/bin/cargo-nextest" ] || { curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C "$CH/bin" && chmod a+rx "$CH/bin/cargo-nextest"; } \
+[ -x "$CH/bin/cargo-nextest" ] || { curl -LsSf "https://get.nexte.st/latest/$NX" | tar zxf - -C "$CH/bin" && chmod a+rx "$CH/bin/cargo-nextest"; } \
   || die "could not install cargo-nextest"
 
 # locked <poetry.lock> <name>...   pip pins for the named packages and their dependencies, at the
@@ -150,12 +152,12 @@ step "Spanner tools"
 # hosts. A download here is for an older image, on a runner with open egress.
 ev="$(sed -n 's|.*cloud-spanner-emulator/emulator:\([0-9.]*\).*|\1|p' "$S/docker/docker-compose.spanner.yaml" | head -1)"
 [ -x /opt/spanner-emulator/gateway_main ] || { [ -n "$ev" ] && mkdir -p /opt/spanner-emulator \
-  && curl -fsSL "https://storage.googleapis.com/cloud-spanner-emulator/releases/$ev/cloud-spanner-emulator_linux_amd64-$ev.tar.gz" | tar xz -C /opt/spanner-emulator \
+  && curl -fsSL "https://storage.googleapis.com/cloud-spanner-emulator/releases/$ev/cloud-spanner-emulator_linux_$A-$ev.tar.gz" | tar xz -C /opt/spanner-emulator \
   && echo "$ev" > /opt/spanner-emulator/.version; } || sdie "the image has no Spanner emulator, and the download failed"
 [ "$(cat /opt/spanner-emulator/.version 2>/dev/null)" = "$ev" ] \
   || step "note: the Spanner emulator is $(cat /opt/spanner-emulator/.version 2>/dev/null), CI pins ${ev:-none} (SPANNER_EMULATOR_VERSION in 03b-toolchain.sh)"
 [ -x /opt/fake-gcs/fake-gcs-server ] || { mkdir -p /opt/fake-gcs \
-  && curl -fsSL https://github.com/fsouza/fake-gcs-server/releases/download/v1.56.1/fake-gcs-server_1.56.1_Linux_amd64.tar.gz | tar xz -C /opt/fake-gcs; } \
+  && curl -fsSL https://github.com/fsouza/fake-gcs-server/releases/download/v1.56.1/fake-gcs-server_1.56.1_Linux_$A.tar.gz | tar xz -C /opt/fake-gcs; } \
   || sdie "could not download fake-gcs-server"
 # The Pub/Sub emulator is a gcloud component: its tarball alone, with no gcloud.
 pe=/opt/pubsub-emulator/platform/pubsub-emulator/bin/cloud-pubsub-emulator CL=https://dl.google.com/dl/cloudsdk/channels/rapid

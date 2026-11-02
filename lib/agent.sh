@@ -413,6 +413,12 @@ _gce_profile_workspace() {
   # CLAUDE.md, skills or hooks from them. The loader checked each row.
   local cmd="[ -d ${ws}/.git ] || sudo -u agent env ${_RUNNER_GIT_ENV:-} git clone --quiet $(_clone_filter "$slug") https://github.com/${slug}.git ${ws}; ln -sfn ${ws} /workspace"
   [ "$ws" != /home/agent/fxa ] || cmd="true"
+  # The image's fxa-start reads FxA from /workspace, which here is the profile's repo: point it at the stack's tree.
+  local sd="${PIPE_STACK_DIR:-}"
+  if [ -n "$sd" ] && [ "$sd" != "$ws" ]; then
+    [[ "$sd" =~ ^/home/agent/[a-z0-9-]+$ ]] || { echo "ERROR: PIPE_STACK_DIR is not a plain path." >&2; return 1; }
+    cmd="${cmd}; grep -q '^export FXA_WORKSPACE=' /etc/agent-env.sh || echo 'export FXA_WORKSPACE=${sd} FXA_ROOT=${sd}' >> /etc/agent-env.sh; sed -i 's#/workspace#${sd}#g' /usr/local/bin/fxa-start"
+  fi
   local s p r want="${ws}"
   for row in ${PIPE_REPOS[@]+"${PIPE_REPOS[@]}"}; do
     read -r s p r _ <<< "$row"
