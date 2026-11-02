@@ -43,8 +43,8 @@ fi
 # A blocked review round pushed nothing: the comments it acted on are unhandled again; others stay seen.
 eval "$(sed -n '/^_feedback_unack() {/,/^}/p' "$here/../fxa-sandbox-ctl")"
 gh_feedback_has_acted() { [ -s "${PIPE_STATE_DIR}/${1}.feedback-acted" ]; }
-printf '11\n22\n33\n' > "$tmp/FXA-7.feedback-seen"; printf '22\n' > "$tmp/FXA-7.feedback-acted"
+printf '11\n22\n33\n' > "$tmp/FXA-7.feedback-seen"; printf '22\n' > "$tmp/FXA-7.feedback-acted"; printf '22\n' > "$tmp/FXA-7.feedback-noted"
 cmd_label FXA-7 blocked stalled 2>/dev/null
-check "a blocked round's acted comments are unseen again, and its acted list is gone" "11,33,|no" \
-  "$(tr '\n' ',' < "$tmp/FXA-7.feedback-seen")|$([ -e "$tmp/FXA-7.feedback-acted" ] && echo yes || echo no)"
+check "a blocked round's acted comments are unseen again, its acted list is gone, and the precheck notes them anew" "11,33,|no|no" \
+  "$(tr '\n' ',' < "$tmp/FXA-7.feedback-seen")|$([ -e "$tmp/FXA-7.feedback-acted" ] && echo yes || echo no)|$([ -e "$tmp/FXA-7.feedback-noted" ] && echo yes || echo no)"
 exit "$fail"

@@ -1953,13 +1953,14 @@ cmd_label() {
 
 # _jira_ready_comment <KEY>   Tell the ticket its PR is green and ready for review, once
 # per PR: a fix round that turns green again does not say it twice.
-# _feedback_unack <KEY>   Drop the round's acted ids from the seen file, and the acted file.
+# _feedback_unack <KEY>   Drop the round's acted ids from the seen file, the acted file, and the noted ids,
+# so the quiet precheck wakes a pass for them again.
 _feedback_unack() {
   local seen="${PIPE_STATE_DIR}/${1}.feedback-seen" acted="${PIPE_STATE_DIR}/${1}.feedback-acted" t
   if [ -f "$seen" ]; then
     t="$(mktemp "${seen}.XXXXXX")" && { grep -vxF -f "$acted" "$seen" > "$t" || true; } && mv "$t" "$seen"
   fi
-  rm -f "$acted"
+  rm -f "$acted" "${PIPE_STATE_DIR}/${1}.feedback-noted"
 }
 
 _jira_ready_comment() {
