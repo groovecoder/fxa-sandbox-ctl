@@ -918,7 +918,8 @@ _session_activity() {
 # The change so far as one line, run in /workspace with the base sha as $1: tracked
 # files from git, new files by their line count, never the .fxa-* scratch files.
 # The live file count reads it, because the agent also edits with scripts, not only Edit.
-_SESSION_DIFFSTAT_SH='{ git diff --numstat "$1" -- . ":(exclude).fxa-*"
+# With no $1, the base is where HEAD left origin/main, so a rebase onto a newer main counts only the change.
+_SESSION_DIFFSTAT_SH='{ git diff --numstat "${1:-$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)}" -- . ":(exclude).fxa-*"
   git ls-files -o --exclude-standard -- . ":(exclude).fxa-*" | while IFS= read -r f; do printf "%s\t0\t%s\n" "$(wc -l < "$f" | tr -d " ")" "$f"; done; } 2>/dev/null \
   | jq -Rsc "{type: \"fxa_diffstat\", files: [split(\"\n\")[] | select(length > 0) | split(\"\t\") | {file: .[2], added: (.[0] | tonumber? // 0), removed: (.[1] | tonumber? // 0)}]}"'
 
@@ -928,9 +929,13 @@ _SESSION_DIFFSTAT_SH='{ git diff --numstat "$1" -- . ":(exclude).fxa-*"
 # Also {type: "text", text} for each piece of the reply as Claude writes it, and
 # {type: "text_start"} when a new block of text begins (not a subagent's).
 _session_watch() {
-  local base; base="$(session_get "$1" base_sha)"
-  # Beside the tail, the diffstat every 15 s, printed only when it changed.
-  local loop="p=; while :; do n=\"\$(bash -c $(printf %q "$_SESSION_DIFFSTAT_SH") _ $(printf %q "${base:-HEAD}"))\"; [ \"\$n\" = \"\$p\" ] || { p=\$n; printf '%s\\n' \"\$n\"; }; sleep 15; done"
+  # A checked-out PR counts from the PR head it booted at; any other session from origin/main (the stat's default).
+  local base=""; [ -z "$(session_get "$1" checkout)" ] || base="$(session_get "$1" base_sha)"
+  # Beside the tail, the diffstat every 15 s, printed only when it changed. When HEAD moves (a rebase,
+  # a rebuild on a PR head), fetch main once, so the count and the turn's file count use a fresh origin/main.
+  # ponytail: main only; a session with another PR base counts from main.
+  local loop="p=; h=; while :; do c=\"\$(git rev-parse -q HEAD 2>/dev/null)\"; [ \"\$c\" = \"\$h\" ] || { [ -z \"\$h\" ] || timeout 20 git fetch -q origin main 2>/dev/null; h=\$c; }
+    n=\"\$(bash -c $(printf %q "$_SESSION_DIFFSTAT_SH") _ $(printf %q "$base"))\"; [ \"\$n\" = \"\$p\" ] || { p=\$n; printf '%s\\n' \"\$n\"; }; sleep 15; done"
   _session_sh "$(worktree_branch_for "$1")" "cd /workspace && { timeout 1800 tail -q -n 0 -F .fxa-auto-claude.jsonl .fxa-auto-stream.jsonl & timeout 1800 bash -c $(printf %q "$loop") & wait; } 2>/dev/null" \
     | jq --unbuffered -R -c "$_SESSION_WATCH_JQ" \
     || true # the watch ends when its runner stops or after 30 min; neither is a failure

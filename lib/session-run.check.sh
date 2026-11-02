@@ -247,6 +247,12 @@ git -C "$g" -c user.email=user@example.com -c user.name=t commit -q -m base; bas
 printf 'a\nB\nc\n' > "$g/old.ts"; printf 'x\ny\n' > "$g/new.ts"; echo note > "$g/.fxa-todo.md"
 check "diffstat: tracked and new files, no scratch" '{"type":"fxa_diffstat","files":[{"file":"old.ts","added":2,"removed":1},{"file":"new.ts","added":2,"removed":0}]}' \
   "$(cd "$g" && bash -c "$_SESSION_DIFFSTAT_SH" _ "$base")"
+# No base: count from where HEAD left origin/main, so a rebase onto a newer main is not counted as the change.
+git -C "$g" add -A && git -C "$g" -c user.email=user@example.com -c user.name=t commit -q -m main2
+git -C "$g" update-ref refs/remotes/origin/main HEAD
+echo z >> "$g/new.ts"
+check "diffstat: with no base, only the change since origin/main" '{"type":"fxa_diffstat","files":[{"file":"new.ts","added":1,"removed":0}]}' \
+  "$(cd "$g" && bash -c "$_SESSION_DIFFSTAT_SH" _ "")"
 check "diffstat: the watch turns it into a live event" '{"type":"diffstat","files":[{"file":"a.ts","added":3,"removed":1}]}' \
   "$(echo '{"type":"fxa_diffstat","files":[{"file":"a.ts","added":3,"removed":1}]}' | jq -R -c "$_SESSION_WATCH_JQ")"
 
