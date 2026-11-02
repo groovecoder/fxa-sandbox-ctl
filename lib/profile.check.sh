@@ -311,5 +311,12 @@ check "a team's boot runs the agent's venv only as agent" "" \
 mkdir -p "$tmp/r/profiles/acme"; echo 'PIPE_REPO_SLUG="acme/fxa"' > "$tmp/r/profiles/acme/profile.conf"
 git init -q "$tmp/home/Desktop/working2/fxa" 2>/dev/null; git -C "$tmp/home/Desktop/working2/fxa" remote add origin https://github.com/mozilla/fxa.git 2>/dev/null
 check "a folder team on acme/fxa does not reuse FxA's clone" "PIPE_REPO=$tmp/home/Desktop/working2/.repos/acme/fxa" "$(loaded "$tmp/r" acme | grep '^PIPE_REPO=' | tr -d "'")"
+# Sync Storage's boot keeps only tools built for the runner's CPU: an x86-64 one on arm64 unpacks, but never runs.
+elf() { printf '\177ELF\002\001\001\000\000\000\000\000\000\000\000\000\002\000'; printf "\\x$1\\000"; }
+elf 3e > "$tmp/x86"; elf b7 > "$tmp/arm"
+eval "$(sed -n '/^native() {/p' "$root/profiles/sync-storage/boot.sh")"
+check "on arm64, the arm64 build is native and the x86-64 one, a missing file and a script are not" "0|1|1|1" \
+  "$(E=b7; native "$tmp/arm"; echo $?)|$(E=b7; native "$tmp/x86"; echo $?)|$(E=b7; native "$tmp/none"; echo $?)|$(E=b7; native "$root/profiles/sync-storage/boot.sh"; echo $?)"
+check "boot.sh sets the machine byte from the CPU" "1" "$(grep -c 'A=amd64 NX=linux E=3e; \[ "$(uname -m)" = aarch64 \] && A=arm64 NX=linux-arm E=b7' "$root/profiles/sync-storage/boot.sh")"
 [ "$fail" = 0 ] && echo "all ok"
 exit "$fail"
