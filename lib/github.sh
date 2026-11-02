@@ -773,7 +773,7 @@ github_app_commit() {
   done < <(git -C "$wt" diff --cached --no-renames --name-status -z "$parent")
   # A push that replaces a person's commits (a fold or a rewrite) credits them with a trailer. A custom author
   # would cost the App's signature, and main requires signed commits.
-  local who; [ -n "$first" ] || who="$(git -C "$wt" log --format='%an <%ae>' "${parent}..refs/remotes/origin/${branch}" 2>/dev/null \
+  local who=""; [ -n "$first" ] || who="$(git -C "$wt" log --format='%an <%ae>' "${parent}..refs/remotes/origin/${branch}" 2>/dev/null \
     | grep -viE '\[bot\]|^github ' | sort -u | grep -vxFf <(printf '%s\n' "$msg" | sed -n 's/^Co-authored-by: //p') || true)"
   [ -z "$who" ] || msg="${msg}"$'\n\n'"$(sed 's/^/Co-authored-by: /' <<< "$who")"
   tree="$(jq -c --arg b "$(git -C "$wt" rev-parse "${parent}^{tree}")" '{base_tree: $b, tree: .}' <<< "$entries" \
