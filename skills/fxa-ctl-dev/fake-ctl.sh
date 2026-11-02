@@ -23,6 +23,7 @@
 #                  the latest review so far, and copilot-comments one comment
 #   FAKE_ANSWER_S  seconds the quick look takes, so a test can talk during it
 #   FAKE_ANSWER    the quick look's answer text; unset, the quick look says busy (exit 3) and a session starts
+#   FAKE_ANSWER_JIRA  one @@jira-draft JSON per line: the nth quick look returns line n (the last one after that)
 #   FAKE_PROFILES  a JSON array of teams (profile list's shape) in place of the real controller
 #   FAKE_FIND_PR_PROFILE  the team find-pr reports for the session that made the PR (default none)
 #   FAKE_TAPE      a recorded session to replay: {sessions: [{turns: [{steps, diff, end}]}]}. The nth task
@@ -204,7 +205,10 @@ case "$cmd" in
   answer) sleep "${FAKE_ANSWER_S:-0}"; [ -n "${FAKE_ANSWER:-}" ] || exit 3
     # The quick look's stream (ctl.js askStream): steps, then the answer.
     jq -nc '{type: "step", text: "Reading packages/fxa-settings/src/components/FormVerifyCode/index.tsx"}'
-    jq -nc --arg a "$FAKE_ANSWER" --arg id "$(opt --id "$@")" '{type: "answer", id: $id, answer: $a, question: null, upgrade: null, secs: 3, run_ms: 3000, api_ms: 2500, cost_usd: 0.01, turns: 2, error: null}' ;;
+    n=$(( $(cat "$DIR/answers" 2>/dev/null || echo 0) + 1 )); mkdir -p "$DIR"; echo "$n" > "$DIR/answers"
+    j="$(printf '%s\n' "${FAKE_ANSWER_JIRA:-}" | sed -n "${n}p;\$p" | head -1 || true)"
+    jq -nc --arg a "$FAKE_ANSWER" --arg id "$(opt --id "$@")" --arg j "$j" '{type: "answer", id: $id, answer: $a, question: null, upgrade: null,
+      jira_draft: ($j | fromjson? // null), secs: 3, run_ms: 3000, api_ms: 2500, cost_usd: 0.01, turns: 2, error: null}' ;;
   profile) profile "$@" ;;
   routine) sub="${1:-}"; shift || true; mkdir -p "$DIR"; touch "$DIR/routine-answered"
     case "$sub" in
@@ -259,8 +263,10 @@ case "$cmd" in
         done ;;
       prune|attach|pr-ready) ;;
       # Jira drafts: one fixed draft; each call is in the call log, which is what a scenario checks.
-      jira-draft) [ "${2:-}" != --stdin ] || cat > /dev/null
-        jq -nc --arg s "$(printf 'a%.0s' $(seq 64))" '{project: "FXA", type: "Bug", summary: "Sign-in times out on slow networks", description: "The auth client waits 5 s.", sha: $s, dups: []}' ;;
+      # A change ({key, ...} on stdin) comes back as a frozen change.
+      jira-draft) in='{}'; [ "${2:-}" != --stdin ] || in="$(cat)"
+        jq -c --arg s "$(printf 'a%.0s' $(seq 64))" 'if has("key") then {project: "FXA", op: "change"} + . + {sha: $s, dups: []}
+          else {project: "FXA", type: "Bug", summary: "Sign-in times out on slow networks", description: "The auth client waits 5 s.", sha: $s, dups: []} end' <<< "$in" ;;
       jira-file) echo FXA-4242 ;;
       jira-edit) cat > /dev/null; echo "edited ${2:-}" ;;
       jira-undo|jira-queue) echo "done ${2:-}" ;;

@@ -10,6 +10,8 @@ here="$(cd "$(dirname "$0")" && pwd)"
 eval "$(sed -n '/^_session_jira_project() {/,/^}/p' "$here/session.sh")"
 eval "$(sed -n '/^_SESSION_JIRA_DRAFTS_MAX=/,/^# session_review_ack/p' "$here/session.sh" | sed '$d')"
 SESSION_DIR="$tmp" SANDBOX_ROOT="$here/.." FXA_JIRA_DRAFTS=1 PIPE_PROFILE=fxa
+# A session has a record; a quick answer's key (QA=1) has none.
+session_exists() { [ "${QA:-}" != 1 ]; }
 session_get() { jq -r --arg f "$2" '.[$f] // empty' "$tmp/$1.json" 2>/dev/null; }
 session_set() { [ -f "$tmp/$1.json" ] || echo '{}' > "$tmp/$1.json"; jq --arg k "$2" --arg v "$3" '.[$k] = $v' "$tmp/$1.json" > "$tmp/s" && mv "$tmp/s" "$tmp/$1.json"; }
 worktree_branch_for() { echo "$1"; }
@@ -76,6 +78,17 @@ check "the service-account path posts one issue with the person as reporter, the
 check "a failed create says so and records nothing" "1|no" \
   "$(CREATE_FAILS=1 session_jira_file agent-f1 "$sha3" U1 Pat >/dev/null 2>&1; echo $?)|$([ -s "$tmp/agent-f1.jira-filed" ] && echo yes || echo no)"
 
+check "a quick answer's draft comes on stdin, files, and keeps its counters beside the draft" "refused|FXA-900|1|no" \
+  "$(QA=1 DRAFT="$good" session_jira_draft agent-q9 >/dev/null 2>&1 && echo ok || echo refused)|$(QA=1; s="$(printf '%s' "$good" | session_jira_draft agent-q9 --stdin | jq -r .sha)"; session_jira_file agent-q9 "$s" U1 Pat 2>/dev/null)|$(jq -r .jira_drafts "$tmp/agent-q9.jira-meta.json")|$([ -e "$tmp/agent-q9.json" ] && echo yes || echo no)"
+check "a later look keeps its draft under the thread's Jira key (--as), so it can change that key's ticket" "change|no" \
+  "$(QA=1; printf '%s' '{"key":"FXA-900","labels":["x"]}' | session_jira_draft agent-new1 --stdin --as agent-a1 | jq -r .op)|$([ -e "$tmp/agent-new1.jira-draft.json" ] && echo yes || echo no)"
+rm -f "$tmp/agent-a1.jira-draft.json"
+ch='{"key":"FXA-900","labels":["rate-limit","ai-fixme"],"remove_labels":["sync"],"summary":"Login rate limit too strict"}'
+out="$(printf '%s' "$ch" | session_jira_draft agent-a1 --stdin)"
+check "a change to a ticket this thread filed is frozen without the queue label, and applied once" "change|rate-limit|yes|1" \
+  "$(jq -r .op <<< "$out")|$(jq -r '.labels | join(",")' <<< "$out")|$(session_jira_file agent-a1 "$(jq -r .sha <<< "$out")" U1 Pat >/dev/null 2>&1; grep 'workitem edit --key FXA-900' "$tmp/acli" | tail -1 | grep -q -- '--summary Login rate limit too strict --labels rate-limit --remove-labels sync --yes' && echo yes)|$(session_jira_file agent-a1 "$(jq -r .sha <<< "$out")" U1 Pat >/dev/null 2>&1; echo $?)"
+check "a change to another ticket, or with no change, is refused" "refused|refused" \
+  "$(printf '%s' '{"key":"FXA-1","labels":["x"]}' | session_jira_draft agent-a1 --stdin >/dev/null 2>&1 && echo ok || echo refused)|$(printf '%s' '{"key":"FXA-900"}' | session_jira_draft agent-a1 --stdin >/dev/null 2>&1 && echo ok || echo refused)"
 check "undo closes the ticket with the first status the project has" "0|yes" \
   "$(session_jira_undo agent-a1 FXA-900 Pat >/dev/null 2>&1; echo $?)|$(grep -q "transition --key FXA-900 --status Won't Fix" "$tmp/acli" && echo yes)"
 check "undo, edit and queue refuse a ticket this session did not file" "1|1|1" \

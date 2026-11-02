@@ -134,4 +134,13 @@ printf '_restrict_sudo() {\n  echo "agent ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/
 check "a sudo hardening change runs answer up, under pipefail too" "1" "$(grep -c up "$tmp/ups")"
 ( SANDBOX_ROOT="$r"; git -C "$r" checkout -q "$two"; answer_refresh_since "$one" >/dev/null )
 check "a pull that changed only dashboard/ does not run answer up" "1" "$(grep -c up "$tmp/ups")"
+r="$(_answer_result ask-t011 1 '{"type":"result","result":"Drafted.\n@@jira-draft {\"type\":\"Bug\",\"summary\":\"Reset code expires\",\"labels\":[\"auth\"]}"}')"
+check "an @@jira-draft line becomes jira_draft and leaves the answer" "Reset code expires|auth|Drafted." \
+  "$(jq -r '.jira_draft.summary' <<< "$r")|$(jq -r '.jira_draft.labels[0]' <<< "$r")|$(jq -r .answer <<< "$r")"
+check "no draft, or one that is not an object, is null" "null|null" \
+  "$(_answer_result ask-t012 1 '{"type":"result","result":"Hi."}' | jq -c .jira_draft)|$(_answer_result ask-t013 1 '{"type":"result","result":"x\n@@jira-draft [1]"}' | jq -c .jira_draft)"
+# Each pair: lines with the draft rule, lines with the link skill.
+rules() { local x; x="$(_answer_rules)"; echo "$(grep -c '@@jira-draft {"type"' <<< "$x") $(grep -c fxa-jira-link <<< "$x")"; }
+check "the draft rule replaces the link skill only when drafts are on and the team has a project" "1 0|0 1|0 1" \
+  "$(FXA_JIRA_DRAFTS=1 PIPE_PROFILE=fxa rules)|$(rules)|$(FXA_JIRA_DRAFTS=1 PIPE_PROFILE=monitor rules)"
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"

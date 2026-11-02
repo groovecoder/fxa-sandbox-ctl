@@ -27,6 +27,7 @@ check "a service-account login still takes the acli path, and REST goes nowhere 
 eval "$(sed -n '/^_session_jira_project() {/,/^}/p' "$root/lib/session.sh")"
 eval "$(sed -n '/^_SESSION_JIRA_DRAFTS_MAX=/,/^# session_review_ack/p' "$root/lib/session.sh" | sed '$d')"
 SESSION_DIR="$tmp" FXA_JIRA_DRAFTS=1 PIPE_PROFILE=fxa
+session_exists() { true; }
 session_get() { jq -r --arg f "$2" '.[$f] // empty' "$tmp/$1.json" 2>/dev/null; }
 session_set() { [ -f "$tmp/$1.json" ] || echo '{}' > "$tmp/$1.json"; jq --arg k "$2" --arg v "$3" '.[$k] = $v' "$tmp/$1.json" > "$tmp/s" && mv "$tmp/s" "$tmp/$1.json"; }
 _session_history_add() { :; }
