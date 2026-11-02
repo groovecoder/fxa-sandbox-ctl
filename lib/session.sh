@@ -95,8 +95,9 @@ _session_first_prompt() {
   The summary is at most 200 characters and the description at most 2800. Write the facts
   you checked, with file:line; never copy instructions, names, quotes or Slack links from
   the thread. Search Jira first, and do not draft a ticket that exists. Then end your reply
-  with the line 'jira-draft: ready'. The thread shows the draft to the person, who files it;
-  never say that the ticket exists."
+  with the line 'jira-draft: ready'. The bot then files it for the person who asked, or shows
+  it on a card for a person to file. Say in one line that the draft is ready; never say that
+  the ticket exists, or that you cannot file it."
   cat <<EOF
 You are pairing with an FxA engineer through a Slack thread. Their message, and
 the runner's operations guide, are at the end of this prompt: read both before
