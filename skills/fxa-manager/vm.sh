@@ -58,10 +58,18 @@ t.close()'
 }
 # Absolute: a relative .git would resolve against the caller's directory, such as the bot repo.
 DEV_RECORD="$(git -C "$CTL_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/fxa-dev-deployed"
-# dev_bot_root <record>   The bot tree the last dev deploy sent, when it still exists.
-dev_bot_root() { local r; r="$(sed -n 's/^botroot //p' "$1" 2>/dev/null)"; [ -n "$r" ] && [ -d "$r" ] && echo "$r"; }
+# dev_bot_root <record> [<ctl root>]   The bot tree the last dev deploy sent, when it still exists. With a ctl
+#   root: only when that deploy also came from that controller tree.
+dev_bot_root() {
+  local r; r="$(sed -n 's/^botroot //p' "$1" 2>/dev/null)"
+  [ -z "${2:-}" ] || [ "$(sed -n 's/^ctlroot //p' "$1" 2>/dev/null)" = "$2" ] || return 1
+  [ -n "$r" ] && [ -d "$r" ] && echo "$r"
+}
 # smoke and promote check what the last dev deploy sent: with no FXA_DEV_BOT_ROOT, they take its bot tree.
-if [ -z "${FXA_DEV_BOT_ROOT:-}" ] && { [ "${1:-} ${2:-}" = "dev smoke" ] || [ "${1:-}" = promote ]; }; then
+# A smoke takes it only from a deploy of this controller tree: another session's deploy is not this one's bot.
+if [ -z "${FXA_DEV_BOT_ROOT:-}" ] && [ "${1:-} ${2:-}" = "dev smoke" ]; then
+  BOT_ROOT="$(dev_bot_root "$DEV_RECORD" "$CTL_ROOT" || echo "$BOT_ROOT")"
+elif [ -z "${FXA_DEV_BOT_ROOT:-}" ] && [ "${1:-}" = promote ]; then
   BOT_ROOT="$(dev_bot_root "$DEV_RECORD" || echo "$BOT_ROOT")"
 fi
 # promote_diff <repo> <recorded tree>   Nothing when origin/main is that tree; else what differs.
@@ -406,7 +414,7 @@ EOF2
         cat "${TMPDIR:-/tmp}/vm-dev-up.$$"; up=0; grep -q '^dev bot up' "${TMPDIR:-/tmp}/vm-dev-up.$$" && up=1; rm -f "${TMPDIR:-/tmp}/vm-dev-up.$$"
         [ "$up" = 1 ] || exit 1
         # What promote compares main with: the trees this deploy sent.
-        printf 'ctl %s\nbot %s\nat %s\nbotroot %s\n' "$(worktree_tree "$CTL_ROOT")" "$(worktree_tree "$BOT_ROOT")" "$(date -u +%FT%TZ)" "$BOT_ROOT" > "$DEV_RECORD"
+        printf 'ctl %s\nbot %s\nat %s\nbotroot %s\nctlroot %s\n' "$(worktree_tree "$CTL_ROOT")" "$(worktree_tree "$BOT_ROOT")" "$(date -u +%FT%TZ)" "$BOT_ROOT" "$CTL_ROOT" > "$DEV_RECORD"
         echo "recorded for vm.sh promote" ;;
       *) echo "usage: vm.sh dev [stop|log [n]|calls [n]|report <thread|key>|ctl <args>|fn <commands>|smoke]" >&2; exit 1 ;;
     esac ;;
