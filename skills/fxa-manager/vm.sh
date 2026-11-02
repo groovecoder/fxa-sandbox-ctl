@@ -385,6 +385,8 @@ EOF2
           [[ "${FXA_SESSION_BASE_SHA:-}" =~ ^[0-9a-f]{40}$ ]] && echo "echo FXA_SESSION_BASE_SHA=${FXA_SESSION_BASE_SHA} >> fxa-agent-bot/.env.devhost"
           # FXA_FC_HOST=<ip> vm.sh dev: the dev bot's sessions run as Firecracker slots on that host.
           [[ "${FXA_FC_HOST:-}" =~ ^[0-9]+(\.[0-9]+){3}$ ]] && echo "echo FXA_FC_HOST=${FXA_FC_HOST} >> fxa-agent-bot/.env.devhost"
+          # FXA_DEV_FAKE_JIRA=1: the dev controller's Jira calls go to skills/fxa-ctl-dev/fake-jira/acli and its store in ~/dev/fake-jira.
+          [ "${FXA_DEV_FAKE_JIRA:-}" = 1 ] && echo 'printf "FXA_FAKE_JIRA=1\nFAKE_JIRA_DIR=%s\n" "$D/fake-jira" >> fxa-agent-bot/.env.devhost'
           # FXA_DEV_FAKE=1: skills/fxa-ctl-dev/fake-ctl.sh plays each session (no runner, no PR), with its own sessions file.
           [ "${FXA_DEV_FAKE:-}" = 1 ] && echo 'echo FXA_CTL=$D/fxa-sandbox-ctl/skills/fxa-ctl-dev/fake-ctl.sh >> fxa-agent-bot/.env.devhost; export FXA_AGENT_STATE=$HOME/.fxa-agent-dev-fake-sessions.json FAKE_CTL_DIR=$D/fake-ctl'
           # FAKE_TICK=<s>: a faster fake clock, for the smoke.

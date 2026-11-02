@@ -144,6 +144,10 @@ For the bot's Slack messages alone (status lines, the PR card, CI lines), use
 no push and no real PR (a draft PR event, then CI running, then passed after 60 s).
 `!pr` stands in for Open PR. A plain `$H dev` goes back to the real controller.
 
+For a real session whose Jira writes must not reach Jira, use `FXA_DEV_FAKE_JIRA=1 $H dev`: the dev
+controller's `acli` is `fake-jira/acli`, which keeps tickets (keys from 90001) in `~fxa/dev/fake-jira` and logs
+each call to its `calls.log`, and every Jira REST call fails. The next plain `$H dev` turns it off.
+
 Buttons cannot be pressed through the API: answer with a reply. The tokens are in
 `fxa-agent-bot/.env.dev`. When it looks right: commit, push, `vm.sh promote`.
 
@@ -161,9 +165,12 @@ Buttons cannot be pressed through the API: answer with a reply. The tokens are i
    skips that check: use it only for a change the dev bot cannot exercise.
    A change to shared state (`lib/db/` migrations, the MCP gateway, the LLM proxy,
    secrets) reaches live data as soon as dev runs it: test it with `vm.sh test` first.
+   Ask the person "Promote now?" and run it yourself on their yes; do not hand them a `!` command.
    Run the promote from the main checkout (the shell's start folder), as exactly
    `bash skills/fxa-manager/vm.sh promote`: no `cd`, path, env, pipe or wrapper (`perl alarm`,
-   `timeout`), since the allow rule matches only that text. Run it in the background. With green CI it reads only origin/main and the dev record, which
+   `timeout`), since the allow rule matches only that text. From a worktree, the allow rules also match
+   `bash /Users/vijaybudham/Desktop/working2/<tree>/skills/fxa-manager/vm.sh promote`, with an optional
+   `FXA_DEV_BOT_ROOT=/Users/vijaybudham/Desktop/working2/<bot tree>` first. Run it in the background. With green CI it reads only origin/main and the dev record, which
    every worktree shares. Only when it must run the bot's tests itself does it need the trees
    dev ran: then it says "vm.sh dev again".
 

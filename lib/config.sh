@@ -14,13 +14,16 @@ gh()   { _retry command gh "$@"; }
 acli() { _retry command acli "$@"; }
 
 # _jira_sa   The Jira login is an Atlassian service account: its token works only through the API gateway.
-_jira_sa() { [[ "${PIPE_JIRA_BASIC:-}" == *@serviceaccount.atlassian.com:* ]]; }
+# With FXA_FAKE_JIRA=1 (the dev bot's fake Jira) the fake acli takes every call, so no REST path runs.
+_jira_sa() { [ "${FXA_FAKE_JIRA:-}" != 1 ] && [[ "${PIPE_JIRA_BASIC:-}" == *@serviceaccount.atlassian.com:* ]]; }
 
 # _jira_api   The REST base: the site, or for a service account the gateway with the site's cloud ID.
 # Callers run it in $(...), so the ID is kept in a file (it is public: the site serves it to anyone).
 # The file is in this user's own cache dir: in a shared /tmp another user could plant another tenant's ID.
 _jira_api() {
   local site="${PIPE_JIRA_SITE:-https://mozilla-hub.atlassian.net}" d f id=""
+  # Fake Jira: a REST call that bypasses acli fails, as with Jira down, and reaches no real site.
+  [ "${FXA_FAKE_JIRA:-}" = 1 ] && { echo "http://127.0.0.1:9"; return 0; }
   _jira_sa || { printf '%s\n' "$site"; return 0; }
   d="${HOME}/.cache/fxa"; mkdir -p "$d" 2>/dev/null && chmod 700 "$d" 2>/dev/null || true
   f="$d/jira-cloud-id.$(printf '%s' "${site#https://}" | tr -c 'a-z0-9.-' _)"

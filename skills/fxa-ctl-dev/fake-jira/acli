@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# A fake acli for the dev bot (FXA_DEV_FAKE_JIRA=1 vm.sh dev): the controller's Jira calls go to a JSON store
+# in FAKE_JIRA_DIR, never to Jira. It takes the arguments _acli_rest takes. Each call goes to calls.log.
+set -euo pipefail
+dir="${FAKE_JIRA_DIR:-$HOME/.fxa-fake-jira}"; mkdir -p "$dir"
+printf '%s\t%s\n' "$(date -u +%FT%TZ)" "$*" >> "$dir/calls.log"
+a="${1:-} ${2:-} ${3:-}"; shift 2 || true; [[ "$a" == "jira workitem comment" ]] && shift; shift || true
+key="" jql="" json=0 body="" status="" project="" type="" summary="" desc="" desc_set=0 label="" add="" rm=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --key|-k) key="$2"; shift ;; --fields|--limit|--assignee|--id|--state|--site|--email) shift ;; --jql) jql="$2"; shift ;;
+    --json) json=1 ;; -y|--yes|--paginate|--token) ;; --body) body="$2"; shift ;; --status) status="$2"; shift ;;
+    --project) project="$2"; shift ;; --type) type="$2"; shift ;; --summary) summary="$2"; shift ;;
+    --description-file) desc="$(cat "$2")"; desc_set=1; shift ;; --label) label="$2"; shift ;;
+    -l|--labels) add="$2"; shift ;; --remove-labels) rm="$2"; shift ;;
+    -*) echo "fake acli: $1 is not supported" >&2; exit 1 ;;
+    *) key="$1" ;;
+  esac; shift
+done
+f="$dir/$key.json"
+need() { [ -f "$f" ] || { echo "fake acli: no work item $key" >&2; exit 1; }; }
+put() { jq "$@" "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
+# A ticket as Jira's REST API gives it, with a plain-text description (acli's view --json).
+view='{key, fields: {summary, description, status: {name: .status}, issuetype: {name: .type}, labels, project: {key: .project}}}'
+case "$a" in
+  "jira auth status") echo "✓ Authenticated"; echo "  Account: fake Jira ($dir)" ;;
+  "jira auth login") cat > /dev/null; echo "✓ Authenticated" ;;
+  "jira workitem create")
+    [ -n "$project" ] && [ -n "$summary" ] || { echo "fake acli: create needs --project and --summary" >&2; exit 1; }
+    n=$(( $(cat "$dir/next" 2>/dev/null || echo 90000) + 1 )); echo "$n" > "$dir/next"; key="$project-$n"; f="$dir/$key.json"
+    jq -n --arg k "$key" --arg p "$project" --arg y "${type:-Task}" --arg s "$summary" --arg d "$desc" --arg l "$label" \
+      '{key: $k, project: $p, type: $y, summary: $s, description: $d, status: "To Do", labels: ($l | split(",") | map(select(. != ""))), comments: []}' > "$f"
+    jq -c '{key, id: "1"}' "$f" ;;
+  "jira workitem view") need; if [ "$json" = 1 ]; then jq "$view" "$f"; else jq -r '"Key: \(.key)\nType: \(.type)\nSummary: \(.summary)\nStatus: \(.status)\nDescription: \(.description)"' "$f"; fi ;;
+  "jira workitem search")
+    # Only "project = X" and "summary ~ \"words\"" (any word matches) are read from the JQL; closed tickets are left out.
+    p="$(sed -n 's/.*project = \([A-Z][A-Z0-9]*\).*/\1/p' <<< "$jql")" t="$(sed -n 's/.*summary ~ "\([^"]*\)".*/\1/p' <<< "$jql")"
+    cat "$dir"/*-*.json 2>/dev/null | jq -s --arg p "$p" --arg t "$t" '($t | ascii_downcase | split(" ") | map(select(. != ""))) as $w
+      | [.[] | select(($p == "" or .project == $p) and (.status | IN("Done", "Closed", "Won'"'"'t Do", "Won'"'"'t Fix", "Rejected") | not))
+        | select((.summary | ascii_downcase) as $s | ($w | length) == 0 or any($w[]; . as $x | $s | contains($x)))
+        | '"$view"']' ;;
+  "jira workitem edit")
+    need
+    [ -n "$summary" ] && put --arg v "$summary" '.summary = $v'
+    [ -n "$type" ] && put --arg v "$type" '.type = $v'
+    [ "$desc_set" = 1 ] && put --arg v "$desc" '.description = $v'
+    [ -n "$add$rm" ] && put --arg a "$add" --arg r "$rm" '.labels = ((.labels + ($a | split(","))) - ($r | split(",")) | map(select(. != "")) | unique)'
+    true ;;
+  "jira workitem transition") need; put --arg v "$status" '.status = $v' ;;
+  "jira workitem comment")
+    need
+    if [ -n "$body" ]; then put --arg b "$body" '.comments += [$b]'
+    else jq '{comments: [.comments | to_entries[] | {author: "fake", body: .value, id: (.key | tostring), visibility: "public"}], isLast: true, startAt: 0, total: (.comments | length)}' "$f"; fi ;;
+  *) echo "fake acli: '$a' is not supported" >&2; exit 1 ;;
+esac
