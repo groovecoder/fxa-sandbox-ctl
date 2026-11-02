@@ -38,7 +38,7 @@ check "a filed draft gets a fake key, with its labels and the trailer" "FXA-9000
   "$new|$(acli jira workitem view FXA-90001 --json | jq -r '.fields.labels | join(",")')|$(acli jira workitem view FXA-90001 --json | jq -r '.fields.description' | tail -1)"
 check "the next draft lists it as a likely duplicate" "FXA-90001" \
   "$(printf '%s' '{"type":"Task","summary":"Slow networks break sign-in","description":"x"}' | session_jira_draft agent-a2 --stdin | jq -r '.dups[0].key')"
-check "undo closes it, and the next search leaves it out" "0|Won't Do|0" \
+check "undo closes it as Cancelled, a status FxA's Jira has, and the next search leaves it out" "0|Cancelled|0" \
   "$(session_jira_undo agent-a1 FXA-90001 Pat >/dev/null 2>&1; echo $?)|$(acli jira workitem view FXA-90001 --json | jq -r '.fields.status.name')|$(acli jira workitem search --jql 'project = FXA AND summary ~ "sign"' --json | jq length)"
 check "the real acli never ran" "no" "$([ -s "$tmp/real.log" ] && echo yes || echo no)"
 exit "$fail"

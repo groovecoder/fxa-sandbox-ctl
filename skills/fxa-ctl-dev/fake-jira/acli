@@ -36,7 +36,7 @@ case "$a" in
     # Only "project = X" and "summary ~ \"words\"" (any word matches) are read from the JQL; closed tickets are left out.
     p="$(sed -n 's/.*project = \([A-Z][A-Z0-9]*\).*/\1/p' <<< "$jql")" t="$(sed -n 's/.*summary ~ "\([^"]*\)".*/\1/p' <<< "$jql")"
     cat "$dir"/*-*.json 2>/dev/null | jq -s --arg p "$p" --arg t "$t" '($t | ascii_downcase | split(" ") | map(select(. != ""))) as $w
-      | [.[] | select(($p == "" or .project == $p) and (.status | IN("Done", "Closed", "Won'"'"'t Do", "Won'"'"'t Fix", "Rejected") | not))
+      | [.[] | select(($p == "" or .project == $p) and (.status | IN("Done", "Cancelled", "Closed", "Won'"'"'t Do", "Won'"'"'t Fix", "Rejected") | not))
         | select((.summary | ascii_downcase) as $s | ($w | length) == 0 or any($w[]; . as $x | $s | contains($x)))
         | '"$view"']' ;;
   "jira workitem edit")
@@ -46,7 +46,11 @@ case "$a" in
     [ "$desc_set" = 1 ] && put --arg v "$desc" '.description = $v'
     [ -n "$add$rm" ] && put --arg a "$add" --arg r "$rm" '.labels = ((.labels + ($a | split(","))) - ($r | split(",")) | map(select(. != "")) | unique)'
     true ;;
-  "jira workitem transition") need; put --arg v "$status" '.status = $v' ;;
+  # FxA's statuses by default, so a transition Jira would refuse fails here too.
+  "jira workitem transition")
+    need; IFS=, read -ra ok <<< "${FAKE_JIRA_STATUSES:-To Do,New,In Progress,In Review,On Hold,QA Verified,Done,Cancelled}"
+    for s in "${ok[@]}"; do [ "$s" = "$status" ] && { put --arg v "$status" '.status = $v'; exit 0; }; done
+    echo "fake acli: $key has no transition to $status" >&2; exit 1 ;;
   "jira workitem comment")
     need
     if [ -n "$body" ]; then put --arg b "$body" '.comments += [$b]'

@@ -26,6 +26,21 @@ _acli_once() {
   esac
 }
 creates() { grep -c 'workitem create' "$tmp/acli" 2>/dev/null || true; }
+# The service-account create, in a subshell; bash 3.2 cannot parse a case inside $(...).
+sa_rest() {
+  case "$2" in
+    *mypermissions*) echo '{"permissions":{"MODIFY_REPORTER":{"havePermission":true}}}' ;;
+    *user/search*) echo '[{"accountId":"U-ACC"}]' ;;
+  esac
+}
+sa_file() (
+  sha4="$(DRAFT="$good" session_jira_draft agent-sa1 | jq -r .sha)"
+  _jira_sa() { return 0; }
+  _jira_rest() { sa_rest "$@"; }
+  _jira_rest_json() { printf '%s' "$3" > "$tmp/sa-body"; echo '{"key":"FXA-950"}'; }
+  session_jira_file agent-sa1 "$sha4" U1 Pat pat@example.com --fixme >/dev/null
+  jq -r '[.fields.reporter.id, (.fields.labels | join(",")), (.fields.description.content[0].content[0].text | rtrimstr("\n") | split("\n") | last)] | join("|")' "$tmp/sa-body"
+)
 good='{"type":"Bug","summary":"Sign-in times out on slow networks","description":"The auth client waits 5 s (lib/x.ts:12)."}'
 
 out="$(DRAFT="$good" session_jira_draft agent-a1)"
@@ -49,7 +64,15 @@ check "the right sha files once, as the person, and records it" "FXA-900|1|FXA-9
 check "a second tap files nothing" "1|1" "$(session_jira_file agent-a1 "$sha" U1 'Pat Doe' >/dev/null 2>&1; echo $?)|$(creates)"
 check "the labels: agent-session, and ai-fixme only when asked" "yes|yes" \
   "$(grep 'workitem create' "$tmp/acli" | tail -1 | grep -q -- '--label agent-session --json' && echo yes)|$(sha2="$(DRAFT="$good" session_jira_draft agent-q1 | jq -r .sha)"; session_jira_file agent-q1 "$sha2" U1 Pat --fixme >/dev/null; grep 'workitem create' "$tmp/acli" | tail -1 | grep -q -- '--label agent-session,ai-fixme' && echo yes)"
+lab='{"type":"Task","summary":"Label me","description":"x","labels":["frontend","Ai-Fixme","agent-x","needs triage"]}'
+out="$(DRAFT="$lab" session_jira_draft agent-l1)"
+check "the agent's labels go on the ticket, without the queue or agent labels, and spaces become dashes" "frontend,needs-triage|yes" \
+  "$(jq -r '.labels | join(",")' <<< "$out")|$(session_jira_file agent-l1 "$(jq -r .sha <<< "$out")" U1 Pat >/dev/null 2>&1; grep 'workitem create' "$tmp/acli" | tail -1 | grep -q -- '--label agent-session,frontend,needs-triage --json' && echo yes)"
+check "more than 5 labels, or a label with a bad character, is refused" "refused|refused" \
+  "$(refused '{"type":"Task","summary":"many","labels":["a","b","c","d","e","f"]}' 11)|$(refused '{"type":"Task","summary":"bad","labels":["a,b"]}' 12)"
 sha3="$(DRAFT="$good" session_jira_draft agent-f1 | jq -r .sha)"
+check "the service-account path posts one issue with the person as reporter, the labels and the trailer" "U-ACC|agent-session,ai-fixme|Filed from Slack by Pat." \
+  "$(sa_file)"
 check "a failed create says so and records nothing" "1|no" \
   "$(CREATE_FAILS=1 session_jira_file agent-f1 "$sha3" U1 Pat >/dev/null 2>&1; echo $?)|$([ -s "$tmp/agent-f1.jira-filed" ] && echo yes || echo no)"
 
@@ -59,6 +82,8 @@ check "undo, edit and queue refuse a ticket this session did not file" "1|1|1" \
   "$(session_jira_undo agent-a1 FXA-1 Pat >/dev/null 2>&1; echo $?)|$(echo "$good" | session_jira_edit agent-a1 FXA-1 >/dev/null 2>&1; echo $?)|$(session_jira_queue agent-a1 FXA-1 >/dev/null 2>&1; echo $?)"
 printf 'FXA-901\t%s\tU1\tPat\n' "$(( $(date +%s) - 700 ))" >> "$tmp/agent-a1.jira-filed"
 check "undo works for 10 minutes only" "1" "$(session_jira_undo agent-a1 FXA-901 Pat >/dev/null 2>&1; echo $?)"
+check "an edit adds the person's labels" "yes" \
+  "$(echo '{"type":"Bug","summary":"Sign-in times out","description":"x","labels":["sync"]}' | session_jira_edit agent-a1 FXA-900 >/dev/null && grep -q 'edit --key FXA-900 --labels sync --yes' "$tmp/acli" && echo yes)"
 check "an edit keeps the trailer, and a queue adds the label" "yes|yes" \
   "$(echo "$good" | session_jira_edit agent-a1 FXA-900 >/dev/null && grep -q 'workitem edit --key FXA-900 --type Bug --summary Sign-in times out on slow networks' "$tmp/acli" && echo yes)|$(session_jira_queue agent-a1 FXA-900 >/dev/null && grep -q 'edit --key FXA-900 --labels ai-fixme' "$tmp/acli" && echo yes)"
 exit "$fail"

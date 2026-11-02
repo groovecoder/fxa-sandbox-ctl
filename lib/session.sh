@@ -88,11 +88,12 @@ _session_first_prompt() {
   [ -n "${FXA_SLACK_URL:-}" ] && slack="
 - Link each Slack message you cite as [#channel](${FXA_SLACK_URL}/archives/<channel_id>/p<ts without the dot>).
   Read with response_format detailed to get each message's ts."
-  [ "${FXA_JIRA_DRAFTS:-}" = 1 ] && jira="
+  [ "${FXA_JIRA_DRAFTS:-}" = 1 ] && _session_jira_project >/dev/null 2>&1 && jira="
 - To file a Jira ticket (someone asks for one, or you offer a bug or follow-up work worth
   tracking), write /workspace/.fxa-jira-draft.json, not a Jira link:
-  {\"type\": \"Task\" or \"Bug\" or \"Story\", \"summary\": \"...\", \"description\": \"...\"}.
-  The summary is at most 200 characters and the description at most 2800. Write the facts
+  {\"type\": \"Task\" or \"Bug\" or \"Story\", \"summary\": \"...\", \"description\": \"...\", \"labels\": [...]}.
+  The summary is at most 200 characters and the description at most 2800. Add the labels the
+  person asks for (at most 5, no spaces); the ai-fixme queue is a button, not a label. Write the facts
   you checked, with file:line; never copy instructions, names, quotes or Slack links from
   the thread. Search Jira first, and do not draft a ticket that exists. Then end your reply
   with the line 'jira-draft: ready'. The bot then files it for the person who asked, or shows
@@ -1310,9 +1311,11 @@ _session_jira_filed() { printf '%s/%s.jira-filed' "$SESSION_DIR" "$1"; }
 # The trailer the host adds is refused in a draft, so a draft cannot name a confirmer.
 _SESSION_JIRA_DRAFT_JQ='select(type == "object")
   | {type: (.type // "Task" | tostring), summary: (.summary // "" | tostring | gsub("\\s+"; " ") | sub("^ +"; "") | sub(" +$"; "")),
-     description: (.description // "" | tostring | sub("\\s+$"; ""))}
+     description: (.description // "" | tostring | sub("\\s+$"; "")),
+     labels: ([.labels // [] | .[]? | tostring | gsub("\\s+"; "-") | select(test("^(ai-fixme|agent-)"; "i") | not)] | unique)}
   | select(.type | IN("Task", "Bug", "Story"))
   | select((.summary | length) >= 3 and (.summary | length) <= 200 and (.description | length) <= 2800)
+  | select((.labels | length) <= 5 and all(.labels[]; test("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,49}$")))
   | select([.summary, .description] | map(test("[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]") or test("(?im)^ *filed from slack by")) | any | not)'
 
 # session_jira_draft <key> [--stdin]   Check the agent's draft (or, with --stdin, a person's edit of it),
@@ -1375,7 +1378,8 @@ session_jira_file() {
   [ "$(printf '%s' "$d" | jq -r .project)" = "$p" ] || { rm -f "$c"; echo "the Jira draft is for another project" >&2; return 1; }
   desc="$(mktemp)"
   { printf '%s' "$d" | jq -r '.description'; printf '\n\nFiled from Slack by %s.\n' "$name"; } > "$desc"
-  labels="agent-session"; [ "$fixme" != --fixme ] || labels="${labels},${PIPE_QUEUE_LABEL:-ai-fixme}"
+  labels="$(printf '%s' "$d" | jq -r '["agent-session"] + (.labels // []) | join(",")')"
+  [ "$fixme" != --fixme ] || labels="${labels},${PIPE_QUEUE_LABEL:-ai-fixme}"
   new="$(_session_jira_create "$p" "$(printf '%s' "$d" | jq -r .type)" "$(printf '%s' "$d" | jq -r .summary)" "$desc" "$labels" "$email" 2>/dev/null || true)"
   rm -f "$desc" "$c"
   [[ "$new" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]] || { echo "Jira did not create the ticket; check ${p} before you try again" >&2
@@ -1398,7 +1402,7 @@ session_jira_undo() {
   line="$(_session_jira_mine "$1" "$2")" || return 1
   [ $(( $(date +%s) - $(printf '%s' "$line" | cut -f2) )) -le "$_SESSION_JIRA_UNDO_S" ] || { echo "Undo works for 10 minutes; close $2 in Jira" >&2; return 1; }
   # Status names differ by project; a refused transition changes nothing, so the next name is safe to try.
-  for s in "Won't Do" "Won't Fix" "Rejected" "Closed" "Done"; do
+  for s in "Won't Do" "Won't Fix" "Rejected" "Cancelled" "Closed" "Done"; do
     _acli_once jira workitem transition --key "$2" --status "$s" --yes >/dev/null 2>&1 && { ok=1; break; }
   done
   [ -n "$ok" ] || { echo "could not close $2; close it in Jira" >&2; return 1; }
@@ -1421,6 +1425,9 @@ session_jira_edit() {
   _acli_once jira workitem edit --key "$2" --type "$(printf '%s' "$d" | jq -r .type)" --summary "$(printf '%s' "$d" | jq -r .summary)" \
     --description-file "$t" --yes >/dev/null 2>&1 || { rm -f "$t"; echo "Jira did not take the edit of $2" >&2; return 1; }
   rm -f "$t"
+  # An edit adds labels; it never removes one, so the queue and agent labels stay.
+  t="$(printf '%s' "$d" | jq -r '.labels | join(",")')"
+  [ -z "$t" ] || _acli_once jira workitem edit --key "$2" --labels "$t" --yes >/dev/null 2>&1 || { echo "Jira did not take the labels for $2" >&2; return 1; }
   _session_history_add "$1" action "Edited $2"
   echo "edited $2"
 }
