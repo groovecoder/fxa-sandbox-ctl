@@ -1,5 +1,11 @@
 // The view registry: the v1 VIEWS list, with the panels that each view shows.
+import type { ComponentType, ReactNode } from 'react';
 import type { ViewId } from '../router/types';
+import type { Store } from '../store/types';
+import type { SideGroup } from './store';
+
+// The default export of a view's lazy chunk: its main content, and its side list and details when it has them.
+export type ViewChunk = { Main: ComponentType; side?: (s: Store) => SideGroup[] | null; right?: (s: Store) => ReactNode | null };
 
 export type ViewDef = {
   id: ViewId;
@@ -10,6 +16,8 @@ export type ViewDef = {
   right: boolean;
   // Tabs that show neither panel (v1 body.bare).
   bareTabs: string[];
+  // The view's chunk, as () => import('../views/<view>'); it loads on the first visit.
+  load?: () => Promise<{ default: ViewChunk }>;
 };
 
 const tabs = (...t: [string, string][]) => t.map(([id, label]) => ({ id, label }));

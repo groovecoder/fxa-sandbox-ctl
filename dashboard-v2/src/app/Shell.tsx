@@ -7,7 +7,7 @@ import { agentsOf, docTitle, pipeTeams, railBadges, sessionList, tabCount } from
 import { Help, Palette } from './Dialogs';
 import { Boundary, ICON, VIEW_ICON } from './parts';
 import { Alerts, StatusBar, useTabTitle } from './Status';
-import { safe, savePref, useSel, useStore, useStoreState, type SideGroup } from './store';
+import { safe, savePref, SIDE, useSel, useStore, useStoreState, type SideGroup } from './store';
 import { VIEWS, viewOf } from './views';
 import './shell.css';
 
@@ -53,6 +53,20 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   const autoSess = useRef(false);
 
   const setPrefs = useCallback((p: Partial<Prefs>) => st.setState((x) => ({ prefs: { ...x.prefs, ...p } })), [st]);
+
+  // A view's chunk loads on its first visit and fills MAIN, RIGHT and SIDE.
+  const [, setLoaded] = useState(0);
+  useEffect(() => {
+    const id = def.id;
+    if (!def.load || MAIN[id]) return;
+    def.load().then(({ default: c }) => {
+      MAIN[id] = () => <c.Main />;
+      if (c.right) RIGHT[id] = c.right;
+      if (c.side) SIDE[id] = c.side;
+    }, () => {
+      MAIN[id] = () => <p className="empty">This view did not load. Reload the page.</p>;
+    }).finally(() => setLoaded((n) => n + 1));
+  }, [def]);
 
   // The router: the hash writes the route; a rewrite or a chosen tab goes back with replace.
   useEffect(() => {
@@ -254,7 +268,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
           {route.view === 'overview' && <Boundary><Alerts alerts={alerts} /></Boundary>}
           {route.view === 'pipeline' && <Boundary><PipeTeam s={s} onPick={(t) => { savePref('pipeTeam', t); setPrefs({ pipeTeam: t }); }} /></Boundary>}
           <Boundary key={`${route.view}/${route.tab}`}>
-            {MAIN[route.view]?.() ?? <p className="empty">This view is not built yet.</p>}
+            {MAIN[route.view]?.() ?? <p className="empty">{def.load ? 'loading…' : 'This view is not built yet.'}</p>}
           </Boundary>
         </div>
       </main>
