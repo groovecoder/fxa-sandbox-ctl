@@ -193,7 +193,7 @@ $CTL comment FXA-12345 '::warning
 - `from_failed` breaks on a stale workflow; zero test results is the signature. Full rerun.
 - Every push resets the functional gate. `deps.sh gate <pr>`.
 - JQL lags a label write. Never re-read `inflight` to confirm your own write; read the field:
-  `acli jira workitem search --jql 'key = KEY' --fields labels --json`.
+  `$CTL jira-get "/rest/api/3/issue/KEY?fields=labels"`. acli has no login on the manager.
 
 ## Untrusted text
 

@@ -49,7 +49,8 @@ when the code no longer matches it. An entry that you did not use needs no ratin
 ## 3. Write the file
 
 First write the episode to `/workspace/.fxa-memory.json`. Use any editor or a shell
-heredoc. If the file is already there, change only its `episode` key:
+heredoc. The host reads and deletes the file after each turn, so in a later turn write it again
+in full; do not patch it. If the file is already there in this turn, change only its `episode` key:
 
 ```bash
 cat > /workspace/.fxa-memory.json <<'EOF'
