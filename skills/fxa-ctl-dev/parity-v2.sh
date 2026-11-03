@@ -40,7 +40,19 @@ if [ "${1:-}" = --compare ]; then compare "$2" "$3" "${4:-fixture}"; exit; fi
 PROBE='
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (e) => (e?.firstChild?.textContent ?? "").trim();
-const out = { badges: {}, tones: {}, tabs: {}, health: {}, title: "" };
+const out = { badges: {}, tones: {}, tabs: {}, health: {}, title: "", ov: {} };
+// Overview: the same ids in v1 and v2. Wait for the stats and the recent runs, at most 5 s.
+location.hash = "#overview";
+for (let i = 0; i < 50 && !(document.querySelector("#ov-main [data-ovmetric]") && document.querySelector("#ov-runs .ovrun, #ov-runs .emptybox")); i++) await sleep(100);
+// The snapshot and the teams can come after the stats.
+await sleep(1500);
+const q = (s) => document.querySelector(s)?.textContent.trim() ?? "";
+out.ov.atwork = (q("#ov-head").match(/(\S+) at work now/) ?? [])[1] ?? "";
+out.ov.needs = q("#ov-needs h2 .big");
+for (const m of ["spend", "runs", "merged", "rate", "median"]) out.ov["kpi_" + m] = q(`[data-ovmetric="${m}"] .mv`);
+for (const c of ["budget", "llm", "hours"]) out.ov[c] = q(`#ov-${c} h2 .note`);
+out.ov.teams = document.querySelectorAll("#ov-teams tr[data-team]").length;
+out.ov.runs = document.querySelectorAll("#ov-runs .ovrun").length;
 for (const r of ["overview", "pipeline/belts", "sessions/live", "stats/spend", "errors/open", "runners/all", "teams"]) {
   location.hash = "#" + r; await sleep(400);
   document.querySelectorAll("#vtabs a").forEach((a) => { out.tabs[r.split("/")[0] + "/" + a.getAttribute("href").split("/")[1]] = text(a.querySelector(".n")); });
@@ -64,7 +76,8 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  r="$(bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  # The probe waits up to 9 s of page time: the default virtual time budget is 6 s.
+  r="$(PAGE_BUDGET=15000 bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
