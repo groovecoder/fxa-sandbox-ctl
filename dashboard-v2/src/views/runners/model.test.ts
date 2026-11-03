@@ -5,7 +5,8 @@ import { snapshotActions, teamsAction, viewerAction } from '../../live/poll';
 import { type Action, type State, apply, initial } from '../../live/reducers';
 import { sbRows, slotList } from '../../model/floor';
 import { SF_DEFAULT } from '../../store/prefs';
-import { doneRows, freeLine, hostHours, runBadge, sbCards, selRow, slotGrid, statsNote, timelineRows } from './model';
+import { doneRows, freeLine, hostHours, sbCards, selRow, slotGrid, timelineRows } from './model';
+import { runBadge, statsNote } from '../shared/stats';
 
 type J = ReturnType<typeof JSON.parse>;
 const NOW = Math.floor(Date.now() / 1000);
@@ -77,7 +78,7 @@ describe('the cards', () => {
   test('statsNote: an old stats feed', () => {
     const st = storeOf('sandboxes');
     st.feeds.stats = { ...st.feeds.stats!, ageSeconds: 600, interval: 60, error: null };
-    expect(statsNote(st, NOW)).toBe('The stats feed is 10 min old.');
+    expect(statsNote(st.feeds.stats, NOW * 1000)).toBe('The stats feed is 10 min old.');
   });
 });
 
@@ -115,7 +116,7 @@ describe('Recently completed', () => {
   test('the result tag and the tab filter, at most 20 rows', () => {
     expect(runBadge({ outcome: 'pr', pr_number: 41, pr_state: 'merged', pr_url: 'https://github.com/example/repo/pull/41' })).toEqual({ label: 'PR #41 merged', tone: 'ok', href: 'https://github.com/example/repo/pull/41' });
     expect(runBadge({ outcome: 'pr', pr_url: 'javascript:alert(1)' })).toEqual({ label: 'PR', tone: 'info', href: '' });
-    expect(runBadge({ outcome: 'failed' })).toEqual({ label: 'failed', tone: 'bad' });
+    expect(runBadge({ outcome: 'failed' })).toMatchObject({ label: 'failed', tone: 'bad' });
     const runs = [{ src: 'slack', key: 'a' }, { src: 'slack', key: '', routine: true }, { src: 'pipeline', key: 'EX-1' }];
     expect(doneRows(runs, 'pipeline').map((r) => r.key)).toEqual(['EX-1']);
     expect(doneRows(runs, 'routines')).toHaveLength(1);

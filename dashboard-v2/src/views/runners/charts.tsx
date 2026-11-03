@@ -6,7 +6,8 @@ import { Frame, NoData, timeLabel, useChartKeys, useWidth } from '../../charts/f
 import { short, usd } from '../../format';
 import type { J } from '../../model/base';
 import { cx } from '../../ui/tone';
-import { runBadge, type Tile, timelineRows, WINDOW } from './model';
+import { runBadge } from '../shared/stats';
+import { type Tile, timelineRows, WINDOW } from './model';
 
 // The now line moves once a second.
 function useNow() {

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Boundary } from '../../app/parts';
 import { useStoreState } from '../../app/store';
 import type { ViewChunk } from '../../app/views';
-import { jiraHref, plainMd, short, usd } from '../../format';
+import { jiraHref, plainMd, prHref, short, usd } from '../../format';
 import { getJson } from '../../live/api';
 import { AGENTS, KEY_RE, SS, TEAM_RE, type J } from '../../model/base';
 import { sbRows, slotList } from '../../model/floor';
@@ -16,8 +16,9 @@ import { Card, EmptyBox, Kv, Meter, Tag } from '../../ui';
 import { cx } from '../../ui/tone';
 import { BootSteps, DoneScatter, SlotGrid, Timeline } from './charts';
 import {
-  ageLine, doneRows, doneSrc, endedTxt, forTxt, freeLine, isAdmin, num as n, prHref, runBadge, sbCards, selRow, slotGrid, tabHas, tabOf, upFor, whereTxt, type Tab,
+  ageLine, doneRows, doneSrc, endedTxt, forTxt, freeLine, isAdmin, num as n, sbCards, selRow, slotGrid, tabHas, tabOf, upFor, whereTxt, type Tab,
 } from './model';
+import { runBadge } from '../shared/stats';
 import './runners.css';
 
 const ADMIN_ONLY = 'Only a team admin can see routine runs.';

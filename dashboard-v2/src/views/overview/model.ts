@@ -1,9 +1,8 @@
 // The Overview's own rules over the stats rows, the floor and the recent runs, ported from dashboard/index.html.
 import type { ChartColor } from '../../charts';
-import { ago, sentence, usd } from '../../format';
+import { ago, usd } from '../../format';
 import { type J } from '../../model/base';
 import { daysBack, localDay, median } from '../../model/stats';
-import type { FeedState } from '../../store/types';
 import type { Tone } from '../../ui';
 
 export const OV_RANGES = [['7d', '7 days'], ['30d', '30 days'], ['90d', '90 days']] as const;
@@ -24,14 +23,6 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export const overviewOf = (j: J): J => (j && Array.isArray(j.cols) && Array.isArray(j.rows)
   ? { rows: j.rows.map((a: J[]) => Object.fromEntries(j.cols.map((k: string, i: number) => [k, a[i]]))), prs: j.merged == null ? null : j.merged.map((merged: string) => ({ merged })), prs_at: j.prs_at, llm: j.llm ?? {}, slim: true }
   : null);
-
-// Why the stats figures may be wrong, or "": a failed read keeps the last figures, with their age.
-export function statsNote(f: FeedState | undefined, now = Date.now()): string {
-  const err = f?.error;
-  if (err) return f?.data && f.fetchedAt != null ? `${sentence(err)}. These figures are from ${ago(Math.max(0, Math.round(now / 1000 - f.fetchedAt)))}; the next poll tries again.` : `${sentence(err)}. The next poll tries again.`;
-  const a = f?.ageSeconds, i = f?.interval;
-  return a != null && i && a > 3 * i ? `The stats feed is ${Math.round(a / 60)} min old.` : '';
-}
 
 export function prsWhy(st: J, now = Date.now()): string {
   const at = st?.prs_at;
@@ -63,16 +54,6 @@ export function tileOf(t: J): Tile {
   return { ...common, id: `sess:${t.key}`, tone: t.alive ? 'info' : 'dim', word: t.alive ? 'working' : `waits on ${t.waits}`, name: t.key, kind, stage: t.turns != null ? plural(Number(t.turns), 'turn') : '' };
 }
 
-// Recent runs: the outcome tag.
-const PR_URL_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
-export function runBadge(r: J): { label: string; tone: Tone; href: string } {
-  if (r.outcome === 'pr') {
-    const n = Number.isInteger(r.pr_number) ? r.pr_number : null, m = r.pr_state === 'merged';
-    return { label: `${n != null ? `PR #${n}` : 'PR'}${m ? ' merged' : ''}`, tone: m ? 'ok' : 'info', href: PR_URL_RE.test(r.pr_url ?? '') ? r.pr_url : '' };
-  }
-  const [tone, label] = ({ no_pr: ['dim', 'no change'], failed: ['bad', 'failed'], answered: ['ok', 'answered'], running: ['info', 'running'], done: ['dim', 'done'] } as Record<string, [Tone, string]>)[r.outcome] ?? ['dim', String(r.outcome ?? 'unknown')];
-  return { label, tone, href: '' };
-}
 export const RUN_KIND: Record<string, string> = { pipeline: 'pipeline run', slack: 'Slack session', answer: 'quick answer', pass: 'pass', depfix: 'dependency fix' };
 
 // Today's count from every stats row but the passes. Only a quick answer counts as answered.

@@ -41,6 +41,11 @@ export const prUrl = (n: unknown, repo: unknown): string => {
   const r = String(repo ?? '');
   return REPO_RE.test(r) && /^\d+$/.test(String(n ?? '')) ? `https://github.com/${r}/pull/${n}` : '';
 };
+// A PR link from the data, or '' when it is not a PR of a valid repo.
+export const prHref = (u: unknown): string => {
+  const m = String(u || '').match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/\d+$/);
+  return m && REPO_RE.test(m[1] ?? '') ? String(u) : '';
+};
 
 // "[README.md](/workspace/README.md:15)" reads as "README.md".
 export const plainMd = (t: unknown): string => String(t ?? '').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*`]/g, '');

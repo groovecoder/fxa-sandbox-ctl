@@ -2,7 +2,8 @@
 import { expect, test } from 'vitest';
 import { SF_DEFAULT } from '../../store/prefs';
 import type { FeedState } from '../../store/types';
-import { buckets, byModel, DAY, filterRows, leadBins, llmData, maxOf, med, minOf, pipelineData, prsData, runnerData, statsNote } from './compute';
+import { buckets, byModel, DAY, filterRows, leadBins, llmData, maxOf, med, minOf, pipelineData, prsData, runnerData } from './compute';
+import { statsNote } from '../shared/stats';
 
 const NOW = new Date(2026, 10, 3, 12).getTime();
 const iso = (d: number) => new Date(NOW - d * DAY).toISOString();

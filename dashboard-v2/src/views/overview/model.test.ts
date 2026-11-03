@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { capOf, headOf, metricOf, ovBudget, ovHours, ovLlm, ovWeek, overviewOf, prsWhy, quart, rangeOf, runBadge, statsNote, teamSpark, tileOf, todaySummary } from './model';
+import { capOf, headOf, metricOf, ovBudget, ovHours, ovLlm, ovWeek, overviewOf, prsWhy, quart, rangeOf, teamSpark, tileOf, todaySummary } from './model';
+import { runBadge, statsNote } from '../shared/stats';
 
 const NOW = new Date(2026, 10, 18, 14, 30).getTime();
 

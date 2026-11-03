@@ -1,8 +1,7 @@
 // The Stats figures, ported from renderStats, prsTab and the cards of dashboard/index.html. Pure: no store, no DOM.
-import { ago, sentence } from '../../format';
 import type { J } from '../../model/base';
 import { costPerMerged, inRange } from '../../model/stats';
-import type { FeedState, StatsFilter } from '../../store/types';
+import type { StatsFilter } from '../../store/types';
 import { isOn, type Tab } from './filter';
 
 export const DAY = 86400000;
@@ -18,17 +17,6 @@ export const med = (a: unknown[]): number | null => {
 export const minOf = (a: number[], d = Infinity) => a.reduce((m, v) => (v < m ? v : m), d);
 export const maxOf = (a: number[], d = -Infinity) => a.reduce((m, v) => (v > m ? v : m), d);
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
-// Why the stats figures may be wrong, or "": a failed read keeps the last figures, with their age.
-export function statsNote(f: FeedState | undefined, now = Date.now()): string {
-  if (f?.error) {
-    return f.data && f.fetchedAt
-      ? `${sentence(f.error)}. These figures are from ${ago(Math.round(now / 1000 - f.fetchedAt))}; the next poll tries again.`
-      : `${sentence(f.error)}. The next poll tries again.`;
-  }
-  const a = f?.ageSeconds, i = f?.interval;
-  return a != null && i && a > 3 * i ? `The stats feed is ${Math.round(a / 60)} min old.` : '';
-}
 
 // A run row matches a model by its main model, or by a model in its priced parts.
 export const hasModel = (r: J, m: string) => r.model === m || (r.models != null && typeof r.models === 'object' && Object.hasOwn(r.models, m));

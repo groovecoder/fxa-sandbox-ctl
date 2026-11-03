@@ -19,8 +19,9 @@ import { cx } from '../../ui/tone';
 import { OvChart, type Point, type Series } from './chart';
 import {
   OV_METRICS, OV_RANGES, OV_SRC, RUN_KIND, SRC_NAME, WEEKDAYS, capOf, headOf, median, metricOf, ovBudget, ovHours, ovLlm, ovWeek,
-  overviewOf, prsWhy, quart, rangeName, rangeOf, rowMs, runBadge, statsNote, teamSpark, tileOf, todaySummary, type Metric, type Range, type Tile,
+  overviewOf, prsWhy, quart, rangeName, rangeOf, rowMs, teamSpark, tileOf, todaySummary, type Metric, type Range, type Tile,
 } from './model';
+import { runBadge, statsNote } from '../shared/stats';
 import './overview.css';
 
 const SWATCH: Record<ChartColor, string> = { 'chart-1': 'bg-chart-1', 'chart-2': 'bg-chart-2', 'chart-3': 'bg-chart-3', 'chart-4': 'bg-chart-4', 'chart-5': 'bg-chart-5', 'chart-muted': 'bg-chart-muted' };

@@ -1,9 +1,10 @@
 // The Sandboxes view logic that src/model does not hold, ported from dashboard/index.html (sbCards, renderSbList, sbDetails, renderSbDone).
-import { ago, REPO_RE, sentence, usd } from '../../format';
+import { ago, usd } from '../../format';
 import { AGENTS, LIVE_SESSION, STATE, STATS, TEAM_ADMIN, type J } from '../../model/base';
 import { ovFloor, sbRows } from '../../model/floor';
 import { SNAP } from '../../model/pipeline';
 import type { Store } from '../../store/types';
+import { statsNote } from '../shared/stats';
 
 export type Tab = 'all' | 'pipeline' | 'slack' | 'routines';
 export const tabOf = (t: string): Tab => (['pipeline', 'slack', 'routines'].includes(t) ? (t as Tab) : 'all');
@@ -14,13 +15,6 @@ export const forTxt = (x: J, admin: boolean): string => x.depfix ? x.depfix : x.
 export const whereTxt = (x: J): string => x.src === 'pipeline' ? (x.slot ? `${x.slot} · GCE slot` : x.where === 'firecracker' ? 'Firecracker' : 'GCE')
   : `session · ${x.where === 'gce' ? 'GCE' : x.where === 'firecracker' ? 'Firecracker' : 'starting'}`;
 
-// Why the stats figures may be wrong, or "": a failed read keeps the last figures, with their age.
-export function statsNote(s: Store, now = Date.now() / 1000): string {
-  const f = s.feeds.stats, err = f?.error;
-  if (err) return f?.data ? `${sentence(err)}. These figures are from ${ago(Math.round(now - (f.fetchedAt ?? now)))}; the next poll tries again.` : `${sentence(err)}. The next poll tries again.`;
-  const a = f?.ageSeconds, i = f?.interval;
-  return a != null && i && a > 3 * i ? `The stats feed is ${Math.round(a / 60)} min old.` : '';
-}
 export const agentsMore = (intakeOff: boolean, g: J) => (intakeOff ? 'intake off, no new tickets launch' : g?.launchcap == null ? 'slots unknown' : `${g.launchcap} more may launch`);
 
 export function hostState(g: J): string | null {
@@ -53,7 +47,7 @@ export type Cards = {
 // The three cards: a feed that failed or is old gives '?' or 'unknown', never a 0.
 export function sbCards(s: Store, now = Date.now() / 1000): Cards {
   const g = AGENTS(s), f = ovFloor(s), lo = now - 7 * 86400, st = s.feeds.stats, data = STATS(s), loading = !data && !st?.error;
-  const note = loading ? '' : statsNote(s, now) || (data ? '' : 'the stats feed could not be read'), statsOk = !!data && !note;
+  const note = loading ? '' : statsNote(s.feeds.stats, now * 1000) || (data ? '' : 'the stats feed could not be read'), statsOk = !!data && !note;
   const rows: J[] = statsOk ? (data.rows ?? []).filter((r: J) => r.at && (r.ms ?? Date.parse(r.at)) / 1000 >= lo) : [];
   const unk = loading ? 'Loading the stats…' : `unknown: ${note.replace(/\.$/, '')}`, hrs = (h: number) => `${+h.toFixed(1)} h`;
   let pipe: Cards['pipe'] = { unknown: true }, sess: Cards['sess'] = { unknown: true }, cost: Cards['cost'] = { unknown: true };
@@ -105,16 +99,6 @@ export function selRow(s: Store, id: string, tab: Tab): { row: J } | 'gone' | 'u
   return AGENTS(s) != null && !rs.err && !(rs.stale && !(rs.live.length || rs.fix.length)) ? 'gone' : 'unknown';
 }
 
-export const prHref = (u: unknown): string => { const m = String(u || '').match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/\d+$/); return m && REPO_RE.test(m[1]!) ? String(u) : ''; };
-const PR_URL_RE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
-export function runBadge(r: J): { label: string; tone?: 'ok' | 'info' | 'bad'; href?: string } {
-  if (r.outcome === 'pr') {
-    const n = Number.isInteger(r.pr_number) ? r.pr_number : null, m = r.pr_state === 'merged';
-    return { label: `${n != null ? `PR #${n}` : 'PR'}${m ? ' merged' : ''}`, tone: m ? 'ok' : 'info', href: PR_URL_RE.test(r.pr_url ?? '') ? r.pr_url : '' };
-  }
-  const [c, t] = ({ no_pr: [undefined, 'no change'], failed: ['bad', 'failed'], answered: ['ok', 'answered'], running: ['info', 'running'], done: [undefined, 'done'] } as Record<string, [J, string]>)[r.outcome] ?? [undefined, String(r.outcome ?? 'unknown')];
-  return { label: t, tone: c };
-}
 
 // The server filters by the tab's source, so runs held for another tab never stand in for this one.
 export const doneSrc = (tab: Tab) => ({ pipeline: 'pipeline', slack: 'slack', routines: 'routine' } as Record<string, string>)[tab] ?? '';

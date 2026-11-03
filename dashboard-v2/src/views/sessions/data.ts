@@ -1,6 +1,6 @@
 // The Sessions view's rules over the store, ported from renderSess, sideGroups, outcomeHtml, threadHtml and sessionDetails.
 import type { SideGroup } from '../../app/store';
-import { REPO_RE, stamp, usd } from '../../format';
+import { prHref, REPO_RE, stamp, usd } from '../../format';
 import { pipeSnap, sessHeads, statsBounds } from '../../model';
 import { AGENTS, type J, LIVE_SESSION, SS, STATS, TEAMS } from '../../model/base';
 import {
@@ -45,10 +45,6 @@ export function owners(s: Store): { id: string; name: string }[] {
 export const repoOf = (s: Store): string => {
   const sn = pipeSnap(s) as J, r = sn?.team?.repo ?? sn?.repo ?? '';
   return REPO_RE.test(r) ? r : '';
-};
-export const prHref = (u: unknown): string => {
-  const m = String(u || '').match(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/\d+$/);
-  return m && REPO_RE.test(m[1] ?? '') ? String(u) : '';
 };
 export const branchHref = (repo: string, b: unknown) => (repo && b ? `https://github.com/${repo}/tree/${b}` : '');
 
