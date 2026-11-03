@@ -238,6 +238,9 @@ test('keyboard: off by default; the help checkbox turns it on; the single keys',
   await page.keyboard.press('?');
   await expect(page.locator('#help')).toBeVisible();
   await page.keyboard.press('Escape');
+  await page.goto('/v2/#pipeline/belts/FXA-4');
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/#pipeline\/belts$/);
   await page.goto('/v2/#teams/example');
   await page.keyboard.press('l');
   await expect(page).toHaveURL(/#teams\/example\/routines$/);
