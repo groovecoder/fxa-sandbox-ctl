@@ -38,6 +38,7 @@ PROFILES_DIR = ROOT.parent / "profiles"
 sys.path.insert(0, str(ROOT.parent / "lib"))
 import fxadb  # noqa: E402  the controller's store: sessions as they change
 import routine  # noqa: E402  the one reader of a team's spend against its caps
+import live  # noqa: E402  the /api/live hub, on only with FXA_LIVE=1
 
 
 
@@ -472,6 +473,22 @@ def agent_tail(key):
 
 
 WATCHERS = threading.BoundedSemaphore(16)  # each is one ssh to a runner
+LIVE = threading.BoundedSemaphore(24)  # open /api/live streams
+HUB = None  # the live.LiveHub; only FXA_LIVE=1 starts it
+
+
+def sse(f):
+    """One C1 frame as SSE text, masked as every API reply is."""
+    head = f"id: {f['id']}\n" if "id" in f else ""
+    return MASK.sub(r"\1<masked>", f"{head}event: {f['event']}\ndata: {json.dumps(f['data'], separators=(',', ':'))}\n\n").encode()
+
+
+def on_sigterm(signum, frame):
+    """Tell each open stream that the server stops, give the streams a moment to send it, then exit."""
+    if HUB is not None:
+        HUB.shutdown()
+        time.sleep(1.5)
+    raise SystemExit(0)
 
 
 def watch_session(thread):
@@ -597,8 +614,12 @@ def team_record_admins(team):
     if hit and time.time() - hit[0] < 60:
         return hit[1]
     try:
-        out = ctl_run(["profile", "get", team], timeout=60)
-        rec = json.loads(out.stdout) if out.returncode == 0 else {}
+        if HUB is not None:  # the record file that profile get reads, with no ctl process
+            rec = json.loads((Path(os.environ.get("FXA_TEAMS_DIR") or Path.home() / ".claude/state/teams") / f"{team}.json").read_text()) \
+                if re.fullmatch(TEAM_NAME, team or "") else {}
+        else:
+            out = ctl_run(["profile", "get", team], timeout=60)
+            rec = json.loads(out.stdout) if out.returncode == 0 else {}
         emails = frozenset(a["email"].lower() for a in rec.get("admins", []) if isinstance(a, dict) and isinstance(a.get("email"), str))
     except (OSError, ValueError, AttributeError, TimeoutError, subprocess.SubprocessError):
         emails = frozenset()
@@ -644,6 +665,18 @@ def redact_fix(s):
     if not isinstance(s, dict) or not s.get("fix_pr"):
         return s
     return dict({k: v for k, v in redact_session(s).items() if k not in FIX_PRIVATE}, fix_run=True)
+
+
+def session_for(s, admin):
+    """A session row as /api/snapshot sends it to this viewer: redacted for a non-admin, without SESSION_UNUSED."""
+    if not admin and isinstance(s, dict):
+        s = redact_fix(redact_session(s) if team_private(s.get("profile") or "fxa") else s)
+    return {k: v for k, v in s.items() if k not in SESSION_UNUSED} if isinstance(s, dict) else s
+
+
+def agents_for(ag, admin):
+    """The agents feed for this viewer: each session through session_for."""
+    return dict(ag, sessions=[session_for(s, admin) for s in ag.get("sessions") or []]) if isinstance(ag, dict) else ag
 
 
 TEAM_FEEDS = {}   # team -> Feed: each other pipeline team's snapshot (FULL is FxA's)
@@ -767,6 +800,22 @@ def team_test_tail(name, now):
     lines = [x for x in log.read_text(errors="replace").splitlines() if x.strip()][-25:] if fresh else []
     started = int(pidf.stat().st_mtime) if fresh and pidf.exists() else None
     return {**out, "started_at": started, "lines": lines}
+
+
+def team_rows(data):
+    """(the teams of /api/teams, each with its issues; top-level issues; the access rules; their read error) from the teams feed."""
+    access, access_err = read_access()
+    records = read_records()
+    teams = []
+    if data is not None:  # the diff needs the list; before it, every dir would look broken
+        listed = {t.get("profile") for t in data}
+        now = int(time.time())
+        teams = [dict(t, access=team_access(t.get("profile"), access, records), test=team_test(t.get("profile"), now),
+                      **dict(zip(("budget", "budget_error"), team_budget(t.get("profile"), now)))) for t in data]
+        teams += [{"profile": d, "load_error": True}
+                  for d in sorted(p.parent.name for p in PROFILES_DIR.glob("*/profile.conf")) if d not in listed]
+    per, top = team_issues(teams, access if data is not None else None, records)
+    return [dict(t, issues=i) for t, i in zip(teams, per)], top, access, access_err
 
 
 def team_access(profile, access, records=None):
@@ -1145,9 +1194,71 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._team_ctl(user, ["set", name, None, "--generation", gen], rec)
 
+    def _live(self, since):
+        """GET /api/live: the C1 event stream of dashboard/live.py, or one bye when the hub is off or full."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("X-Accel-Buffering", "no")
+        self._hardening()
+        self.end_headers()
+        hub = HUB
+        if hub is None or not LIVE.acquire(blocking=False):
+            self.wfile.write(sse({"event": "bye", "data": {"reason": "full", "retry_s": 30} if hub else {"reason": "off"}}))
+            return
+        s = None
+        try:
+            user = signed_user(self.headers, "GET", "/api/live", read_hmac_key(), int(time.time()))
+            s = hub.open({"user": user, "admin": bool(user and user in team_admins()), "teams": admin_teams(user) if user else []},
+                         self.headers.get("Last-Event-ID") or since)
+            # Here and not on Handler.timeout, which every request shares: a write that waits 10 s ends the stream.
+            self.connection.settimeout(10)
+            for f in s.frames():
+                if f is not None:
+                    self.wfile.write(sse(f))
+                    self.wfile.flush()
+        except OSError:
+            pass  # the viewer left, or a write timed out
+        finally:
+            if s:
+                hub.close(s)
+            LIVE.release()
+
+    def _live_tails(self, path):
+        """POST /api/live/tails {sid, keys}: the terminals that one stream shows, at most 8. The hub reads only these."""
+        if HUB is None:
+            self._json(404, {"error": "the live stream is off"})
+            return
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
+            self._json(415, {"error": "send JSON"})
+            return
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(n) or b"{}") if 0 <= n <= 4096 else None
+        except ValueError:
+            body = None
+        sid, keys = (body.get("sid"), body.get("keys")) if isinstance(body, dict) else (None, None)
+        ok = isinstance(sid, str) and isinstance(keys, list) and len(keys) <= 8 and all(isinstance(k, str) for k in keys)
+        # The same key rule as /api/tail, which lowercases a session key.
+        keys = [k.lower() if k.lower().startswith("agent-") else k for k in keys] if ok else []
+        if not ok or not all(TAIL_KEY.fullmatch(k) for k in keys):
+            self._json(400, {"error": "send {\"sid\": \"<the hello sid>\", \"keys\": [at most 8 session keys]}"})
+            return
+        s = HUB.streams.get(sid)
+        if s is None or s.viewer["user"] != signed_user(self.headers, "POST", path, read_hmac_key(), int(time.time())):
+            self._json(403, {"error": "no open stream of this user has that sid"})
+            return
+        if not s.viewer["admin"] and any(HUB.private_key(k) for k in keys):
+            self._json(403, {"error": "a private team's session: team admins only"})
+            return
+        HUB.subscribe(s, keys)
+        self._json(200, {"ok": True, "keys": keys})
+
     def do_POST(self):
         path = self.path.split("?")[0]
         if not self._allowed(True):
+            return
+        if path == "/api/live/tails":
+            self._live_tails(path)
             return
         if re.fullmatch(rf"/api/teams/{TEAM_NAME}/routines(/[0-9]{{1,9}}(/(pause|resume|delete|run|stop))?)?", path):
             self._routine_write(path)
@@ -1338,12 +1449,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/snapshot":
             snap, age, err, busy = FULL.read()
             ag, ag_age, ag_err, ag_busy = AGENTS.read()
-            if isinstance(ag, dict) and not self._team_admin(path):
-                ag = dict(ag, sessions=[redact_fix(redact_session(s) if isinstance(s, dict) and team_private(s.get("profile") or "fxa") else s)
-                                        for s in ag.get("sessions") or []])
-            if isinstance(ag, dict):
-                ag = dict(ag, sessions=[{k: v for k, v in s.items() if k not in SESSION_UNUSED} if isinstance(s, dict) else s
-                                        for s in ag.get("sessions") or []])
+            ag = agents_for(ag, self._team_admin(path))
             # The stats feed's age and error, so a page tells live figures from old ones; /api/stats stays as it is.
             _, st_age, st_err, _ = STATS.read()
             # Every other pipeline team's snapshot, for this viewer (team_snapshot): signed per request, never raw.
@@ -1371,7 +1477,7 @@ class Handler(BaseHTTPRequestHandler):
             # agent_tail lowercases the key, so the private check must see the same session: AGENT-123456 is agent-123456.
             if key.lower().startswith("agent-"):
                 key = key.lower()
-            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*-\d+|agent-[a-z0-9]{4,12}", key):
+            if not TAIL_KEY.fullmatch(key):
                 self._json(400, {"error": "bad key"})
             elif key.startswith("agent-") and session_private(key) and not self._team_admin(path):
                 self._json(403, {"error": "a private team's session: team admins only"})
@@ -1446,32 +1552,26 @@ class Handler(BaseHTTPRequestHandler):
                                min(int(days), 90) if days.isdigit() and int(days) else 7, os.path.dirname(ERRORS_FILE), str(SESSION_DIR),
                                lambda t: not admin and team_private(t), admin, ended, src if src in ("pipeline", "slack", "routine") else None)
             self._json(200, {"runs": runs, "error": None if rows is not None else "stats unavailable"})
+        elif path == "/api/live":
+            self._live(arg("since"))
         elif path == "/api/stats":
-            data = STATS.read()[0]
+            # inproc=1: the hub's copy, the base of its stats frames (v2); the shell feed until the hub has one.
+            data = HUB.stats if HUB is not None and arg("inproc") == "1" and HUB.stats is not None else STATS.read()[0]
             self._json(200, data if data is not None else {"error": "stats unavailable"}, etag=data is not None)
         elif path == "/api/overview":
             data = STATS.read()[0]
             self._json(200, overview_slice(data) if data is not None else {"error": "stats unavailable"}, etag=data is not None)
         elif path == "/api/teams":
             data, age, err, busy = TEAMS.read()
-            access, access_err = read_access()
-            records = read_records()
-            teams = []
-            if data is not None:  # the diff needs the list; before it, every dir would look broken
-                listed = {t.get("profile") for t in data}
-                now = int(time.time())
-                teams = [dict(t, access=team_access(t.get("profile"), access, records), test=team_test(t.get("profile"), now),
-                              **dict(zip(("budget", "budget_error"), team_budget(t.get("profile"), now)))) for t in data]
-                teams += [{"profile": d, "load_error": True}
-                          for d in sorted(p.parent.name for p in PROFILES_DIR.glob("*/profile.conf")) if d not in listed]
-            per, top = team_issues(teams, access if data is not None else None, records)
-            self._json(200, {"teams": [dict(t, issues=i) for t, i in zip(teams, per)], "issues": top,
+            teams, top, access, access_err = team_rows(data)
+            self._json(200, {"teams": teams, "issues": top,
                              # The file name only: the path names the operator's home directory.
                              "access_source": access and {"file": os.path.basename(access["path"]), "mtime": access["mtime"]},
                              "access_error": access_err, "age_seconds": age, "error": err,
                              "refreshing": busy, "interval": TEAMS.interval})
         elif path == "/api/errors":
-            body = cached_ctl(ERRORS, ["errors", "--json"], 20, 20)
+            # With the hub on, its in-process read of the store; else the ctl's, as before.
+            body = json.dumps(HUB.errors) if HUB is not None and HUB.errors is not None else cached_ctl(ERRORS, ["errors", "--json"], 20, 20)
             if body is None:  # no read has worked yet: not the same as no errors
                 self._json(503, {"error": "the errors read failed"})
             else:
@@ -1542,6 +1642,10 @@ if __name__ == "__main__":
           f"tickets every {INTERVAL}s, agents every {AGENTS_INTERVAL}s)")
     print("Ctrl-C to stop.")
     atexit.register(close_desktops)
+    if os.environ.get("FXA_LIVE") == "1":
+        HUB = live.LiveHub(sys.modules[__name__])
+        HUB.start()
+        signal.signal(signal.SIGTERM, on_sigterm)
     try:
         # 127.0.0.1 unless told otherwise: on the manager VM the Cloud Run gateway
         # reaches it on the private network, and a GCP firewall rule admits only it.
