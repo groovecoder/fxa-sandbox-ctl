@@ -35,7 +35,7 @@ export const errorsAction = (got: Got): Action => ('data' in got && Array.isArra
   ? feed('errors', got.data, 0, 15, null)
   : feed('errors', null, null, 15, 'error' in got ? got.error : 'the answer is not a list', false, false));
 export const teamsAction = (got: Got<{ teams?: unknown[]; age_seconds?: number; error?: string }>): Action => ('data' in got
-  ? feed('teams', got.data.teams ?? [], got.data.age_seconds ?? 0, 300, got.data.error)
+  ? feed('teams', got.data.teams ?? [], got.data.age_seconds, 300, got.data.error)
   : feed('teams', null, null, 300, `the teams read failed (${got.error})`, false, false));
 export const viewerAction = (got: Got<{ user?: string; admin?: boolean; teams?: string[] }>): Action => {
   const v: Viewer = 'data' in got ? { user: got.data.user ?? null, admin: !!got.data.admin, teams: got.data.teams ?? [] } : { user: null, admin: false, teams: [] };
