@@ -51,9 +51,11 @@ export const feedName = (n: string): FeedName => (n === 'snapshot' ? 'full' : n.
 
 function feed(st: State, f: FeedFrame): State {
   const name = feedName(f.name), old = st.feeds[name];
+  // A stats frame with no data is the age from a snapshot poll: a failed stats read keeps its error until a read works.
+  const keep = name === 'stats' && !('data' in f) ? old?.error ?? null : null;
   const next: FeedState = {
     data: 'data' in f ? f.data ?? null : old?.data ?? null,
-    ageSeconds: f.age_seconds, interval: f.interval, error: f.error, refreshing: f.refreshing, fetchedAt: f.fetched_at,
+    ageSeconds: f.age_seconds, interval: f.interval, error: f.error ?? keep, refreshing: f.refreshing, fetchedAt: f.fetched_at,
   };
   const out = { ...st, feeds: { ...st.feeds, [name]: next } };
   return name === 'agents' && 'data' in f ? withSessions(out, out.live.fresh) : out;

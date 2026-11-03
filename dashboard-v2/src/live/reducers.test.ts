@@ -127,3 +127,11 @@ test('an agents feed read that is older than a delta keeps the delta row; a newe
   expect(sess(newer, 'agent-ex0002')?.turns).toBe(9);
   expect(newer.live.fresh['agent-ex0002']).toBeUndefined();
 });
+
+test('a failed stats read keeps its error when the next snapshot poll brings only the stats age', () => {
+  const age: Action = { event: 'feed', data: { name: 'stats', age_seconds: 10, interval: 60, error: null, refreshing: false, fetched_at: NOW } };
+  const failed = run([{ event: 'stats-loading' }, { event: 'stats-error', data: { error: 'the stats feed could not be read (HTTP 502)' } }, age]);
+  expect(failed.feeds.stats?.error).toBe('the stats feed could not be read (HTTP 502)');
+  const ok = run([{ event: 'stats-base', data: { stats: { rows: [] }, etag: null } }, age], failed);
+  expect(ok.feeds.stats?.error).toBeNull();
+});
