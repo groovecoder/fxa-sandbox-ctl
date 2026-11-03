@@ -33,7 +33,7 @@ export function sessionsAction(j: { rows?: Record<string, unknown>[] }): Action 
 // A failed read keeps the last list and says why.
 export const errorsAction = (got: Got): Action => ('data' in got && Array.isArray(got.data)
   ? feed('errors', got.data, 0, 15, null)
-  : feed('errors', null, null, 15, 'error' in got ? got.error : 'the answer is not a list', false, false));
+  : feed('errors', null, null, 15, 'error' in got ? got.error : (got.data as { error?: string } | null)?.error || 'the answer is not a list', false, false));
 export const teamsAction = (got: Got<{ teams?: unknown[]; age_seconds?: number; error?: string }>): Action => ('data' in got
   ? feed('teams', got.data.teams ?? [], got.data.age_seconds, 300, got.data.error)
   : feed('teams', null, null, 300, `the teams read failed (${got.error})`, false, false));

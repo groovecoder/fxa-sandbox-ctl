@@ -42,7 +42,7 @@ export const VIEWS: ViewDef[] = [
   },
   {
     id: 'errors', title: 'Errors', sub: 'Failures from the controller and the bot, grouped by signature',
-    tabs: tabs(['open', 'Open'], ['all', 'All']), side: true, right: true, bareTabs: [],
+    tabs: tabs(['open', 'Open'], ['all', 'All']), side: true, right: true, bareTabs: [], load: () => import('../views/errors'),
   },
   {
     id: 'runners', title: 'Sandboxes', sub: 'Where the agents run, who uses them, and what it costs',

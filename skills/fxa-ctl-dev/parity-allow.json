@@ -93,5 +93,11 @@
   "v1": "",
   "v2": "0 of 8 allowed",
   "why": "not a v1 bug: a fixture whose /api/teams has no age_seconds leaves v1 on \"loading teams\" (index.html 2501), so v1 shows no routines; the v2 harness takes the teams from the snapshot"
+ },
+ {
+  "key": "errors.all.empty",
+  "v1": "No open errors.",
+  "v2": "No errors recorded.",
+  "why": "v1 index.html 1707: the All tab with no row said \"No open errors.\"; v2 says \"No errors recorded.\""
  }
 ]

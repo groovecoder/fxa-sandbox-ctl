@@ -2,7 +2,7 @@
 # Compare the dashboard shell of v1 and v2 on the v1 page fixtures: rail badges and their tones, tab counts,
 # the health word and the tab title, and per Stats tab its KPI tiles, headings and empty texts.
 # v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
-#   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json
+#   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json and parity-fixture*.json
 #   bash skills/fxa-ctl-dev/parity-v2.sh --compare v1.json v2.json [name]   only the compare step, on probe outputs
 # A diff that parity-allow.json lists (a known v1 bug that v2 fixes) passes; any other diff fails.
 # The views add their probes to PROBE in wave 2.
@@ -176,7 +176,30 @@ for (const r of ["teams/example/routines", "teams/example/routines/1"]) {
     names: rtAll("[data-routines] [data-rt-sel]"), says: rtAll("[data-routines] .says"), runs: rtAll("[data-routines] .rtd .item .title"), lives: rtAll("[data-routines] [data-rt-live] .key") };
 }
 return JSON.stringify(out);'
-[ $# -gt 0 ] || set -- "$here"/page-fixture*.json
+PROBE="${PROBE%return JSON.stringify(out);}"'
+// Errors: the head, the rows with their tag and meta, the empty and failure texts, the list and the details.
+const errNorm = (t) => (t ?? "").replace(/\s+/g, " ").replace(/\b-?\d+[smhd] ago\b|\bNaNd ago\b/g, "~").trim();
+const errAll = (sel) => [...document.querySelectorAll(sel)];
+out.errors = {};
+for (const t of ["open", "all"]) {
+  location.hash = "#errors/" + t; await sleep(400);
+  const s = document.getElementById("s-errors");
+  out.errors[t] = {
+    head: errNorm(s?.querySelector("h2")?.textContent),
+    rows: errAll("#s-errors .errs .err").map((e) => e.id + " " + errNorm(e.firstElementChild?.textContent)).join(", "),
+    meta: errAll("#s-errors .errs .err .meta").map((e) => errNorm(e.textContent)).join(" | "),
+    empty: errNorm(s?.querySelector(".emptybox:not([role=alert])")?.textContent),
+    alert: errNorm(s?.querySelector("[role=alert]")?.textContent),
+    hint: errAll("#s-errors p.empty").length,
+    side: errAll("#side button.si").map((b) => b.dataset.id + (b.getAttribute("aria-current") ? "*" : "") + " " + errNorm(b.querySelector(".t")?.textContent) + " / " + errNorm(b.querySelector(".m")?.textContent)).join(" | "),
+    sideEmpty: errNorm(document.querySelector("#side .slist2 .empty")?.textContent),
+    right: errNorm(document.querySelector("#right h2.rh")?.textContent),
+  };
+}
+return JSON.stringify(out);'
+
+# parity-fixture-*.json are v1 page fixtures for a view's probes only, so v1-golden.sh does not read them.
+[ $# -gt 0 ] || set -- "$here"/page-fixture*.json "$here"/parity-fixture*.json
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"; pid=""
 trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 printf '%s' "$PROBE" > "$tmp/probe.js"

@@ -1,0 +1,12 @@
+{
+ "/api/errors": [
+  {"sig": "a1b2c3d4e5", "source": "ctl", "kind": "boot_failed", "status": "open", "message": "the sample runner did not boot", "where": "session", "log": null,
+   "count": 4, "first": "@iso-86400", "last": "@iso-300", "keys": ["agent-ex0001", "agent-ex0003"], "resolved": null},
+  {"sig": "b2c3d4e5f6", "source": "bot", "kind": "slack_post", "status": "reopened", "message": "a sample post failed", "where": "bot", "log": "errors/b2c3d4e5f6.log",
+   "count": 2, "first": "@iso-172800", "last": "@iso-7200", "keys": [], "resolved": {"at": "@iso-90000", "note": "retry the post"}},
+  {"sig": "c3d4e5f6a7", "source": "ctl", "kind": "boot_failed", "status": "quiet", "message": "an old boot failure", "where": "session", "log": null,
+   "count": 1, "first": "@iso-1000000", "last": "@iso-691200", "keys": [], "resolved": null},
+  {"sig": "d4e5f6a7b8", "source": "bot", "kind": "slack_post", "status": "resolved", "message": "a fixed post failure", "where": "bot", "log": null,
+   "count": 1, "first": "@iso-1000000", "last": "@iso-86400", "keys": [], "resolved": {"at": "@iso-3600", "note": ""}}
+ ]
+}
