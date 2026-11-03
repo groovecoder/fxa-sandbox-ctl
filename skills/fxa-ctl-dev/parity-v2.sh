@@ -152,6 +152,17 @@ for (const t of ["all", "pipeline", "slack", "routines"]) {
   }
 }
 return JSON.stringify(out);'
+# Teams part B: the routines list and the page of routine 1 of the team "example" (the routine fixtures).
+# A seconds age drops its number: v1 and v2 render a few seconds apart.
+PROBE="${PROBE%return JSON.stringify(out);}"'
+const rtAll = (s) => [...document.querySelectorAll(s)].map((e) => e.textContent.replace(/\s+/g, " ").trim().replace(/\b\d+s ago\b/g, "s ago")).join("|");
+out.routines = {};
+for (const r of ["teams/example/routines", "teams/example/routines/1"]) {
+  location.hash = "#" + r; await sleep(800);
+  out.routines[r.endsWith("/1") ? "detail" : "list"] = { head: rtAll("[data-routines] .rt-head .n"), kpis: rtAll("[data-routines] .rtkpis > *"),
+    names: rtAll("[data-routines] [data-rt-sel]"), says: rtAll("[data-routines] .says"), runs: rtAll("[data-routines] .rtd .item .title"), lives: rtAll("[data-routines] [data-rt-live] .key") };
+}
+return JSON.stringify(out);'
 [ $# -gt 0 ] || set -- "$here"/page-fixture*.json
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"; pid=""
 trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT

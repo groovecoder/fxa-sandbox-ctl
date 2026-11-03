@@ -69,5 +69,29 @@
   "key": "sessions.stopped.side",
   "fixture": "page-fixture-depfix",
   "why": "fixture harness: serve.py's server redacts fix_pr for its localhost viewer, who is not an admin, while the fixture's /api/team-admin says admin; page.sh gives v1 the rows unredacted"
+ },
+ {
+  "key": "routines.detail.runs",
+  "fixture": "page-fixture-routines",
+  "v1": "|",
+  "v2": "",
+  "why": "not a v1 bug: page.sh answers /api/teams/example/routines/1/history with the routine list (its longest-prefix rule), and serve.py answers [] for a path the fixture does not name"
+ },
+ {
+  "key": "routines.detail.kpis",
+  "fixture": "page-fixture-routines",
+  "why": "not a v1 bug: page.sh answers /api/teams/example/routines/1/history with the routine list (its longest-prefix rule), and serve.py answers [] for a path the fixture does not name"
+ },
+ {
+  "key": "routines.list.head",
+  "v1": "",
+  "v2": "0 of 8 allowed",
+  "why": "not a v1 bug: a fixture whose /api/teams has no age_seconds leaves v1 on \"loading teams\" (index.html 2501), so v1 shows no routines; the v2 harness takes the teams from the snapshot"
+ },
+ {
+  "key": "routines.detail.head",
+  "v1": "",
+  "v2": "0 of 8 allowed",
+  "why": "not a v1 bug: a fixture whose /api/teams has no age_seconds leaves v1 on \"loading teams\" (index.html 2501), so v1 shows no routines; the v2 harness takes the teams from the snapshot"
  }
 ]
