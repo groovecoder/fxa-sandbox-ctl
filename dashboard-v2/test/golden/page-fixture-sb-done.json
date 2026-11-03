@@ -1,0 +1,116 @@
+{
+ "now": 1793750400000,
+ "tz": "UTC",
+ "pipeSnap": "undefined",
+ "merged": {
+  "cards": [],
+  "waiting": []
+ },
+ "boardItems": [],
+ "classify": [],
+ "laneRows": [],
+ "beltGroups": {
+  "working": [],
+  "needs": [],
+  "fixes": [],
+  "review": [],
+  "outside": [],
+  "unknown": {
+   "working": "Loading the pipeline\u2026",
+   "needs": "Loading the pipeline\u2026",
+   "fixes": "Loading the pipeline\u2026",
+   "review": "Loading the pipeline\u2026"
+  }
+ },
+ "beltCount": null,
+ "floorRows": {
+  "unknown": true,
+  "stale": false,
+  "rows": [],
+  "slots": 0,
+  "admin": false
+ },
+ "ovFloor": {
+  "unknown": true,
+  "stale": false,
+  "atWork": 0,
+  "tiles": []
+ },
+ "ovNeeds": {
+  "total": 0,
+  "sandbox": 0,
+  "by": {},
+  "unknown": "Loading the pipeline\u2026"
+ },
+ "sbRows": {
+  "live": [],
+  "fix": [],
+  "free": [],
+  "unknown": [],
+  "stale": true,
+  "err": null,
+  "sessionFree": null
+ },
+ "sbBadge": {
+  "n": "",
+  "cls": "",
+  "label": ""
+ },
+ "strays": [],
+ "statsBounds": {
+  "today": [
+   1793750400000,
+   "Infinity"
+  ],
+  "yesterday": [
+   1793664000000,
+   1793750400000
+  ],
+  "7d": [
+   1793232000000,
+   "Infinity"
+  ],
+  "30d": [
+   1791244800000,
+   "Infinity"
+  ],
+  "90d": [
+   1786060800000,
+   "Infinity"
+  ],
+  "month": [
+   1793491200000,
+   "Infinity"
+  ],
+  "lastmonth": [
+   1790812800000,
+   1793491200000
+  ],
+  "all": [
+   0,
+   "Infinity"
+  ]
+ },
+ "answerRows": [],
+ "sessHeads": [],
+ "chainOf": {},
+ "sessStatus": {},
+ "sessUsd": {},
+ "isWaitingOnHuman": {},
+ "verdictTag": {},
+ "queueWaits": [],
+ "skipGroups": [],
+ "teamNeeds": {},
+ "teamBadge": "",
+ "teamErrs": {},
+ "costPerMerged": {
+  "mergedIn": [],
+  "spentIn": 0,
+  "per": null
+ },
+ "health": {
+  "dot": "dot dead",
+  "word": "no passes"
+ },
+ "alerts": []
+}

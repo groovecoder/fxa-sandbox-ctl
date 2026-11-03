@@ -1,0 +1,1298 @@
+{
+ "now": 1793750400000,
+ "tz": "UTC",
+ "pipeSnap": {
+  "generated_at": "2026-10-18T19:00:00Z",
+  "pipeline": "example",
+  "repo": "example/app",
+  "team": {
+   "profile": "example",
+   "name": "Example",
+   "jira_site": "https://jira.example.com",
+   "queue_label": "ai-queue",
+   "pr_label": "bot-pr",
+   "repo": "example/app"
+  },
+  "limits": {
+   "attempts": 2,
+   "feedback_rounds": 2,
+   "merged_prs": 30
+  },
+  "queue": {
+   "total": 3,
+   "fetch_failed": false,
+   "ready": [
+    {
+     "key": "FXA-30",
+     "summary": "feat(auth): sample ready ticket"
+    }
+   ],
+   "skipped": [
+    {
+     "key": "FXA-6",
+     "summary": "fix(settings): sample ticket that needs a decision",
+     "passes": 2,
+     "reason": "pick a route",
+     "kind": "needs_decision",
+     "in_queue": true,
+     "queued_at": 1792000000
+    },
+    {
+     "key": "FXA-7",
+     "summary": "chore(deps): sample hold",
+     "passes": 1,
+     "reason": "held until FXA-2 merges",
+     "kind": "depends_on",
+     "held_by": "FXA-2",
+     "in_queue": true
+    }
+   ]
+  },
+  "blocked": [
+   {
+    "key": "FXA-1",
+    "summary": "fix(auth): sample blocked ticket",
+    "blocked_reason": {
+     "kind": "operator",
+     "text": "Blocked: needs a person to approve the tooling change before the next run",
+     "at": 1792200000
+    }
+   }
+  ],
+  "inflight": [
+   {
+    "key": "FXA-20",
+    "stage": "watching",
+    "summary": "feat(auth): sample live agent run"
+   },
+   {
+    "key": "FXA-21",
+    "stage": "starting",
+    "summary": "fix(settings): sample run that boots"
+   },
+   {
+    "key": "FXA-22",
+    "stage": "pr",
+    "summary": "fix(content): sample PR in CI",
+    "pr": 22,
+    "ok": 10,
+    "fail": 0,
+    "running": 3
+   }
+  ],
+  "inflight_fetch_failed": false,
+  "review": [
+   {
+    "key": "FXA-3",
+    "pr": 3,
+    "title": "fix(auth): sample PR with a failing check",
+    "state": "OPEN",
+    "fail": 1,
+    "ok": 21,
+    "running": 0,
+    "created": "2026-10-15T10:00:00Z"
+   },
+   {
+    "key": "FXA-4",
+    "pr": 4,
+    "title": "chore(deps): sample PR with conflicts",
+    "state": "OPEN",
+    "mergeable": "CONFLICTING",
+    "fail": 0,
+    "ok": 5,
+    "running": 0,
+    "created": "2026-10-14T10:00:00Z"
+   },
+   {
+    "key": "FXA-10",
+    "pr": 10,
+    "title": "feat(metrics): sample PR waiting on review",
+    "state": "OPEN",
+    "fail": 0,
+    "ok": 22,
+    "running": 0,
+    "review": "REVIEW_REQUIRED",
+    "created": "2026-10-08T10:00:00Z"
+   },
+   {
+    "key": "FXA-11",
+    "pr": 11,
+    "title": "fix(auth): another sample PR waiting on review",
+    "state": "OPEN",
+    "fail": 0,
+    "ok": 22,
+    "running": 0,
+    "created": "2026-10-16T10:00:00Z"
+   },
+   {
+    "key": "FXA-12",
+    "pr": 12,
+    "title": "merged sample",
+    "state": "MERGED",
+    "fail": 0,
+    "ok": 22,
+    "running": 0,
+    "created": "2026-10-10T10:00:00Z"
+   }
+  ],
+  "open_prs": [
+   {
+    "number": 3,
+    "key": "FXA-3",
+    "title": "x",
+    "created": "2026-10-15T10:00:00Z",
+    "branch": "FXA-3"
+   },
+   {
+    "number": 40,
+    "key": null,
+    "title": "fix: sample Slack PR",
+    "created": "2026-10-12T10:00:00Z",
+    "branch": "agent-abc123"
+   },
+   {
+    "number": 41,
+    "key": "FXA-41",
+    "title": "docs: sample PR outside the pipeline",
+    "created": "2026-10-17T10:00:00Z",
+    "branch": "FXA-41"
+   }
+  ],
+  "merged_prs": [
+   {
+    "number": 50,
+    "key": "FXA-50",
+    "title": "fix(auth): sample merged PR",
+    "created": "2026-10-27T00:00:00Z",
+    "merged": "2026-11-03T00:00:00Z",
+    "merged_by": "sample-reviewer"
+   }
+  ],
+  "health": {},
+  "pool": [],
+  "free_slots": [],
+  "instances": [],
+  "mode": {
+   "newtickets": "on"
+  },
+  "telemetry": {
+   "median_minutes": 20
+  }
+ },
+ "merged": {
+  "cards": [
+   {
+    "key": "FXA-20",
+    "stage": "watching",
+    "summary": "feat(auth): sample live agent run",
+    "name": "fxa-20",
+    "agent_alive": true,
+    "elapsed_seconds": 720,
+    "agent": {
+     "last_tool": "yarn test example-server",
+     "turns": 23
+    },
+    "live": true
+   },
+   {
+    "key": "FXA-21",
+    "stage": "starting",
+    "summary": "fix(settings): sample run that boots",
+    "name": "fxa-21",
+    "agent_alive": true,
+    "elapsed_seconds": 60,
+    "detail": "the sandbox boots",
+    "live": true
+   },
+   {
+    "key": "FXA-22",
+    "stage": "pr",
+    "summary": "fix(content): sample PR in CI",
+    "pr": 22,
+    "ok": 10,
+    "fail": 0,
+    "running": 3,
+    "live": false,
+    "ci": true,
+    "name": "",
+    "slot": "",
+    "agent": null,
+    "agent_alive": false
+   }
+  ],
+  "waiting": []
+ },
+ "boardItems": [
+  {
+   "key": "FXA-20",
+   "title": "feat(auth): sample live agent run",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "watching",
+   "why": "",
+   "age": 720,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "FXA-21",
+   "title": "fix(settings): sample run that boots",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "starting",
+   "why": "",
+   "age": 60,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "FXA-22",
+   "title": "fix(content): sample PR in CI",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "CI running",
+   "why": "",
+   "age": null,
+   "belt": true,
+   "ci": true,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "FXA-1",
+   "title": "fix(auth): sample blocked ticket",
+   "column": "blocked",
+   "kind": "operator",
+   "why": "Blocked: needs a person to approve the tooling change before the next run",
+   "since": 1792200000,
+   "age": 1550400,
+   "person": "the operator",
+   "waitsOn": null,
+   "group": "act",
+   "next": "Do what the reason says, then remove ai-fixme-blocked."
+  },
+  {
+   "key": "FXA-3",
+   "title": "fix(auth): sample PR with a failing check",
+   "column": "blocked",
+   "kind": "ci_red",
+   "why": "CI red: 1 failing",
+   "age": 1692000,
+   "pr": 3,
+   "belt": true,
+   "person": "the agent, next pass",
+   "waitsOn": null,
+   "group": "wait",
+   "next": "Nothing to do now: the agent fixes CI on its next pass."
+  },
+  {
+   "key": "FXA-4",
+   "title": "chore(deps): sample PR with conflicts",
+   "column": "blocked",
+   "kind": "conflicts",
+   "why": "conflicts",
+   "age": 1778400,
+   "pr": 4,
+   "belt": true,
+   "person": "the agent, next pass",
+   "waitsOn": null,
+   "group": "wait",
+   "next": "Nothing to do now: the next pass rebases the PR."
+  },
+  {
+   "key": "FXA-10",
+   "column": "review"
+  },
+  {
+   "key": "FXA-11",
+   "column": "review"
+  },
+  {
+   "key": "FXA-6",
+   "title": "fix(settings): sample ticket that needs a decision",
+   "column": "blocked",
+   "kind": "needs_decision",
+   "why": "pick a route",
+   "held_by": null,
+   "since": 1792000000,
+   "age": 1750400,
+   "passes": 2,
+   "person": "the reporter",
+   "waitsOn": null,
+   "group": "wait",
+   "next": "Answer the open question in the ticket. The next pass reads it again."
+  },
+  {
+   "key": "FXA-7",
+   "title": "chore(deps): sample hold",
+   "column": "blocked",
+   "kind": "depends_on",
+   "why": "held until FXA-2 merges",
+   "held_by": "FXA-2",
+   "since": null,
+   "age": null,
+   "passes": 1,
+   "person": "waits on FXA-2",
+   "waitsOn": "FXA-2",
+   "group": "wait",
+   "next": "Nothing to do now: a pass looks again when the blocker merges."
+  },
+  {
+   "key": "FXA-30",
+   "title": "feat(auth): sample ready ticket",
+   "column": "next",
+   "pos": 1,
+   "queued_at": null,
+   "age": null,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the next pass offers it when it reaches the front and a slot is free."
+  }
+ ],
+ "classify": [
+  {
+   "key": "FXA-20",
+   "title": "feat(auth): sample live agent run",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "watching",
+   "why": "",
+   "age": 720,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "FXA-21",
+   "title": "fix(settings): sample run that boots",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "starting",
+   "why": "",
+   "age": 60,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "FXA-22",
+   "title": "fix(content): sample PR in CI",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "CI running",
+   "why": "",
+   "age": null,
+   "belt": true,
+   "ci": true,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "FXA-1",
+   "title": "fix(auth): sample blocked ticket",
+   "column": "blocked",
+   "kind": "operator",
+   "why": "Blocked: needs a person to approve the tooling change before the next run",
+   "since": 1792200000,
+   "age": 1550400,
+   "person": "the operator",
+   "waitsOn": null,
+   "group": "act",
+   "next": "Do what the reason says, then remove ai-fixme-blocked."
+  },
+  {
+   "key": "FXA-3",
+   "title": "fix(auth): sample PR with a failing check",
+   "column": "blocked",
+   "kind": "ci_red",
+   "why": "CI red: 1 failing",
+   "age": 1692000,
+   "pr": 3,
+   "belt": true,
+   "person": "the agent, next pass",
+   "waitsOn": null,
+   "group": "wait",
+   "next": "Nothing to do now: the agent fixes CI on its next pass."
+  },
+  {
+   "key": "FXA-4",
+   "title": "chore(deps): sample PR with conflicts",
+   "column": "blocked",
+   "kind": "conflicts",
+   "why": "conflicts",
+   "age": 1778400,
+   "pr": 4,
+   "belt": true,
+   "person": "the agent, next pass",
+   "waitsOn": null,
+   "group": "wait",
+   "next": "Nothing to do now: the next pass rebases the PR."
+  },
+  {
+   "key": "FXA-10",
+   "column": "review",
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Read the Jira history for who added the label."
+  },
+  {
+   "key": "FXA-11",
+   "column": "review",
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Read the Jira history for who added the label."
+  },
+  {
+   "key": "FXA-6",
+   "title": "fix(settings): sample ticket that needs a decision",
+   "column": "blocked",
+   "kind": "needs_decision",
+   "why": "pick a route",
+   "held_by": null,
+   "since": 1792000000,
+   "age": 1750400,
+   "passes": 2,
+   "person": "the reporter",
+   "waitsOn": null,
+   "group": "wait",
+   "next": "Answer the open question in the ticket. The next pass reads it again."
+  },
+  {
+   "key": "FXA-7",
+   "title": "chore(deps): sample hold",
+   "column": "blocked",
+   "kind": "depends_on",
+   "why": "held until FXA-2 merges",
+   "held_by": "FXA-2",
+   "since": null,
+   "age": null,
+   "passes": 1,
+   "person": "waits on FXA-2",
+   "waitsOn": "FXA-2",
+   "group": "wait",
+   "next": "Nothing to do now: a pass looks again when the blocker merges."
+  },
+  {
+   "key": "FXA-30",
+   "title": "feat(auth): sample ready ticket",
+   "column": "next",
+   "pos": 1,
+   "queued_at": null,
+   "age": null,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the next pass offers it when it reaches the front and a slot is free."
+  }
+ ],
+ "laneRows": [
+  {
+   "t": {
+    "key": "FXA-20",
+    "stage": "watching",
+    "summary": "feat(auth): sample live agent run",
+    "name": "fxa-20",
+    "agent_alive": true,
+    "elapsed_seconds": 720,
+    "agent": {
+     "last_tool": "yarn test example-server",
+     "turns": 23
+    },
+    "live": true
+   },
+   "st": 2,
+   "kind": "live",
+   "l1": "yarn test example-server",
+   "l2": "12m of a 20m median \u00b7 0 files",
+   "runner": true,
+   "late": false
+  },
+  {
+   "t": {
+    "key": "FXA-21",
+    "stage": "starting",
+    "summary": "fix(settings): sample run that boots",
+    "name": "fxa-21",
+    "agent_alive": true,
+    "elapsed_seconds": 60,
+    "detail": "the sandbox boots",
+    "live": true
+   },
+   "st": 1,
+   "kind": "live",
+   "l1": "Boot: the sandbox boots",
+   "l2": "1m",
+   "runner": true,
+   "late": false
+  },
+  {
+   "t": {
+    "key": "FXA-22",
+    "stage": "pr",
+    "summary": "fix(content): sample PR in CI",
+    "pr": 22,
+    "ok": 10,
+    "fail": 0,
+    "running": 3,
+    "live": false,
+    "ci": true,
+    "name": "",
+    "slot": "",
+    "agent": null,
+    "agent_alive": false
+   },
+   "st": 6,
+   "kind": "live",
+   "l1": "CI 3 running",
+   "l2": "",
+   "checks": true
+  },
+  {
+   "t": {
+    "key": "FXA-4",
+    "pr": 4,
+    "title": "chore(deps): sample PR with conflicts",
+    "state": "OPEN",
+    "mergeable": "CONFLICTING",
+    "fail": 0,
+    "ok": 5,
+    "running": 0,
+    "created": "2026-10-14T10:00:00Z",
+    "summary": "chore(deps): sample PR with conflicts"
+   },
+   "st": 6,
+   "kind": "fix",
+   "l1": "Conflicts",
+   "l2": "21d open",
+   "checks": true,
+   "age": 21
+  },
+  {
+   "t": {
+    "key": "FXA-3",
+    "pr": 3,
+    "title": "fix(auth): sample PR with a failing check",
+    "state": "OPEN",
+    "fail": 1,
+    "ok": 21,
+    "running": 0,
+    "created": "2026-10-15T10:00:00Z",
+    "summary": "fix(auth): sample PR with a failing check"
+   },
+   "st": 6,
+   "kind": "fix",
+   "l1": "1 failing",
+   "l2": "20d open",
+   "checks": true,
+   "age": 20
+  },
+  {
+   "t": {
+    "key": "FXA-10",
+    "pr": 10,
+    "title": "feat(metrics): sample PR waiting on review",
+    "state": "OPEN",
+    "fail": 0,
+    "ok": 22,
+    "running": 0,
+    "review": "REVIEW_REQUIRED",
+    "created": "2026-10-08T10:00:00Z",
+    "summary": "feat(metrics): sample PR waiting on review"
+   },
+   "st": 7,
+   "kind": "warn",
+   "l1": "Waiting 27 days",
+   "l2": "no human review",
+   "checks": true,
+   "age": 27
+  },
+  {
+   "t": {
+    "key": "agent-abc123",
+    "pr": 40,
+    "summary": "fix: sample Slack PR",
+    "slack": true,
+    "routine": false,
+    "owner": "Sample Person",
+    "sess": {
+     "key": "agent-abc123",
+     "branch": "agent-abc123",
+     "owner": "U000SAMPLE",
+     "owner_name": "Sample Person",
+     "state": "stopped",
+     "created": 1792000000
+    }
+   },
+   "st": 7,
+   "kind": "warn",
+   "outside": true,
+   "l1": "Waiting 23 days",
+   "l2": "Sample Person's session",
+   "age": 23
+  },
+  {
+   "t": {
+    "key": "FXA-11",
+    "pr": 11,
+    "title": "fix(auth): another sample PR waiting on review",
+    "state": "OPEN",
+    "fail": 0,
+    "ok": 22,
+    "running": 0,
+    "created": "2026-10-16T10:00:00Z",
+    "summary": "fix(auth): another sample PR waiting on review"
+   },
+   "st": 7,
+   "kind": "warn",
+   "l1": "Waiting 19 days",
+   "l2": "no human review",
+   "checks": true,
+   "age": 19
+  },
+  {
+   "t": {
+    "key": "FXA-41",
+    "pr": 41,
+    "summary": "docs: sample PR outside the pipeline"
+   },
+   "st": 5,
+   "kind": "wait",
+   "l1": "Not in the pipeline",
+   "l2": "18d open",
+   "age": 18,
+   "outside": true
+  },
+  {
+   "t": {
+    "key": "FXA-12",
+    "pr": 12,
+    "title": "merged sample",
+    "state": "MERGED",
+    "fail": 0,
+    "ok": 22,
+    "running": 0,
+    "created": "2026-10-10T10:00:00Z",
+    "summary": "merged sample"
+   },
+   "st": 8,
+   "kind": "done",
+   "l1": "Merged",
+   "l2": "drain pending",
+   "checks": true,
+   "age": 25
+  }
+ ],
+ "beltGroups": {
+  "working": [
+   {
+    "t": {
+     "key": "FXA-20",
+     "stage": "watching",
+     "summary": "feat(auth): sample live agent run",
+     "name": "fxa-20",
+     "agent_alive": true,
+     "elapsed_seconds": 720,
+     "agent": {
+      "last_tool": "yarn test example-server",
+      "turns": 23
+     },
+     "live": true
+    },
+    "st": 2,
+    "kind": "live",
+    "l1": "Agent \u00b7 12 min",
+    "l2": "yarn test example-server",
+    "runner": true,
+    "late": false,
+    "tone": "k-live",
+    "group": "working",
+    "item": {
+     "key": "FXA-20",
+     "title": "feat(auth): sample live agent run",
+     "column": "running",
+     "fault": false,
+     "kind": null,
+     "stage": "watching",
+     "why": "",
+     "age": 720,
+     "belt": true,
+     "ci": false,
+     "person": null,
+     "waitsOn": null,
+     "group": null,
+     "next": "Nothing to do: the belt shows its progress."
+    }
+   },
+   {
+    "t": {
+     "key": "FXA-21",
+     "stage": "starting",
+     "summary": "fix(settings): sample run that boots",
+     "name": "fxa-21",
+     "agent_alive": true,
+     "elapsed_seconds": 60,
+     "detail": "the sandbox boots",
+     "live": true
+    },
+    "st": 1,
+    "kind": "live",
+    "l1": "Boot \u00b7 1 min",
+    "l2": "the sandbox boots",
+    "runner": true,
+    "late": false,
+    "tone": "k-live",
+    "group": "working",
+    "item": {
+     "key": "FXA-21",
+     "title": "fix(settings): sample run that boots",
+     "column": "running",
+     "fault": false,
+     "kind": null,
+     "stage": "starting",
+     "why": "",
+     "age": 60,
+     "belt": true,
+     "ci": false,
+     "person": null,
+     "waitsOn": null,
+     "group": null,
+     "next": "Nothing to do: the belt shows its progress."
+    }
+   }
+  ],
+  "needs": [
+   {
+    "t": {
+     "key": "FXA-1",
+     "summary": "fix(auth): sample blocked ticket"
+    },
+    "st": 0,
+    "tone": "k-warn",
+    "l1": "Blocked",
+    "l2": "Blocked: needs a person to approve the tooling change before the next run",
+    "ageText": "18d",
+    "group": "needs",
+    "item": {
+     "key": "FXA-1",
+     "title": "fix(auth): sample blocked ticket",
+     "column": "blocked",
+     "kind": "operator",
+     "why": "Blocked: needs a person to approve the tooling change before the next run",
+     "since": 1792200000,
+     "age": 1550400,
+     "person": "the operator",
+     "waitsOn": null,
+     "group": "act",
+     "next": "Do what the reason says, then remove ai-fixme-blocked."
+    }
+   }
+  ],
+  "fixes": [
+   {
+    "t": {
+     "key": "FXA-4",
+     "pr": 4,
+     "title": "chore(deps): sample PR with conflicts",
+     "state": "OPEN",
+     "mergeable": "CONFLICTING",
+     "fail": 0,
+     "ok": 5,
+     "running": 0,
+     "created": "2026-10-14T10:00:00Z",
+     "summary": "chore(deps): sample PR with conflicts"
+    },
+    "st": 6,
+    "kind": "fix",
+    "l1": "Conflicts",
+    "l2": "Nothing to do now: the next pass rebases the PR.",
+    "checks": true,
+    "age": 21,
+    "tone": "k-bad",
+    "group": "fixes",
+    "item": {
+     "key": "FXA-4",
+     "title": "chore(deps): sample PR with conflicts",
+     "column": "blocked",
+     "kind": "conflicts",
+     "why": "conflicts",
+     "age": 1778400,
+     "pr": 4,
+     "belt": true,
+     "person": "the agent, next pass",
+     "waitsOn": null,
+     "group": "wait",
+     "next": "Nothing to do now: the next pass rebases the PR."
+    }
+   },
+   {
+    "t": {
+     "key": "FXA-3",
+     "pr": 3,
+     "title": "fix(auth): sample PR with a failing check",
+     "state": "OPEN",
+     "fail": 1,
+     "ok": 21,
+     "running": 0,
+     "created": "2026-10-15T10:00:00Z",
+     "summary": "fix(auth): sample PR with a failing check"
+    },
+    "st": 6,
+    "kind": "fix",
+    "l1": "1 failing",
+    "l2": "Nothing to do now: the agent fixes CI on its next pass.",
+    "checks": true,
+    "age": 20,
+    "tone": "k-bad",
+    "group": "fixes",
+    "item": {
+     "key": "FXA-3",
+     "title": "fix(auth): sample PR with a failing check",
+     "column": "blocked",
+     "kind": "ci_red",
+     "why": "CI red: 1 failing",
+     "age": 1692000,
+     "pr": 3,
+     "belt": true,
+     "person": "the agent, next pass",
+     "waitsOn": null,
+     "group": "wait",
+     "next": "Nothing to do now: the agent fixes CI on its next pass."
+    }
+   }
+  ],
+  "review": [
+   {
+    "t": {
+     "key": "FXA-10",
+     "pr": 10,
+     "title": "feat(metrics): sample PR waiting on review",
+     "state": "OPEN",
+     "fail": 0,
+     "ok": 22,
+     "running": 0,
+     "review": "REVIEW_REQUIRED",
+     "created": "2026-10-08T10:00:00Z",
+     "summary": "feat(metrics): sample PR waiting on review"
+    },
+    "st": 7,
+    "kind": "warn",
+    "l1": "Waiting 27 days",
+    "l2": "no human review",
+    "checks": true,
+    "age": 27,
+    "tone": "k-ok",
+    "group": "review",
+    "item": {
+     "key": "FXA-10",
+     "column": "review"
+    }
+   },
+   {
+    "t": {
+     "key": "FXA-11",
+     "pr": 11,
+     "title": "fix(auth): another sample PR waiting on review",
+     "state": "OPEN",
+     "fail": 0,
+     "ok": 22,
+     "running": 0,
+     "created": "2026-10-16T10:00:00Z",
+     "summary": "fix(auth): another sample PR waiting on review"
+    },
+    "st": 7,
+    "kind": "warn",
+    "l1": "Waiting 19 days",
+    "l2": "no human review",
+    "checks": true,
+    "age": 19,
+    "tone": "k-ok",
+    "group": "review",
+    "item": {
+     "key": "FXA-11",
+     "column": "review"
+    }
+   },
+   {
+    "t": {
+     "key": "FXA-22",
+     "stage": "pr",
+     "summary": "fix(content): sample PR in CI",
+     "pr": 22,
+     "ok": 10,
+     "fail": 0,
+     "running": 3,
+     "live": false,
+     "ci": true,
+     "name": "",
+     "slot": "",
+     "agent": null,
+     "agent_alive": false
+    },
+    "st": 6,
+    "kind": "live",
+    "l1": "CI running",
+    "l2": "",
+    "checks": true,
+    "tone": "k-live",
+    "group": "review",
+    "item": {
+     "key": "FXA-22",
+     "title": "fix(content): sample PR in CI",
+     "column": "running",
+     "fault": false,
+     "kind": null,
+     "stage": "CI running",
+     "why": "",
+     "age": null,
+     "belt": true,
+     "ci": true,
+     "person": null,
+     "waitsOn": null,
+     "group": null,
+     "next": "Nothing to do: the belt shows its progress."
+    }
+   }
+  ],
+  "outside": [
+   {
+    "t": {
+     "key": "agent-abc123",
+     "pr": 40,
+     "summary": "fix: sample Slack PR",
+     "slack": true,
+     "routine": false,
+     "owner": "Sample Person",
+     "sess": {
+      "key": "agent-abc123",
+      "branch": "agent-abc123",
+      "owner": "U000SAMPLE",
+      "owner_name": "Sample Person",
+      "state": "stopped",
+      "created": 1792000000
+     }
+    },
+    "st": 7,
+    "kind": "warn",
+    "outside": true,
+    "l1": "Slack \u00b7 Sample Person's session",
+    "l2": "open 23 days",
+    "age": 23,
+    "tone": "k-warn",
+    "group": "outside"
+   },
+   {
+    "t": {
+     "key": "FXA-41",
+     "pr": 41,
+     "summary": "docs: sample PR outside the pipeline"
+    },
+    "st": 5,
+    "kind": "wait",
+    "l1": "Not in the pipeline",
+    "l2": "open 18 days",
+    "age": 18,
+    "outside": true,
+    "tone": "k-warn",
+    "group": "outside"
+   }
+  ],
+  "unknown": {
+   "working": "",
+   "needs": "",
+   "fixes": "",
+   "review": ""
+  }
+ },
+ "beltCount": 8,
+ "floorRows": {
+  "rows": [
+   {
+    "kind": "pipe",
+    "key": "FXA-20",
+    "slot": "",
+    "name": "fxa-20",
+    "age": 720,
+    "team": "example",
+    "title": "feat(auth): sample live agent run",
+    "st": 2,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "12m",
+    "href": "#pipeline/belts/FXA-20"
+   },
+   {
+    "kind": "pipe",
+    "key": "FXA-21",
+    "slot": "",
+    "name": "fxa-21",
+    "age": 60,
+    "team": "example",
+    "title": "fix(settings): sample run that boots",
+    "st": 1,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "1m",
+    "href": "#pipeline/belts/FXA-21"
+   }
+  ],
+  "stale": false,
+  "unknown": false,
+  "slots": 2,
+  "admin": false
+ },
+ "ovFloor": {
+  "tiles": [
+   {
+    "kind": "pipe",
+    "key": "FXA-20",
+    "slot": "",
+    "name": "fxa-20",
+    "age": 720,
+    "team": "example",
+    "title": "feat(auth): sample live agent run",
+    "st": 2,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "12m",
+    "href": "#pipeline/belts/FXA-20",
+    "out": "yarn test example-server"
+   },
+   {
+    "kind": "pipe",
+    "key": "FXA-21",
+    "slot": "",
+    "name": "fxa-21",
+    "age": 60,
+    "team": "example",
+    "title": "fix(settings): sample run that boots",
+    "st": 1,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "1m",
+    "href": "#pipeline/belts/FXA-21",
+    "out": ""
+   }
+  ],
+  "atWork": 2,
+  "slots": 2,
+  "admin": false
+ },
+ "ovNeeds": {
+  "total": 1,
+  "sandbox": 0,
+  "by": {
+   "the operator": 1
+  },
+  "unknown": ""
+ },
+ "sbRows": {
+  "live": [
+   {
+    "slot": "",
+    "key": "FXA-20",
+    "depfix": "",
+    "title": "feat(auth): sample live agent run",
+    "team": "example",
+    "where": "gce",
+    "started": null,
+    "age": 720,
+    "cap": null,
+    "max_seconds": null,
+    "cost": null,
+    "usd": null,
+    "session": null,
+    "pr": null,
+    "routine_run": null,
+    "routine_name": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "fault": "",
+    "fix": null,
+    "id": "pipe:FXA-20",
+    "src": "pipeline",
+    "state": "Stop 3 of 9, Agent"
+   },
+   {
+    "slot": "",
+    "key": "FXA-21",
+    "depfix": "",
+    "title": "fix(settings): sample run that boots",
+    "team": "example",
+    "where": "gce",
+    "started": null,
+    "age": 60,
+    "cap": null,
+    "max_seconds": null,
+    "cost": null,
+    "usd": null,
+    "session": null,
+    "pr": null,
+    "routine_run": null,
+    "routine_name": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "fault": "",
+    "fix": null,
+    "id": "pipe:FXA-21",
+    "src": "pipeline",
+    "state": "Stop 2 of 9, Boot"
+   }
+  ],
+  "fix": [],
+  "free": [],
+  "unknown": [],
+  "stale": false,
+  "err": null,
+  "sessionFree": null
+ },
+ "sbBadge": {
+  "n": "",
+  "cls": "",
+  "label": ""
+ },
+ "strays": [],
+ "statsBounds": {
+  "today": [
+   1793750400000,
+   "Infinity"
+  ],
+  "yesterday": [
+   1793664000000,
+   1793750400000
+  ],
+  "7d": [
+   1793232000000,
+   "Infinity"
+  ],
+  "30d": [
+   1791244800000,
+   "Infinity"
+  ],
+  "90d": [
+   1786060800000,
+   "Infinity"
+  ],
+  "month": [
+   1793491200000,
+   "Infinity"
+  ],
+  "lastmonth": [
+   1790812800000,
+   1793491200000
+  ],
+  "all": [
+   0,
+   "Infinity"
+  ]
+ },
+ "answerRows": [],
+ "sessHeads": [
+  "agent-abc123"
+ ],
+ "chainOf": {
+  "agent-abc123": [
+   "agent-abc123"
+  ]
+ },
+ "sessStatus": {
+  "agent-abc123": [
+   "stopped",
+   "dim"
+  ]
+ },
+ "sessUsd": {
+  "agent-abc123": "undefined"
+ },
+ "isWaitingOnHuman": {
+  "FXA-3": false,
+  "FXA-4": false,
+  "FXA-10": true,
+  "FXA-11": true,
+  "FXA-12": false
+ },
+ "verdictTag": {
+  "FXA-3": "<span class=\"tag bad\">1 failing</span>",
+  "FXA-4": "<span class=\"tag bad\">conflicts</span>",
+  "FXA-10": "<span class=\"tag ok\">green</span>",
+  "FXA-11": "<span class=\"tag ok\">green</span>",
+  "FXA-12": "<span class=\"tag merged\">merged</span>"
+ },
+ "queueWaits": [
+  {
+   "key": "FXA-6",
+   "summary": "fix(settings): sample ticket that needs a decision",
+   "passes": 2,
+   "reason": "pick a route",
+   "kind": "needs_decision",
+   "in_queue": true,
+   "queued_at": 1792000000
+  }
+ ],
+ "skipGroups": [
+  [
+   "Needs a decision",
+   [
+    {
+     "key": "FXA-6",
+     "summary": "fix(settings): sample ticket that needs a decision",
+     "passes": 2,
+     "reason": "pick a route",
+     "kind": "needs_decision",
+     "in_queue": true,
+     "queued_at": 1792000000
+    }
+   ]
+  ]
+ ],
+ "teamNeeds": {},
+ "teamBadge": "",
+ "teamErrs": {},
+ "costPerMerged": {
+  "mergedIn": [],
+  "spentIn": 0,
+  "per": null
+ },
+ "health": {
+  "dot": "dot dead",
+  "word": "no passes"
+ },
+ "alerts": [
+  {
+   "tone": "warn",
+   "text": "passno pass recorded yet"
+  }
+ ]
+}

@@ -3,6 +3,7 @@
 #   bash skills/fxa-ctl-dev/page.sh '#teams/example' [--fixture f.json] [--probe 'async js'] [--shot out.png] [--width 1280] [--height 900]
 # --probe is the body of an async function, run after the page settles; what it returns is printed.
 # PAGE_BUDGET: Chrome's virtual time budget in ms (default 6000), for a probe that waits through several poll intervals.
+# PAGE_NOW: an epoch in seconds. The fixture times and the page clock (Date) use it, so each run gives the same output.
 # Headless Chrome keeps the window at least 500 px wide: a narrower --width renders at 500. Test a phone
 # layout by the element's own width (a container query), not by --width under 500.
 # --shot writes a screenshot. With neither, it prints the rendered DOM.
@@ -25,14 +26,15 @@ import json, sys
 page, fixture, probe, out = sys.argv[1:]
 fx = json.load(open(fixture))
 # Times relative to the run: "@iso-3600" is an ISO time an hour ago, "@epoch+600" an epoch 10 min ahead, "@day-2" the local day two days ago.
-import re, time, datetime
+import os, re, time, datetime
+now = float(os.environ.get("PAGE_NOW") or time.time())
 def rel(v):
     if isinstance(v, dict): return {k: rel(x) for k, x in v.items()}
     if isinstance(v, list): return [rel(x) for x in v]
     m = re.fullmatch(r"@(iso|epoch|day)([+-]\d+)", v) if isinstance(v, str) else None
     if not m: return v
-    if m.group(1) == "day": return (datetime.date.today() + datetime.timedelta(days=int(m.group(2)))).isoformat()
-    t = time.time() + int(m.group(2))
+    if m.group(1) == "day": return (datetime.date.fromtimestamp(now) + datetime.timedelta(days=int(m.group(2)))).isoformat()
+    t = now + int(m.group(2))
     return int(t) if m.group(1) == "epoch" else datetime.datetime.fromtimestamp(t, datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 fx = rel(fx)
 # The longest fixture key that the URL path starts with wins; a miss answers [] for a list-like path, else {}.
@@ -40,6 +42,8 @@ stub = """<script>const __F=%s;window.fetch=async(u)=>{const p=new URL(String(u)
 const k=Object.keys(__F).filter(k=>p===k||p.startsWith(k+"/")).sort((a,b)=>b.length-a.length)[0];
 const body=k?__F[k]:(/sessions/.test(p)?{sessions:[],cursor:null}:/routines|errors/.test(p)?[]:{});
 return {ok:true,status:200,json:async()=>body,text:async()=>JSON.stringify(body)};};</script>""" % json.dumps(fx)
+if os.environ.get("PAGE_NOW"):
+    stub = """<script>(()=>{const N=%d,D=Date;window.Date=class extends D{constructor(...a){a.length?super(...a):super(N)}static now(){return N}};})();</script>""" % (now * 1000) + stub
 html = open(page).read().replace("<head>", "<head>" + stub, 1)
 if probe:
     html += """<script>setTimeout(async()=>{let t;try{t=String(await (async()=>{%s})())}catch(e){t="ERR "+e.message}

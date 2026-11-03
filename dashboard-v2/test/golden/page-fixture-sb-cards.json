@@ -1,0 +1,1067 @@
+{
+ "now": 1793750400000,
+ "tz": "UTC",
+ "pipeSnap": {
+  "repo": "example/repo",
+  "team": {
+   "profile": "example",
+   "name": "Example",
+   "jira_site": "https://jira.example.com",
+   "queue_label": "ai-fixme",
+   "pr_label": "auto",
+   "repo": "example/repo"
+  },
+  "generated_at": "2026-11-03T23:59:30Z",
+  "mode": {},
+  "limits": {
+   "attempts": 2,
+   "merged_prs": 30
+  },
+  "health": {
+   "seconds_since_pass": 240,
+   "last_pass_epoch": 1793750160,
+   "next_pass_epoch": 1793750460,
+   "pass_timer": "on",
+   "pass_times": [
+    1793750460,
+    1793750760,
+    1793751060,
+    1793751360,
+    1793751660,
+    1793751960,
+    1793752260,
+    1793752560,
+    1793752860,
+    1793753160,
+    1793753460,
+    1793753760,
+    1793754060,
+    1793754360,
+    1793754660,
+    1793754960,
+    1793755260,
+    1793755560,
+    1793755860,
+    1793756160,
+    1793756460,
+    1793756760,
+    1793757060,
+    1793757360,
+    1793757660,
+    1793757960,
+    1793758260,
+    1793758560,
+    1793758860,
+    1793759160,
+    1793759460,
+    1793759760,
+    1793760060,
+    1793760360,
+    1793760660,
+    1793760960,
+    1793761260,
+    1793761560,
+    1793761860,
+    1793762160,
+    1793762460,
+    1793762760,
+    1793763060,
+    1793763360,
+    1793763660,
+    1793763960,
+    1793764260,
+    1793764560,
+    1793804160,
+    1793804460,
+    1793804760,
+    1793805060,
+    1793805360,
+    1793805660,
+    1793805960,
+    1793806260,
+    1793806560,
+    1793806860,
+    1793807160,
+    1793807460
+   ],
+   "launches_24h": 3,
+   "max_launches_per_day": 40,
+   "lock_stale_seconds": 1800,
+   "free_gb": 80,
+   "min_free_gb": 20
+  },
+  "inflight": [
+   {
+    "key": "EX-101",
+    "summary": "Fix the sample login button",
+    "stage": "watching",
+    "branch": "ex-101"
+   },
+   {
+    "key": "EX-102",
+    "summary": "Sample settings page copy",
+    "stage": "starting",
+    "branch": "ex-102"
+   },
+   {
+    "key": "EX-103",
+    "summary": "Sample PR in CI",
+    "stage": "pr",
+    "pr": 42,
+    "ok": 18,
+    "fail": 0,
+    "running": 4
+   }
+  ],
+  "blocked": [
+   {
+    "key": "EX-104",
+    "summary": "Sample ticket that needs the operator",
+    "blocked_reason": {
+     "kind": "operator",
+     "text": "pick a route",
+     "at": 1793743200
+    }
+   }
+  ],
+  "review": [
+   {
+    "key": "EX-105",
+    "pr": 43,
+    "title": "Sample review wait",
+    "state": "OPEN",
+    "ok": 20,
+    "fail": 0,
+    "running": 0,
+    "created": "2026-10-29T05:06:40Z"
+   }
+  ],
+  "queue": {
+   "ready": [
+    {
+     "key": "EX-106",
+     "summary": "Sample ready ticket"
+    }
+   ],
+   "skipped": []
+  },
+  "pool": [
+   {
+    "slot": "ex-auto-1",
+    "agent": "ex-101",
+    "key": "EX-101",
+    "busy": true
+   },
+   {
+    "slot": "ex-auto-2",
+    "agent": "ex-102",
+    "key": "EX-102",
+    "busy": true
+   },
+   {
+    "slot": "ex-auto-3",
+    "agent": null,
+    "key": "HEAD",
+    "busy": false
+   },
+   {
+    "slot": "ex-auto-4",
+    "agent": null,
+    "key": "HEAD",
+    "busy": false
+   },
+   {
+    "slot": "ex-auto-5",
+    "agent": null,
+    "key": "HEAD",
+    "busy": false
+   }
+  ],
+  "free_slots": [
+   "ex-auto-3",
+   "ex-auto-4",
+   "ex-auto-5"
+  ],
+  "instances": [],
+  "open_prs": [],
+  "merged_prs": [],
+  "telemetry": {
+   "median_minutes": 20
+  },
+  "pipeline": {}
+ },
+ "merged": {
+  "cards": [
+   {
+    "key": "EX-101",
+    "summary": "Fix the sample login button",
+    "stage": "watching",
+    "branch": "ex-101",
+    "name": "ex-101",
+    "agent_alive": true,
+    "elapsed_seconds": 900,
+    "agent": {
+     "idle_seconds": 30,
+     "cost_so_far": 1.25,
+     "last_tool": "Bash npm test -- sample"
+    },
+    "live": true
+   },
+   {
+    "key": "EX-102",
+    "summary": "Sample settings page copy",
+    "stage": "starting",
+    "branch": "ex-102",
+    "name": "ex-102",
+    "agent_alive": true,
+    "elapsed_seconds": 60,
+    "agent": {},
+    "live": true
+   },
+   {
+    "key": "EX-103",
+    "summary": "Sample PR in CI",
+    "stage": "pr",
+    "pr": 42,
+    "ok": 18,
+    "fail": 0,
+    "running": 4,
+    "live": false,
+    "ci": true,
+    "name": "",
+    "slot": "",
+    "agent": null,
+    "agent_alive": false
+   }
+  ],
+  "waiting": []
+ },
+ "boardItems": [
+  {
+   "key": "EX-101",
+   "title": "Fix the sample login button",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "watching",
+   "why": "",
+   "age": 900,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "EX-102",
+   "title": "Sample settings page copy",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "starting",
+   "why": "",
+   "age": 60,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "EX-103",
+   "title": "Sample PR in CI",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "CI running",
+   "why": "",
+   "age": null,
+   "belt": true,
+   "ci": true,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "EX-104",
+   "title": "Sample ticket that needs the operator",
+   "column": "blocked",
+   "kind": "operator",
+   "why": "pick a route",
+   "since": 1793743200,
+   "age": 7200,
+   "person": "the operator",
+   "waitsOn": null,
+   "group": "act",
+   "next": "Do what the reason says, then remove ai-fixme-blocked."
+  },
+  {
+   "key": "EX-105",
+   "column": "review"
+  },
+  {
+   "key": "EX-106",
+   "title": "Sample ready ticket",
+   "column": "next",
+   "pos": 1,
+   "queued_at": null,
+   "age": null,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the next pass offers it when it reaches the front and a slot is free."
+  }
+ ],
+ "classify": [
+  {
+   "key": "EX-101",
+   "title": "Fix the sample login button",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "watching",
+   "why": "",
+   "age": 900,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "EX-102",
+   "title": "Sample settings page copy",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "starting",
+   "why": "",
+   "age": 60,
+   "belt": true,
+   "ci": false,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "EX-103",
+   "title": "Sample PR in CI",
+   "column": "running",
+   "fault": false,
+   "kind": null,
+   "stage": "CI running",
+   "why": "",
+   "age": null,
+   "belt": true,
+   "ci": true,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the belt shows its progress."
+  },
+  {
+   "key": "EX-104",
+   "title": "Sample ticket that needs the operator",
+   "column": "blocked",
+   "kind": "operator",
+   "why": "pick a route",
+   "since": 1793743200,
+   "age": 7200,
+   "person": "the operator",
+   "waitsOn": null,
+   "group": "act",
+   "next": "Do what the reason says, then remove ai-fixme-blocked."
+  },
+  {
+   "key": "EX-105",
+   "column": "review",
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Read the Jira history for who added the label."
+  },
+  {
+   "key": "EX-106",
+   "title": "Sample ready ticket",
+   "column": "next",
+   "pos": 1,
+   "queued_at": null,
+   "age": null,
+   "person": null,
+   "waitsOn": null,
+   "group": null,
+   "next": "Nothing to do: the next pass offers it when it reaches the front and a slot is free."
+  }
+ ],
+ "laneRows": [
+  {
+   "t": {
+    "key": "EX-101",
+    "summary": "Fix the sample login button",
+    "stage": "watching",
+    "branch": "ex-101",
+    "name": "ex-101",
+    "agent_alive": true,
+    "elapsed_seconds": 900,
+    "agent": {
+     "idle_seconds": 30,
+     "cost_so_far": 1.25,
+     "last_tool": "Bash npm test -- sample"
+    },
+    "live": true
+   },
+   "st": 2,
+   "kind": "live",
+   "l1": "Bash npm test -- sample",
+   "l2": "15m of a 20m median \u00b7 0 files",
+   "runner": true,
+   "late": false
+  },
+  {
+   "t": {
+    "key": "EX-102",
+    "summary": "Sample settings page copy",
+    "stage": "starting",
+    "branch": "ex-102",
+    "name": "ex-102",
+    "agent_alive": true,
+    "elapsed_seconds": 60,
+    "agent": {},
+    "live": true
+   },
+   "st": 1,
+   "kind": "live",
+   "l1": "Boot: starting",
+   "l2": "1m",
+   "runner": true,
+   "late": false
+  },
+  {
+   "t": {
+    "key": "EX-103",
+    "summary": "Sample PR in CI",
+    "stage": "pr",
+    "pr": 42,
+    "ok": 18,
+    "fail": 0,
+    "running": 4,
+    "live": false,
+    "ci": true,
+    "name": "",
+    "slot": "",
+    "agent": null,
+    "agent_alive": false
+   },
+   "st": 6,
+   "kind": "live",
+   "l1": "CI 4 running",
+   "l2": "",
+   "checks": true
+  },
+  {
+   "t": {
+    "key": "EX-105",
+    "pr": 43,
+    "title": "Sample review wait",
+    "state": "OPEN",
+    "ok": 20,
+    "fail": 0,
+    "running": 0,
+    "created": "2026-10-29T05:06:40Z",
+    "summary": "Sample review wait"
+   },
+   "st": 7,
+   "kind": "warn",
+   "l1": "Waiting 6 days",
+   "l2": "no human review",
+   "checks": true,
+   "age": 6
+  }
+ ],
+ "beltGroups": {
+  "working": [
+   {
+    "t": {
+     "key": "EX-101",
+     "summary": "Fix the sample login button",
+     "stage": "watching",
+     "branch": "ex-101",
+     "name": "ex-101",
+     "agent_alive": true,
+     "elapsed_seconds": 900,
+     "agent": {
+      "idle_seconds": 30,
+      "cost_so_far": 1.25,
+      "last_tool": "Bash npm test -- sample"
+     },
+     "live": true
+    },
+    "st": 2,
+    "kind": "live",
+    "l1": "Agent \u00b7 15 min",
+    "l2": "Bash npm test -- sample",
+    "runner": true,
+    "late": false,
+    "tone": "k-live",
+    "group": "working",
+    "item": {
+     "key": "EX-101",
+     "title": "Fix the sample login button",
+     "column": "running",
+     "fault": false,
+     "kind": null,
+     "stage": "watching",
+     "why": "",
+     "age": 900,
+     "belt": true,
+     "ci": false,
+     "person": null,
+     "waitsOn": null,
+     "group": null,
+     "next": "Nothing to do: the belt shows its progress."
+    }
+   },
+   {
+    "t": {
+     "key": "EX-102",
+     "summary": "Sample settings page copy",
+     "stage": "starting",
+     "branch": "ex-102",
+     "name": "ex-102",
+     "agent_alive": true,
+     "elapsed_seconds": 60,
+     "agent": {},
+     "live": true
+    },
+    "st": 1,
+    "kind": "live",
+    "l1": "Boot \u00b7 1 min",
+    "l2": "the sandbox boots",
+    "runner": true,
+    "late": false,
+    "tone": "k-live",
+    "group": "working",
+    "item": {
+     "key": "EX-102",
+     "title": "Sample settings page copy",
+     "column": "running",
+     "fault": false,
+     "kind": null,
+     "stage": "starting",
+     "why": "",
+     "age": 60,
+     "belt": true,
+     "ci": false,
+     "person": null,
+     "waitsOn": null,
+     "group": null,
+     "next": "Nothing to do: the belt shows its progress."
+    }
+   }
+  ],
+  "needs": [
+   {
+    "t": {
+     "key": "EX-104",
+     "summary": "Sample ticket that needs the operator"
+    },
+    "st": 0,
+    "tone": "k-warn",
+    "l1": "Blocked",
+    "l2": "pick a route",
+    "ageText": "2.0h",
+    "group": "needs",
+    "item": {
+     "key": "EX-104",
+     "title": "Sample ticket that needs the operator",
+     "column": "blocked",
+     "kind": "operator",
+     "why": "pick a route",
+     "since": 1793743200,
+     "age": 7200,
+     "person": "the operator",
+     "waitsOn": null,
+     "group": "act",
+     "next": "Do what the reason says, then remove ai-fixme-blocked."
+    }
+   }
+  ],
+  "fixes": [],
+  "review": [
+   {
+    "t": {
+     "key": "EX-105",
+     "pr": 43,
+     "title": "Sample review wait",
+     "state": "OPEN",
+     "ok": 20,
+     "fail": 0,
+     "running": 0,
+     "created": "2026-10-29T05:06:40Z",
+     "summary": "Sample review wait"
+    },
+    "st": 7,
+    "kind": "warn",
+    "l1": "Waiting 6 days",
+    "l2": "no human review",
+    "checks": true,
+    "age": 6,
+    "tone": "k-ok",
+    "group": "review",
+    "item": {
+     "key": "EX-105",
+     "column": "review"
+    }
+   },
+   {
+    "t": {
+     "key": "EX-103",
+     "summary": "Sample PR in CI",
+     "stage": "pr",
+     "pr": 42,
+     "ok": 18,
+     "fail": 0,
+     "running": 4,
+     "live": false,
+     "ci": true,
+     "name": "",
+     "slot": "",
+     "agent": null,
+     "agent_alive": false
+    },
+    "st": 6,
+    "kind": "live",
+    "l1": "CI running",
+    "l2": "",
+    "checks": true,
+    "tone": "k-live",
+    "group": "review",
+    "item": {
+     "key": "EX-103",
+     "title": "Sample PR in CI",
+     "column": "running",
+     "fault": false,
+     "kind": null,
+     "stage": "CI running",
+     "why": "",
+     "age": null,
+     "belt": true,
+     "ci": true,
+     "person": null,
+     "waitsOn": null,
+     "group": null,
+     "next": "Nothing to do: the belt shows its progress."
+    }
+   }
+  ],
+  "outside": [],
+  "unknown": {
+   "working": "",
+   "needs": "",
+   "fixes": "",
+   "review": ""
+  }
+ },
+ "beltCount": 5,
+ "floorRows": {
+  "rows": [
+   {
+    "kind": "pipe",
+    "key": "EX-101",
+    "slot": "ex-auto-1",
+    "name": "ex-101",
+    "age": 900,
+    "team": "example",
+    "title": "Fix the sample login button",
+    "st": 2,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "15m",
+    "cost": 1.25,
+    "href": "#pipeline/belts/EX-101"
+   },
+   {
+    "kind": "pipe",
+    "key": "EX-102",
+    "slot": "ex-auto-2",
+    "name": "ex-102",
+    "age": 60,
+    "team": "example",
+    "title": "Sample settings page copy",
+    "st": 1,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "1m",
+    "href": "#pipeline/belts/EX-102"
+   },
+   {
+    "kind": "free",
+    "slot": "ex-auto-3",
+    "state": "free"
+   },
+   {
+    "kind": "free",
+    "slot": "ex-auto-4",
+    "state": "free"
+   },
+   {
+    "kind": "free",
+    "slot": "ex-auto-5",
+    "state": "free"
+   },
+   {
+    "kind": "slack",
+    "key": "agent-ex0001",
+    "depfix": "",
+    "team": "fxa",
+    "title": "make the sample page faster",
+    "alive": true,
+    "waits": "",
+    "turns": 4,
+    "time": "20m",
+    "href": "#sessions/live/agent-ex0001",
+    "where": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "started": 1793749200
+   }
+  ],
+  "stale": false,
+  "unknown": false,
+  "slots": 5,
+  "admin": true
+ },
+ "ovFloor": {
+  "tiles": [
+   {
+    "kind": "pipe",
+    "key": "EX-101",
+    "slot": "ex-auto-1",
+    "name": "ex-101",
+    "age": 900,
+    "team": "example",
+    "title": "Fix the sample login button",
+    "st": 2,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "15m",
+    "cost": 1.25,
+    "href": "#pipeline/belts/EX-101",
+    "out": "Bash npm test -- sample"
+   },
+   {
+    "kind": "pipe",
+    "key": "EX-102",
+    "slot": "ex-auto-2",
+    "name": "ex-102",
+    "age": 60,
+    "team": "example",
+    "title": "Sample settings page copy",
+    "st": 1,
+    "fault": "",
+    "idle": "",
+    "alive": true,
+    "time": "1m",
+    "href": "#pipeline/belts/EX-102",
+    "out": ""
+   },
+   {
+    "kind": "free",
+    "slot": "ex-auto-3",
+    "state": "free"
+   },
+   {
+    "kind": "free",
+    "slot": "ex-auto-4",
+    "state": "free"
+   },
+   {
+    "kind": "free",
+    "slot": "ex-auto-5",
+    "state": "free"
+   },
+   {
+    "kind": "slack",
+    "key": "agent-ex0001",
+    "depfix": "",
+    "team": "fxa",
+    "title": "make the sample page faster",
+    "alive": true,
+    "waits": "",
+    "turns": 4,
+    "time": "20m",
+    "href": "#sessions/live/agent-ex0001",
+    "where": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "started": 1793749200,
+    "out": "Reading the sample page."
+   }
+  ],
+  "atWork": 3,
+  "slots": 5,
+  "admin": true
+ },
+ "ovNeeds": {
+  "total": 1,
+  "sandbox": 0,
+  "by": {
+   "the operator": 1
+  },
+  "unknown": ""
+ },
+ "sbRows": {
+  "live": [
+   {
+    "slot": "ex-auto-1",
+    "key": "EX-101",
+    "depfix": "",
+    "title": "Fix the sample login button",
+    "team": "example",
+    "where": "gce",
+    "started": null,
+    "age": 900,
+    "cap": null,
+    "max_seconds": null,
+    "cost": 1.25,
+    "usd": 1.25,
+    "session": null,
+    "pr": null,
+    "routine_run": null,
+    "routine_name": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "fault": "",
+    "fix": null,
+    "id": "pipe:ex-auto-1",
+    "src": "pipeline",
+    "state": "Stop 3 of 9, Agent"
+   },
+   {
+    "slot": "ex-auto-2",
+    "key": "EX-102",
+    "depfix": "",
+    "title": "Sample settings page copy",
+    "team": "example",
+    "where": "gce",
+    "started": null,
+    "age": 60,
+    "cap": null,
+    "max_seconds": null,
+    "cost": null,
+    "usd": null,
+    "session": null,
+    "pr": null,
+    "routine_run": null,
+    "routine_name": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "fault": "",
+    "fix": null,
+    "id": "pipe:ex-auto-2",
+    "src": "pipeline",
+    "state": "Stop 2 of 9, Boot"
+   },
+   {
+    "slot": "",
+    "key": "agent-ex0001",
+    "depfix": "",
+    "title": "make the sample page faster",
+    "team": "fxa",
+    "where": null,
+    "started": 1793749200,
+    "age": 1200,
+    "cap": null,
+    "max_seconds": null,
+    "cost": null,
+    "usd": null,
+    "session": "agent-ex0001",
+    "pr": null,
+    "routine_run": null,
+    "routine_name": null,
+    "boot_s": null,
+    "boot_steps": null,
+    "res_peak": null,
+    "fault": "",
+    "fix": null,
+    "id": "sess:agent-ex0001",
+    "src": "slack",
+    "state": "working"
+   }
+  ],
+  "fix": [],
+  "free": [
+   {
+    "slot": "ex-auto-3"
+   },
+   {
+    "slot": "ex-auto-4"
+   },
+   {
+    "slot": "ex-auto-5"
+   }
+  ],
+  "unknown": [],
+  "stale": false,
+  "err": null,
+  "sessionFree": 3
+ },
+ "sbBadge": {
+  "n": "",
+  "cls": "",
+  "label": ""
+ },
+ "strays": [],
+ "statsBounds": {
+  "today": [
+   1793750400000,
+   "Infinity"
+  ],
+  "yesterday": [
+   1793664000000,
+   1793750400000
+  ],
+  "7d": [
+   1793232000000,
+   "Infinity"
+  ],
+  "30d": [
+   1791244800000,
+   "Infinity"
+  ],
+  "90d": [
+   1786060800000,
+   "Infinity"
+  ],
+  "month": [
+   1793491200000,
+   "Infinity"
+  ],
+  "lastmonth": [
+   1790812800000,
+   1793491200000
+  ],
+  "all": [
+   0,
+   "Infinity"
+  ]
+ },
+ "answerRows": [],
+ "sessHeads": [
+  "agent-ex0001"
+ ],
+ "chainOf": {
+  "agent-ex0001": [
+   "agent-ex0001"
+  ]
+ },
+ "sessStatus": {
+  "agent-ex0001": [
+   "working",
+   "info"
+  ]
+ },
+ "sessUsd": {
+  "agent-ex0001": "undefined"
+ },
+ "isWaitingOnHuman": {
+  "EX-105": true
+ },
+ "verdictTag": {
+  "EX-105": "<span class=\"tag ok\">green</span>"
+ },
+ "queueWaits": [],
+ "skipGroups": [],
+ "teamNeeds": {},
+ "teamBadge": "",
+ "teamErrs": {},
+ "costPerMerged": {
+  "mergedIn": [
+   {
+    "n": 40,
+    "key": "EX-200",
+    "title": "Sample merged PR",
+    "state": "MERGED",
+    "created": "2026-11-02T00:00:00Z",
+    "merged": "2026-11-03T00:00:00Z",
+    "add": 10,
+    "del": 2,
+    "src": "pipeline"
+   },
+   {
+    "n": 41,
+    "key": "EX-201",
+    "title": "Sample merged PR",
+    "state": "MERGED",
+    "created": "2026-11-01T00:00:00Z",
+    "merged": "2026-11-02T00:00:00Z",
+    "add": 10,
+    "del": 2,
+    "src": "pipeline"
+   },
+   {
+    "n": 42,
+    "key": "EX-202",
+    "title": "Sample merged PR",
+    "state": "MERGED",
+    "created": "2026-10-31T00:00:00Z",
+    "merged": "2026-11-01T00:00:00Z",
+    "add": 10,
+    "del": 2,
+    "src": "pipeline"
+   },
+   {
+    "n": 43,
+    "key": "EX-203",
+    "title": "Sample merged PR",
+    "state": "MERGED",
+    "created": "2026-10-30T00:00:00Z",
+    "merged": "2026-10-31T00:00:00Z",
+    "add": 10,
+    "del": 2,
+    "src": "pipeline"
+   },
+   {
+    "n": 44,
+    "key": "EX-204",
+    "title": "Sample merged PR",
+    "state": "MERGED",
+    "created": "2026-10-29T00:00:00Z",
+    "merged": "2026-10-30T00:00:00Z",
+    "add": 10,
+    "del": 2,
+    "src": "pipeline"
+   },
+   {
+    "n": 45,
+    "key": "EX-205",
+    "title": "Sample merged PR",
+    "state": "MERGED",
+    "created": "2026-10-28T00:00:00Z",
+    "merged": "2026-10-29T00:00:00Z",
+    "add": 10,
+    "del": 2,
+    "src": "pipeline"
+   }
+  ],
+  "spentIn": 0,
+  "per": 0
+ },
+ "health": {
+  "dot": "dot ",
+  "word": "healthy"
+ },
+ "alerts": []
+}
