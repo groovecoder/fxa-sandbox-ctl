@@ -5,6 +5,7 @@ import { ERRS, type J, LIVE_SESSION, SS, STATS, TEAM_ADMIN } from '../../model/b
 import { teamRepo } from '../../model/pipeline';
 import { convTitle, isFix, ownerName, sessHeads, sessHref, sessRoutine, sessTabOf } from '../../model/sessions';
 import { rtSum, teamErrs, teamUse } from '../../model/teams';
+import { format, HOME } from '../../router';
 import { setPref, store, useApp } from '../../store';
 import type { Store } from '../../store/types';
 import { Card, Meter, StatTile, Tag } from '../../ui';
@@ -154,7 +155,7 @@ export function Overview({ t }: { t: J }) {
       <Banner t={t} />
       <div className="tkpis">
         {cost}
-        <StatTile label="Active now" value={live ?? '—'} sub={<><a className="lnk" href={`#sessions/${tab}`}>Its sessions</a> · <a className="lnk" href="#stats/spend" onClick={statsTeam}>Its spend in Stats</a></>} />
+        <StatTile label="Active now" value={live ?? '—'} sub={<><a className="lnk" href={format({ ...HOME, view: 'sessions', tab, query: { team: p } })}>Its sessions</a> · <a className="lnk" href="#stats/spend" onClick={statsTeam}>Its spend in Stats</a></>} />
         <StatTile label="Open errors" value={errsKnown && er ? er[p] ?? 0 : '—'} sub={<a className="lnk" href="#errors">Open in Errors</a>} />
         {t.access?.record || t.test ? <StatTile label="Last profile test" value={<TestCell t={t} />} sub={tested ? tested.text : ''} />
           : <StatTile label="Last profile test" value="—" sub="no record to test" />}

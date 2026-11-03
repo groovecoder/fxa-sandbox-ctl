@@ -224,6 +224,14 @@ test('Overview: the banner with its action, the tiles, the Activity chart by key
   await expect(page).toHaveURL(/#stats/);
 });
 
+test('Overview: "Its sessions" opens Sessions with the Team chip, as v1 sets STEAM', async ({ page }) => {
+  await mock(page);
+  await go(page, '#teams/example');
+  await main(page).getByRole('link', { name: 'Its sessions' }).click();
+  await expect(page).toHaveURL(/#sessions\/\w+\?team=example$/);
+  await expect(page.getByRole('button', { name: /Clear the team filter/ })).toHaveText('Team: Example ×');
+});
+
 test('Overview: the first banner with "and N more" and its action for an admin, the ask line for a viewer who is not one', async ({ browser }) => {
   const ts = teams().map((t) => (t.profile === 'example' ? { ...t, issues: [{ level: 'warn', text: 'nobody can start it' }] } : t));
   const summary = { teams: { example: { routines: 2, failed: 1 } }, routines: {} };
