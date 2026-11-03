@@ -1,0 +1,29 @@
+/* The base of the design system parts. The px sizes here have no token: they keep the v1 geometry. */
+
+/* Rule 9: one focus outline on every focusable element, in place of the shadcn rings. */
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+
+/* Rule 8: only a running item loops. */
+@keyframes ds-pulse { 50% { opacity: .4; } }
+@keyframes ds-blink { 50% { opacity: 0; } }
+.ds-pulse, .ds-live::before { animation: ds-pulse 1.6s ease-in-out infinite; }
+.ds-blink { animation: ds-blink 1s steps(1) infinite; }
+.ds-run::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+.ds-checks { display: inline-flex; gap: 2px; align-items: center; vertical-align: -2px; }
+.ds-checks i { width: 3px; height: 11px; border-radius: 1px; }
+.ds-checks i.f { height: 16px; }
+
+.ds-switch { width: 32px; height: 18px; }
+.ds-switch > span { width: 14px; height: 14px; transition: transform .15s; }
+.ds-switch[aria-checked="true"] > span { transform: translateX(14px); }
+
+.ds-screen { min-height: 220px; }
+.ds-cmdlist { max-height: 320px; }
+
+[cmdk-group-heading] { padding: var(--s1) var(--s2); font: 600 var(--t-label)/1.5 var(--head); text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+
+/* Rule 8: under reduced motion, nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
