@@ -49,7 +49,8 @@ def rel(v):
 
 fx = rel(json.load(open(a.fixture))) if a.fixture else {}
 snap = fx.get("/api/snapshot") or {}
-for name, data in (("FULL", snap.get("snapshot")), ("AGENTS", snap.get("agents")), ("STATS", fx.get("/api/stats")),
+# A v1 fixture with no stats answers {} in page.sh, so the v2 side gets the same empty copy, not a feed error.
+for name, data in (("FULL", snap.get("snapshot")), ("AGENTS", snap.get("agents")), ("STATS", fx.get("/api/stats", {} if a.fixture else None)),
                    ("TEAMS", (fx.get("/api/teams") or {}).get("teams"))):
     f = server.Feed(name.lower(), [], 60, 30)
     f.data, f.fetched_at = data, now

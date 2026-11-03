@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Compare the dashboard shell of v1 and v2 on the v1 page fixtures: rail badges and their tones, tab counts,
-# the health word and the tab title. v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
+# the health word and the tab title, and per Stats tab its KPI tiles, headings and empty texts.
+# v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
 #   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json
 #   bash skills/fxa-ctl-dev/parity-v2.sh --compare v1.json v2.json [name]   only the compare step, on probe outputs
 # A diff that parity-allow.json lists (a known v1 bug that v2 fixes) passes; any other diff fails.
@@ -51,6 +52,18 @@ for (const v of ["overview", "pipeline", "sessions", "errors", "runners", "teams
   out.badges[v] = b?.textContent.trim() ?? "";
   out.tones[v] = (b?.className ?? "").replace(/\bn\b/, "").trim();
 }
+// Stats: per tab, the KPI tiles (label and value), the card and chart headings in order, and the empty texts.
+// A v2 chart that v1 does not have sits in [data-new] and is left out.
+out.stats = {};
+const first = (e) => ([...e.childNodes].find((n) => n.nodeType === 3)?.textContent ?? "").trim();
+for (const t of ["spend", "prs", "runners", "pipeline"]) {
+  location.hash = "#stats/" + t; await sleep(600);
+  const m = document.getElementById("s-stats"), kp = {};
+  if (!m) { out.stats[t] = { missing: true }; continue; }
+  m.querySelectorAll(".kpis > *").forEach((k) => { kp[k.dataset.lbl ?? k.querySelector(".lbl")?.textContent ?? ""] = k.dataset.big ?? k.querySelector(".big")?.textContent ?? ""; });
+  const heads = [...m.querySelectorAll("h2, h3, figcaption")].filter((h) => !h.closest("[data-new]")).map(first);
+  out.stats[t] = { kpis: kp, heads: heads.join("|"), empty: [...m.querySelectorAll(".empty, .emptybox")].map((e) => e.textContent.trim()).join("|") };
+}
 out.title = document.title;
 return JSON.stringify(out);'
 
@@ -64,7 +77,8 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  r="$(bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  # The probe waits on each route: give Chrome's virtual clock enough time for all of them.
+  r="$(PAGE_BUDGET=15000 bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
