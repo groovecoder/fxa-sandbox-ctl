@@ -188,7 +188,11 @@ FXA_ROUTINE_NOW=1792000100 routine_set secret "$tmp/sv.json" "$sid" 1 >/dev/null
 sv2="$(db_value "SELECT saved_at FROM routines WHERE id = $sid;")"
 FXA_ROUTINE_NOW=1792000200 routine_state secret "$sid" pause >/dev/null
 check "saved_at is set on create and on edit, and a pause leaves it" "1792000000|1792000100|1792000100" "$sv1|$sv2|$(db_value "SELECT saved_at FROM routines WHERE id = $sid;")"
-db_exec "DELETE FROM routines WHERE id = $sid;"
+# A deleted routine keeps its runs: a new routine never takes its id, so it never shows them as its own.
+db_exec "INSERT INTO routine_runs (routine_id, period, state) VALUES ($sid, '2026-10-01', 'ok'); DELETE FROM routines WHERE id = $sid;"
+nid="$(routine_set secret "$tmp/sv.json" | grep -o '[0-9]*$')"
+check "a routine made after a delete has a new id and no runs" "yes|0" "$([ "$nid" -gt "$sid" ] && echo yes || echo "no, $nid")|$(db_value "SELECT count(*) FROM routine_runs WHERE routine_id = $nid;")"
+db_exec "DELETE FROM routines WHERE id = $nid; DELETE FROM routine_runs WHERE routine_id = $sid;"
 check "pause, then resume" "1|0" "$(routine_state secret 1 pause >/dev/null; db_value "SELECT paused FROM routines WHERE id = 1;")|$(routine_state secret 1 resume >/dev/null; db_value "SELECT paused FROM routines WHERE id = 1;")"
 check "pause, delete and history of another team's routine are refused" "ERROR: team second has no routine 1|ERROR: team second has no routine 1|ERROR: team second has no routine 1|0|1" \
   "$(routine_state second 1 pause 2>&1)|$(routine_state second 1 delete 2>&1)|$(routine_history second 1 2>&1)|$(db_value "SELECT paused FROM routines WHERE id = 1;")|$(db_value "SELECT count(*) FROM routines;")"

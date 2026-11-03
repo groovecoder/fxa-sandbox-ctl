@@ -86,7 +86,10 @@ routine_set() {
   local who env; who="$(_teams_actor)"; env="$(jq -r .env <<< "$out")"
   if [ -z "$id" ]; then
     # The cap in the INSERT itself: two saves at once cannot both pass a count read before them.
-    id="$(db_value "INSERT INTO routines (team, data, env, created_by, updated_by, updated_at, saved_at) SELECT $(db_q "$team"), json($(db_q "$out")), $(db_q "$env"), $(db_q "$who"), $(db_q "$who"), $(date +%s), $(_routine_now)
+    # A new id is above every id a run names: a deleted routine keeps its runs, and SQLite reuses the top id.
+    id="$(db_value "INSERT INTO routines (id, team, data, env, created_by, updated_by, updated_at, saved_at)
+      SELECT max(coalesce((SELECT max(id) FROM routines), 0), coalesce((SELECT max(routine_id) FROM routine_runs), 0)) + 1,
+      $(db_q "$team"), json($(db_q "$out")), $(db_q "$env"), $(db_q "$who"), $(db_q "$who"), $(date +%s), $(_routine_now)
       WHERE (SELECT count(*) FROM routines WHERE team = $(db_q "$team")) < 8; SELECT CASE WHEN changes() = 1 THEN last_insert_rowid() ELSE 0 END;")" || id=""
     case "$id" in ''|*[!0-9]*) echo "$_ROUTINE_STORE" >&2; return 1 ;; 0) echo "routine: A team has at most 8 routines" >&2; return 1 ;; esac
     _teams_audit_note routine-create "$team" "routine ${id}"
