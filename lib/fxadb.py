@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import threading
+import time
 
 PATH = os.environ.get("FXA_DB") or os.path.expanduser("~/.claude/state/fxa.db")
 
@@ -167,17 +168,53 @@ def is_over_test(rec):
 
 def sessions_since(con, since, d, limit=200):
     """{cursor, rows}: the sessions written after change `since`, as session_row()s, and
-    {key, deleted} for one that is gone. With since None, only the cursor to start from."""
+    {key, deleted} for one that is gone. With since None, only the cursor to start from.
+    More than limit keys: the cursor stops at the last key sent, so the next call gets the rest."""
     cur = con.execute("SELECT coalesce(max(version), 0) FROM changes").fetchone()[0]
     if since is None:
         return {"cursor": cur, "rows": []}
     rows = []
-    for (key,) in con.execute("SELECT DISTINCT key FROM changes WHERE tbl = 'sessions' AND version > ? AND version <= ? LIMIT ?",
-                              (since, cur, limit)).fetchall():
+    # By each key's newest change: every change up to the last one read belongs to a key sent here or to a later call.
+    got = con.execute("SELECT key, max(version) FROM changes WHERE tbl = 'sessions' AND version > ? AND version <= ? GROUP BY key ORDER BY 2 LIMIT ?",
+                      (since, cur, limit)).fetchall()
+    for key, _ in got:
         r = con.execute("SELECT data FROM sessions WHERE key = ?", (key,)).fetchone()
         rec = json.loads(r[0]) if r else None
         rows.append(session_row(rec, d) if rec and not is_over_test(rec) else {"key": key, "deleted": True})
-    return {"cursor": cur, "rows": rows}
+    return {"cursor": got[-1][1] if len(got) == limit else cur, "rows": rows}
+
+
+def changes_since(con, version, page=1000):
+    """(new cursor, [(version, tbl, key)]): every change after version, read page rows at a time, none skipped."""
+    out = []
+    while True:
+        got = con.execute("SELECT version, tbl, key FROM changes WHERE version > ? ORDER BY version LIMIT ?", (version, page)).fetchall()
+        out += [tuple(r) for r in got]
+        if got:
+            version = got[-1][0]
+        if len(got) < page:
+            return version, out
+
+
+_ERRORS_SQL = """WITH g AS (SELECT sig, count(*) AS count, min(at) AS first, max(at) AS last, min(id) AS fid, max(id) AS lid FROM errors GROUP BY sig)
+  SELECT g.sig, f.source, f.kind, l."where" AS "where", l.message, g.count, g.first, g.last, l.log,
+    (SELECT json_group_array(key) FROM (SELECT DISTINCT key FROM errors WHERE sig = g.sig AND key IS NOT NULL ORDER BY key DESC LIMIT 5)) AS keys,
+    r.at AS rat, r.note AS rnote
+  FROM g JOIN errors f ON f.id = g.fid JOIN errors l ON l.id = g.lid LEFT JOIN error_resolutions r ON r.sig = g.sig"""
+
+
+def errors_rows(con, now):
+    """One row per error signature, newest first: the store half of `fxa-sandbox-ctl errors --json` (lib/errors.sh)."""
+    qd = os.environ.get("FXA_ERRORS_QUIET_DAYS", "7")
+    quiet = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - int(qd if qd.isdigit() else 7) * 86400))
+    out = []
+    for r in rows(con, _ERRORS_SQL):
+        res, last = ({"at": r["rat"], "note": r["rnote"]} if r["rat"] is not None else None), r["last"] or ""
+        status = ("quiet" if last < quiet else "open") if res is None else "reopened" if last > (res["at"] or "") else "resolved"
+        out.append({"sig": r["sig"], "source": r["source"], "kind": r["kind"], "where": r["where"], "message": r["message"], "count": r["count"],
+                    "first": r["first"], "last": r["last"], "keys": sorted(json.loads(r["keys"])), "log": r["log"], "resolved": res, "status": status})
+    out.sort(key=lambda x: x["last"] or "")  # jq sort_by is stable too, and its reverse flips the ties
+    return out[::-1]
 
 
 def usage_by_model(con, run):
