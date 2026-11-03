@@ -1,9 +1,13 @@
 // C2, the store shape. W1-DATA fills the store; the shell and the views read it through selectors.
+import type { FlowPoint, Session, Viewer } from '../live/schema';
 import type { Route } from '../router/types';
+
+export type { FlowPoint, Session, Viewer };
 
 export type ConnMode = 'connecting' | 'live' | 'polling' | 'offline' | 'signin';
 
-export type FeedName = 'full' | 'agents' | 'stats' | 'teams' | 'errors' | 'overview' | `team:${string}`;
+// full is the server Feed "snapshot", team:<t> is "snapshot:<t>", team-test:<t> keeps its name.
+export type FeedName = 'full' | 'agents' | 'stats' | 'teams' | 'errors' | 'overview' | `team:${string}` | `team-test:${string}`;
 
 // The fields come from the snapshot top level (age_seconds, interval, error, refreshing, agents_*, stats_*).
 export type FeedState<T = unknown> = {
@@ -15,27 +19,14 @@ export type FeedState<T = unknown> = {
   fetchedAt: number | null;
 };
 
-// The v1 session fields keep their names. Only the fields that the merge rule reads are named here.
-export type Session = {
-  key: string;
-  created?: number;
-  last_activity?: number;
-  state?: string;
-  profile?: string;
-  agent?: Record<string, unknown> | null;
-  agent_alive?: boolean;
-  deleted?: boolean;
-  [field: string]: unknown;
-};
 
 export type HistRow = Record<string, unknown>;
 export type UsageRow = Record<string, unknown>;
 export type RoutineList = Record<string, unknown>;
 export type RoutineRun = Record<string, unknown>;
 export type Memory = Record<string, unknown>;
-
-// One count of the belts at each of the 9 stops, in the LANE_ST order (section 4.4 of the design).
-export type FlowPoint = { at: number; stops: number[]; merged: number; closed: number };
+// /api/routines/summary, read for an admin only: teams maps a team to its routine count and failed count.
+export type RoutineSummary = { teams: Record<string, { routines?: number; failed?: number | boolean; [k: string]: unknown }>; routines?: Record<string, unknown> };
 
 export type TailState = 'connecting' | 'running' | 'waiting' | 'error';
 
@@ -67,7 +58,7 @@ export type Prefs = {
 
 export type Store = {
   conn: { mode: ConnMode; lastEventAt: number; seq: string | null; error?: string };
-  viewer: { user?: string; admin: boolean; teams: string[] };
+  viewer: Viewer;
   feeds: Partial<Record<FeedName, FeedState>>;
   // Replaces the v1 AGENTS.sessions, FRESH and overlay(): one merged list.
   sessions: { byKey: Record<string, Session>; order: string[] };
@@ -78,6 +69,7 @@ export type Store = {
     routines: Record<string, RoutineList>;
     routineHist: Record<string, RoutineRun[]>;
     memory: Record<string, Memory>;
+    summary: { data: RoutineSummary | null; error: string; at: number };
   };
   flow: { points: FlowPoint[] };
   route: Route;
