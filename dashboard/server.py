@@ -286,14 +286,32 @@ def close_desktops():
         tunnel.terminate()
 
 
+def script_hashes(page):
+    """The CSP source of each bare inline <script> block of the page."""
+    return " ".join(f"'sha256-{base64.b64encode(hashlib.sha256(m.encode()).digest()).decode()}'"
+                    for m in re.findall(r"<script>([\s\S]*?)</script>", page))
+
+
 def csp_for(page):
     """Only the page's own inline scripts run: an injected handler or script is blocked."""
-    hashes = " ".join(f"'sha256-{base64.b64encode(hashlib.sha256(m.encode()).digest()).decode()}'"
-                      for m in re.findall(r"<script>([\s\S]*?)</script>", page))
-    return ("default-src 'none'; script-src " + hashes + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    return ("default-src 'none'; script-src " + script_hashes(page) + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src https://fonts.gstatic.com; img-src 'self' data: https://avatars.slack-edge.com https://ca.slack-edge.com "
             "https://secure.gravatar.com; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
+
+def csp_v2(page):
+    """The v2 policy: its own module scripts and the inline theme script, hashed from the page it serves."""
+    return ("default-src 'none'; script-src 'self' " + script_hashes(page) + "; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https://avatars.slack-edge.com https://ca.slack-edge.com https://secure.gravatar.com; "
+            "media-src 'self'; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+V2_DIST = ROOT.parent / "dashboard-v2" / "dist"
+V2_ASSET = re.compile(r"[A-Za-z0-9._-]+\.(js|css|svg|woff2|png)")
+V2_TYPES = {"js": "text/javascript", "css": "text/css", "svg": "image/svg+xml", "woff2": "font/woff2", "png": "image/png"}
+
+
+TAIL_KEY = re.compile(r"[A-Za-z][A-Za-z0-9]*-\d+|agent-[a-z0-9]{4,12}")  # a ticket or a session key
 
 # Known token formats, masked in every API reply: tail, history and the snapshot carry agent text
 # and commands, and the page is open to anyone IAP admits. The same pattern as _SESSION_VIEW_JQ.
@@ -828,7 +846,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", csp or "default-src 'none'; frame-ancestors 'none'")
 
-    def _send(self, code, body, ctype, csp=None, etag=False):
+    def _send(self, code, body, ctype, csp=None, etag=False, cache=None):
         if ctype == "application/json":
             body = MASK.sub(r"\1<masked>", body.decode("utf-8") if isinstance(body, bytes) else body)
         payload = body if isinstance(body, bytes) else body.encode("utf-8")
@@ -842,7 +860,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(payload)))
         if tag:
             self.send_header("ETag", tag)
-        self._hardening(csp, cache="no-cache" if tag else "no-store")
+        self._hardening(csp, cache=cache or ("no-cache" if tag else "no-store"))
         self.end_headers()
         self.wfile.write(payload)
 
@@ -1476,6 +1494,22 @@ class Handler(BaseHTTPRequestHandler):
             self._desktop(path[len("/desktop/"):])
         elif path == "/api/refresh":
             self._json(405, {"error": "use POST"})
+        elif path in ("/v2", "/v2/", "/v2/index.html"):
+            # No redirect from /v2: the gateway drops Location, and the asset paths are absolute.
+            try:
+                page = (V2_DIST / "index.html").read_text()
+            except OSError:
+                self._send(503, "Dashboard v2 is not built: run npm run build in dashboard-v2.", "text/plain; charset=utf-8")
+                return
+            self._send(200, page, "text/html; charset=utf-8", csp_v2(page))
+        elif path.startswith("/v2/"):
+            name, d = path[len("/v2/assets/"):] if path.startswith("/v2/assets/") else "", V2_DIST / "assets"
+            m = V2_ASSET.fullmatch(name)
+            # Only a name that the folder lists: no path is built from the request alone.
+            if m and name in (os.listdir(d) if d.is_dir() else ()):
+                self._send(200, (d / name).read_bytes(), V2_TYPES[m.group(1)], cache="public, max-age=31536000, immutable")
+            else:
+                self._json(404, {"error": "not found"})
         else:
             self._json(404, {"error": "not found"})
 
