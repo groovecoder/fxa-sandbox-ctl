@@ -117,11 +117,12 @@ function stats(st: State, f: StatsFrame): State {
 }
 
 // A whole stats read. The frames that came during it apply from the first one past its ETag.
+// A copy with no rows keeps none, as v1 does: a team then shows no use, not "never used".
 function statsBase(st: State, stats0: Record<string, unknown>, etag: string | null): State {
   const buf = st.live.stats.buf;
   let out: State = {
     ...st,
-    feeds: { ...st.feeds, stats: { ...statsFeed(st), data: { ...stats0, rows: withMs(stats0.rows) }, error: null, fetchedAt: Date.now() / 1000 } },
+    feeds: { ...st.feeds, stats: { ...statsFeed(st), data: { ...stats0, ...(stats0.rows === undefined ? {} : { rows: withMs(stats0.rows) }) }, error: null, fetchedAt: Date.now() / 1000 } },
     live: { ...st.live, stats: { etag, want: false, loading: false, buf: [] } },
   };
   let past = false;

@@ -135,3 +135,9 @@ test('a failed stats read keeps its error when the next snapshot poll brings onl
   const ok = run([{ event: 'stats-base', data: { stats: { rows: [] }, etag: null } }, age], failed);
   expect(ok.feeds.stats?.error).toBeNull();
 });
+
+test('a stats copy with no rows keeps no rows, as v1 does', () => {
+  const st = run([{ event: 'stats-base', data: { stats: {}, etag: null } }]);
+  expect(st.feeds.stats?.data).toEqual({});
+  expect((run([{ event: 'stats-base', data: { stats: { rows: [{ at: '2026-11-03T00:00:00Z' }] }, etag: null } }]).feeds.stats?.data as { rows: { ms: number }[] }).rows[0]?.ms).toBe(Date.parse('2026-11-03T00:00:00Z'));
+});
