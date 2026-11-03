@@ -186,7 +186,8 @@ async def dashboard(request):
     # A browser's cross-site signals pass through, so its CSRF check still works;
     # only the gateway's own origin is dropped, because it is same-site here.
     headers = {"Host": "localhost"}
-    for h in ("Sec-Fetch-Site", "Content-Type", "If-None-Match"):
+    # Last-Event-ID lets a reconnected /api/live stream resume from the ring.
+    for h in ("Sec-Fetch-Site", "Content-Type", "If-None-Match", "Last-Event-ID"):
         if h in request.headers:
             headers[h] = request.headers[h]
     origin = request.headers.get("Origin")
@@ -200,9 +201,19 @@ async def dashboard(request):
     body = await request.read() if request.method == "POST" else None
     async with request.app["http"].request(request.method, f"{MANAGER_URL}{request.path_qs}", headers=headers, data=body) as r:
         keep = {k: v for k, v in r.headers.items() if k.lower() in ("content-type", "content-security-policy", "cache-control", "x-content-type-options", "referrer-policy", "etag")}
+        if r.status == 200 and r.content_type == "text/event-stream":
+            # A stream (/api/live) has no end, so pass each frame on as it comes, not compressed.
+            resp = web.StreamResponse(headers={**keep, "Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+            await resp.prepare(request)
+            try:
+                async for chunk in r.content.iter_any():
+                    await resp.write(chunk)
+            except (ConnectionResetError, aiohttp.ClientError):
+                pass  # the viewer or the dashboard left
+            return resp
         resp = web.Response(status=r.status, body=await r.read(), headers=keep)
-        # The page and its JSON shrink 3-8x; media (png, jpg, mp4, webm) is compressed already.
-        if r.content_type in ("text/html", "application/json"):
+        # The page, its JSON, scripts and styles shrink 3-8x; media (png, jpg, mp4, webm) is compressed already.
+        if r.content_type in ("text/html", "application/json", "text/javascript", "application/javascript", "text/css"):
             resp.enable_compression()
         return resp
 

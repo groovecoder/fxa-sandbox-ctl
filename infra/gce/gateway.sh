@@ -47,12 +47,14 @@ ensure_rule() {
 case "${1:-}" in
   plan)
     env="$(want_env)"
-    echo "service ${SVC} in ${R}: account ${GW_SA}, network ${NET}/${SUBNET}, private-ranges egress, at most 1 instance"
+    echo "service ${SVC} in ${R}: account ${GW_SA}, network ${NET}/${SUBNET}, private-ranges egress, at most 1 instance, timeout 3600s"
     echo "env it sets: $(printf '%s' "$env" | tr ';' '\n' | cut -d= -f1 | paste -sd, -) (each other value stays as it is)"
     [ -z "${FXA_DASHBOARD_USERS:-}" ] || echo "dashboard users: $(tr ',' '\n' <<< "$FXA_DASHBOARD_USERS" | grep -c .)"
     echo "secret: DASHBOARD_HMAC from fxa-dashboard-hmac"
     live="$(gcloud run services describe "$SVC" --region "$R" --project "$P" --format=json 2>/dev/null)" || live='{}'
     echo "now: $(jq -r '[.spec.template.spec.containers[0].env[]?.name] | join(",")' <<< "$live")"
+    # cpu-throttling true is request billing; false bills each hour the one instance runs.
+    echo "now: timeout $(jq -r '.spec.template.spec.timeoutSeconds // "unset"' <<< "$live")s, cpu-throttling $(jq -r '.spec.template.metadata.annotations["run.googleapis.com/cpu-throttling"] // "unset"' <<< "$live")"
     # Say which values a deploy would change; the users show as a count, never as emails.
     while IFS='=' read -r k v || [ -n "$k" ]; do
       cur="$(jq -r --arg k "$k" '.spec.template.spec.containers[0].env[]? | select(.name == $k) | .value // empty' <<< "$live")"
@@ -64,7 +66,7 @@ case "${1:-}" in
   deploy)
     env="$(want_env)"
     gcloud run deploy "$SVC" --source "$ROOT/desktop-gateway" --region "$R" --project "$P" --service-account "$GW_SA" \
-      --network "$NET" --subnet "$SUBNET" --vpc-egress private-ranges-only --max-instances 1 --cpu-boost \
+      --network "$NET" --subnet "$SUBNET" --vpc-egress private-ranges-only --max-instances 1 --cpu-boost --timeout 3600 \
       --no-allow-unauthenticated --update-env-vars "^;^${env}" --update-secrets DASHBOARD_HMAC=fxa-dashboard-hmac:latest
     ensure_rule ;;
   users)

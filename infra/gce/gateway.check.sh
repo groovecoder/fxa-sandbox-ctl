@@ -15,7 +15,7 @@ case "\$*" in
   *"instances describe fxa-manager"*) echo 10.42.2.9 ;;
   *"subnets describe"*) echo 10.42.1.0/26 ;;
   *"firewall-rules describe"*) [ -f "$tmp/rule" ] ;;
-  *"run services describe"*) echo '{"spec":{"template":{"spec":{"containers":[{"env":[{"name":"MANAGER_URL","value":"http://10.42.2.2:8787"},{"name":"DASHBOARD_USERS","value":"a@example.com"}]}]}}}}' ;;
+  *"run services describe"*) echo '{"spec":{"template":{"metadata":{"annotations":{"run.googleapis.com/cpu-throttling":"true"}},"spec":{"timeoutSeconds":300,"containers":[{"env":[{"name":"MANAGER_URL","value":"http://10.42.2.2:8787"},{"name":"DASHBOARD_USERS","value":"a@example.com"}]}]}}}}' ;;
 esac
 G
 chmod +x "$tmp/bin/gcloud"
@@ -23,10 +23,12 @@ gw() { ( cd "$tmp/repo" && PATH="$tmp/bin:$PATH" env -u FXA_DASHBOARD_USERS -u F
 ARGS=(plan); out="$(gw)"
 check "plan says what deploy changes, and no email" "1|0" "$(grep -c 'MANAGER_URL: changes (http://10.42.2.2:8787 -> http://10.42.2.9:8787)' <<< "$out")|$(grep -c '@example.com' <<< "$out")"
 check "plan changes nothing" "0" "$(grep -cE 'run deploy|services update|rules create' "$tmp/calls")"
+check "plan shows the live timeout and billing mode" "1" "$(grep -c 'now: timeout 300s, cpu-throttling true' <<< "$out")"
 : > "$tmp/calls"; ARGS=(deploy); gw >/dev/null
 d="$(grep 'run deploy' "$tmp/calls")"
 check "deploy keeps the network, the account, one instance and the secret" "1|1|1|1|1" \
   "$(grep -c -- '--network fxa-sandbox --subnet fxa-desktop-gw --vpc-egress private-ranges-only' <<< "$d")|$(grep -c -- '--service-account fxa-desktop-gw@p1.iam.gserviceaccount.com' <<< "$d")|$(grep -c -- '--max-instances 1' <<< "$d")|$(grep -c -- '--update-secrets DASHBOARD_HMAC=fxa-dashboard-hmac:latest' <<< "$d")|$(grep -c -- '--no-allow-unauthenticated' <<< "$d")"
+check "deploy sets a 3600 s timeout, so the 900 s live stream ends first" "1" "$(grep -c -- '--timeout 3600' <<< "$d")"
 check "with no users in .env, deploy leaves DASHBOARD_USERS and IAP_AUDIENCE as they are" "0|0|1" \
   "$(grep -c 'DASHBOARD_USERS=' <<< "$d")|$(grep -c 'IAP_AUDIENCE=' <<< "$d")|$(grep -c 'DESKTOP_BUCKET=p1-fxa-ai-fixme;MANAGER_URL=http://10.42.2.9:8787' <<< "$d")"
 check "a missing firewall rule is created for the gateway subnet, to the manager only" "1" \
