@@ -471,6 +471,21 @@ class Store(unittest.TestCase):
         self.assertEqual(sorted(e["status"] for e in mine), ["open", "quiet", "reopened", "resolved"])
         self.assertEqual(next(e for e in mine if e["sig"] == "s1")["keys"], [f"agent-e{i}" for i in range(2, 7)])
 
+    def test_an_error_turns_quiet_with_the_clock_with_no_store_change(self):
+        h, now = self.hub, time.time()
+        at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - 7 * 86400 + 30))
+        self.con.execute("INSERT INTO ingest (tbl, j) VALUES ('errors', ?)", (json.dumps({"at": at, "source": "ctl", "kind": "crash", "key": None,
+                                                                                          "where": "w", "message": "m", "log": None, "sig": "q1"}),))
+        h.read_store(now)
+        self.assertEqual([e["status"] for e in h.errors], ["open"])
+        n = h.n
+        h.read_store(now + 10)
+        self.assertEqual(h.n, n)
+        h.read_store(now + 61)
+        self.assertEqual([e["status"] for e in h.errors], ["quiet"])
+        self.assertEqual(self.deltas()[-1], {"tbl": "errors", "rows": h.errors, "deleted": []})
+        self.assertEqual(json.loads(testkit.request(f"{BASE}/api/errors")[2])[0]["status"], "quiet")
+
     def test_api_errors_reads_the_hub_and_record_admins_read_the_file(self):
         self.hub.read_store()
         self.assertEqual(json.loads(testkit.request(f"{BASE}/api/errors")[2]), [])

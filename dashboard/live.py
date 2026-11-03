@@ -24,7 +24,7 @@ except ImportError:
     stats = None
 
 RING_MAX, QUEUE_MAX, MAX_KEYS = 5000, 512, 8
-RETENTION_S, MAX_LIFE_S, PING_S, TAIL_S, FLOW_S, SEEN_S, STATS_DELAY_S = 300, 900, 15, 5, 60, 60, 5
+RETENTION_S, MAX_LIFE_S, PING_S, TAIL_S, FLOW_S, SEEN_S, STATS_DELAY_S, ERRORS_S = 300, 900, 15, 5, 60, 60, 5, 60
 STATS_TABLES = {"runs", "passes", "job_costs", "llm"}
 # The tables that only a team admin reads (routines are admins only, D1); a record admin gets the rows of their teams,
 # but not team_audit: /api/teams/<t>/audit is for team admins only.
@@ -141,7 +141,7 @@ class LiveHub:
         self.stats = self.stats_etag = None
         self.cursor, self.due = None, None
         self.sig, self.hash, self.mtimes, self.tails, self.resend = {}, {}, {}, {}, set()
-        self.pinged = self.seen_at = 0.0
+        self.pinged = self.seen_at = self.errors_at = 0.0
         self.flowed = time.time()
         self.closed = False
         self.stats_lock = threading.Lock()
@@ -267,7 +267,7 @@ class LiveHub:
     def tick(self, now=None):
         now = now or time.time()
         self.read_feeds()
-        self.read_store()
+        self.read_store(now)
         self.read_files(now)
         self.timers(now)
 
@@ -308,14 +308,15 @@ class LiveHub:
                 out[k] = dict(r, agent=(s or {}).get("agent"), agent_alive=(s or {}).get("agent_alive") or False)
         self.sessions, self.fresh = out, fresh
 
-    def read_store(self):
+    def read_store(self, now=None):
         if not os.path.exists(fxadb.PATH):
             return
+        now = now or time.time()
         con = fxadb.connect(readonly=True)
         try:
             if self.cursor is None:
                 self.cursor = con.execute("SELECT coalesce(max(version), 0) FROM changes").fetchone()[0]
-                self.errors = fxadb.errors_rows(con, time.time())
+                self.errors, self.errors_at = fxadb.errors_rows(con, now), now
                 return
             self.cursor, changed = fxadb.changes_since(con, self.cursor)
             keys = {}
@@ -323,21 +324,28 @@ class LiveHub:
                 keys.setdefault(tbl, {})[str(key)] = None  # an ordered set, as text (C1 delta.deleted)
             if keys.keys() & STATS_TABLES and not self.due:
                 self.due = time.time() + STATS_DELAY_S
-            for tbl in ("sessions", "history", "errors", "routines", "routine_runs", "routine_tick", "team_audit"):
+            for tbl in ("sessions", "history", "routines", "routine_runs", "routine_tick", "team_audit"):
                 if tbl in keys:
                     self.read_table(con, tbl, list(keys[tbl]))
+            if "errors" in keys or now - self.errors_at >= ERRORS_S:
+                self.read_errors(con, now)
         finally:
             con.close()
+
+    def read_errors(self, con, now):
+        """The errors again, and a delta with each row that changed: a status turns quiet with the clock, not with a change."""
+        old = {e["sig"]: e for e in self.errors or []}
+        self.errors, self.errors_at = fxadb.errors_rows(con, now), now
+        new = {e["sig"] for e in self.errors}
+        rows, deleted = [e for e in self.errors if old.get(e["sig"]) != e], [k for k in old if k not in new]
+        if rows or deleted:
+            self.publish("delta", {"tbl": "errors", "rows": rows, "deleted": deleted}, {"teams": []})
 
     def read_table(self, con, tbl, keys):
         """One delta for the changed keys of one table: the current rows, and the keys that are gone."""
         rows, deleted, teams = [], [], []
         if tbl == "history":
             rows = [{"key": k} for k in keys]
-        elif tbl == "errors":
-            self.errors = fxadb.errors_rows(con, time.time())
-            by = {e["sig"]: e for e in self.errors}
-            rows, deleted = [by[k] for k in keys if k in by], [k for k in keys if k not in by]
         elif tbl == "sessions":
             sessions, fresh, d = dict(self.sessions), dict(self.fresh), str(self.srv.SESSION_DIR)
             for k in keys:
