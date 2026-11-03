@@ -223,7 +223,10 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       } else if (e.key === 'h' || e.key === 'l') {
         const step = (n: number, i: number) => (i + (e.key === 'l' ? 1 : n - 1)) % n;
         if (r.view === 'teams' && TEAM_RE.test(r.sel)) {
-          const nt = TEAM_TABS[step(TEAM_TABS.length, TEAM_TABS.indexOf(r.tab as (typeof TEAM_TABS)[number]))]!;
+          // A draft shows only Settings and Routines, and Settings in place of the others.
+          const tm = (Array.isArray(x.feeds.teams?.data) ? (x.feeds.teams.data as { profile?: string; access?: { record?: boolean; status?: string } }[]) : []).find((y) => y.profile === r.sel);
+          const tabs: readonly string[] = tm?.access?.record && tm.access.status !== 'active' ? ['settings', 'routines'] : TEAM_TABS;
+          const nt = tabs[step(tabs.length, Math.max(0, tabs.indexOf(r.tab)))]!;
           location.hash = `#teams/${r.sel}${nt === 'overview' ? '' : '/' + nt}`;
         } else if (d.tabs.length) location.hash = viewHash(r.view, d.tabs[step(d.tabs.length, d.tabs.findIndex((x2) => x2.id === r.tab))]!.id);
       } else if (e.key === '[') toggle('side');

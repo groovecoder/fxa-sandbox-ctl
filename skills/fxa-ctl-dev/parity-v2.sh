@@ -87,6 +87,27 @@ out.pipe.queue.heads = all("#s-review h2 .n, #s-queue h2 .n", (e) => e.textConte
 location.hash = "#pipeline/done"; await sleep(400); await wait("#s-done [data-stat], #s-done .stat, #s-done .emptybox, #s-done [class*=dashed]");
 out.pipe.done.line = document.querySelector("#s-done .bwhere")?.textContent.trim() ?? document.querySelector("#s-done")?.textContent.trim() ?? "";
 out.pipe.done.rows = document.querySelectorAll("#s-done .dtab tbody tr").length;
+// Teams: the side list, the All teams tiles and table cells by column name, and each team page head and tabs.
+const norm = (e) => (e?.textContent ?? "").replace(/\s+/g, " ").trim();
+const leaves = (e) => [...e.querySelectorAll("span")].filter((s) => !s.children.length).map(norm).filter(Boolean).join(" | ");
+out.teams = { side: {}, tiles: [], rows: {}, pages: {} };
+location.hash = "#teams"; await sleep(600);
+document.querySelectorAll("#side button.si").forEach((b) => { out.teams.side[b.dataset.id] = norm(b.querySelector(".t")) + " | " + norm(b.querySelector(".m")); });
+out.teams.groups = [...document.querySelectorAll("#side h3.sgroup")].map(norm).join(" | ");
+out.teams.tiles = [...document.querySelectorAll(".tpage .rtkpis > *, .tpage .tkpis > *")].map(leaves);
+const tbl = document.querySelector(".tpage table");
+if (tbl) {
+  const cols = [...tbl.querySelectorAll("thead th")].map(norm);
+  tbl.querySelectorAll("tbody tr").forEach((tr) => {
+    const td = [...tr.children], r = {};
+    for (const c of ["Team", "Status", "Cost this month", "Last test", "Problems"]) r[c] = norm(td[cols.indexOf(c)]);
+    out.teams.rows[r.Team] = r;
+  });
+}
+for (const id of Object.keys(out.teams.side).filter((x) => x !== "__all").slice(0, 4)) {
+  location.hash = "#teams/" + id; await sleep(600);
+  out.teams.pages[id] = { head: norm(document.getElementById("team-h")), tabs: [...document.querySelectorAll(".tpage nav.ttabs a")].map(norm).join(" | ") };
+}
 out.title = document.title;
 // Sessions: the list, the bar, the conversation and the details of the shown session on each tab, without white space.
 // The countdowns, the start time and the thread load move with the clock, so they stay out.
@@ -141,8 +162,8 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  # The probe visits 11 routes: Chrome's virtual time must outlast its waits.
-  r="$(PAGE_BUDGET="${PAGE_BUDGET:-15000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  # The view probes visit many routes: the virtual time must cover every sleep.
+  r="$(PAGE_BUDGET="${PAGE_BUDGET:-20000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done

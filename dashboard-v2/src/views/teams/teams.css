@@ -1,0 +1,104 @@
+/* The Teams pages, ported from the v1 .tpage rules: tokens only, each rule inside .tpage so no other view sees it. */
+.tpage { display: flex; flex-direction: column; gap: var(--s4); max-width: 1100px; }
+.tpage h3 { margin: 0 0 var(--s2); font-size: var(--t-body); font-weight: 700; }
+.tpage .lnk { color: var(--link); font-weight: 600; }
+/* The heading takes the focus after a navigation, for a screen reader; it is not a control. */
+.tpage .th:focus { outline: none; }
+.tpage h2 .n, .tpage .ttabs .n { margin-left: var(--s2); color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tpage .th { font-size: var(--t-page); margin: 0; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.tpage .thead-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.tpage .tsub, .tpage .readback { margin: 0; color: var(--dim); font-size: var(--t-sub); }
+.tpage .tkey { font: var(--t-label) var(--mono); color: var(--dim); }
+.tpage .na { color: var(--faint); font-weight: 400; }
+.tpage .unknown { color: var(--warn); font-weight: 600; font-size: var(--t-sub); }
+.tpage .mono { font-family: var(--mono); font-size: var(--t-label); }
+.tpage .num { font-variant-numeric: tabular-nums; }
+.tpage .prewrap { white-space: pre-wrap; }
+.tpage .btn { display: inline-flex; align-items: center; font: 600 var(--t-sub) var(--head); border: 1px solid var(--line2); border-radius: var(--r-sm);
+  padding: 6px var(--s4); background: var(--bg); color: var(--ink); }
+.tpage .btn:hover { background: var(--hover); text-decoration: none; }
+.tpage .linkbtn { background: none; border: 0; padding: 0; color: var(--link); font: inherit; font-weight: 600; }
+.tpage .linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
+.tpage button:disabled { opacity: .5; cursor: default; }
+
+.tpage .row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.tpage .stack { display: flex; flex-direction: column; gap: var(--s3); }
+.tpage .stack.sm { gap: var(--s2); }
+.tpage .stack.lg { gap: var(--s4); }
+
+.tpage .tkpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s3); }
+.tpage .tkpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tpage .tcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+.tpage .rtcols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--s3); align-items: start; }
+@media (max-width: 900px) { .tpage .tkpis, .tpage .tkpis.three, .tpage .tcols, .tpage .rtcols { grid-template-columns: minmax(0, 1fr); } }
+
+.tpage .tdraft { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.tpage .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.tpage .nm { font-weight: 700; display: inline-flex; align-items: center; gap: var(--s2); }
+.tpage .says { color: var(--dim); font-size: var(--t-sub); }
+
+.tpage .tscroll { overflow-x: auto; }
+.tpage .ttable { width: 100%; border-collapse: collapse; font-size: var(--t-sub); margin-top: var(--s2); }
+.tpage .ttable th { text-align: left; color: var(--dim); font-weight: 600; padding: var(--s1) var(--s2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tpage .ttable td { padding: var(--s2); border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tpage .sortbtn { background: none; border: 0; padding: 0; font: inherit; color: inherit; }
+.tpage .sortbtn:hover:not(:disabled) { background: none; color: var(--ink); }
+.tpage .tname { font-weight: 600; color: var(--link); }
+.tpage .tbud { min-width: 140px; }
+.tpage .tbud .num { display: block; margin-bottom: var(--s1); }
+.tpage .tspark { width: 120px; }
+
+.tpage .ttabs { display: flex; gap: var(--s1); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tpage .ttabs a { padding: var(--s2) var(--s3); color: var(--dim); font-weight: 600; font-size: var(--t-sub); border-bottom: 2px solid transparent; }
+.tpage .ttabs a:hover { color: var(--ink); text-decoration: none; }
+.tpage .ttabs a[aria-current] { color: var(--link); border-bottom-color: var(--link); }
+.tpage .ttabs .n.bad { color: var(--bad); font-weight: 700; }
+
+.tpage .tbanner { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s3) var(--s4);
+  border-radius: var(--r-lg); background: var(--warnbg); border: 1px solid var(--warn); font-size: var(--t-sub); }
+.tpage .titem { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s1) 0; border-top: 1px solid var(--line); font-size: var(--t-sub); }
+.tpage .titem:first-of-type { border-top: 0; }
+.tpage .tchartl { display: flex; justify-content: space-between; gap: var(--s2); }
+
+.tpage .ck { display: flex; align-items: center; gap: var(--s3); }
+.tpage .ck .num { width: 28px; height: 28px; border-radius: var(--r-pill); display: grid; place-items: center; font-weight: 700; flex: none; }
+.tpage .ck .num.ok { color: var(--ok); background: var(--okbg); }
+.tpage .ck .num.warn { color: var(--warn); background: var(--warnbg); }
+.tpage .ck .num.info { color: var(--info); background: var(--infobg); }
+.tpage .tin { padding: var(--s2) 0; border-top: 1px solid var(--line); }
+.tpage .ckbody { padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); }
+.tpage .kv { align-items: baseline; font-size: var(--t-sub); }
+.tpage .kv > span:last-child { color: var(--ink); text-align: right; }
+
+.tpage .field { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.tpage .field label, .tpage .lb { font-weight: 600; font-size: var(--t-sub); }
+.tpage .opt { color: var(--faint); font-weight: 400; }
+.tpage .fields2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); align-items: start; }
+@media (max-width: 640px) { .tpage .fields2 { grid-template-columns: minmax(0, 1fr); } }
+.tpage .group { border: 0; padding: 0; margin: 0; min-width: 0; }
+.tpage .group legend { padding: 0; margin-bottom: var(--s1); }
+.tpage .input { font: var(--t-sub) var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r-sm);
+  padding: 6px var(--s2); width: 100%; }
+.tpage .input.mono { font-family: var(--mono); }
+.tpage .input.inline { width: auto; display: inline-block; }
+.tpage .input.short { max-width: 240px; }
+.tpage .input.grow { flex: 1; width: auto; }
+.tpage .input[aria-invalid="true"], .tpage .group[aria-invalid="true"] { border-color: var(--bad); }
+.tpage .choice { display: flex; gap: var(--s2); align-items: flex-start; padding: var(--s2) var(--s3); border: 1px solid var(--line2); border-radius: var(--r-md); }
+.tpage .choice:has(input:checked) { border-color: var(--link); }
+.tpage .plist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1); }
+.tpage .plist li { display: flex; justify-content: space-between; gap: var(--s2); align-items: center; font-size: var(--t-sub); }
+.tpage .alert .what.wrap { white-space: normal; }
+
+.tpage .tlog { height: 220px; }
+.tpage .log { margin: 0; padding: var(--s3); max-height: 220px; overflow: auto; font: var(--t-label)/1.5 var(--mono); background: var(--sunk); border-radius: var(--r-md); white-space: pre-wrap; }
+.tpage .tmore-card { padding: var(--s3) var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.tpage .tmore-card summary { cursor: pointer; }
+.tpage .tmore { margin-top: var(--s3); }
+.tpage .team-json { width: 100%; }
+
+.tpage .ttimeline { list-style: none; margin: 0; padding: 0 0 0 var(--s4); border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: var(--s3); }
+.tpage .ttimeline li { position: relative; display: flex; flex-wrap: wrap; gap: var(--s2); align-items: baseline; font-size: var(--t-sub); }
+.tpage .ttimeline li::before { content: ""; position: absolute; left: calc(-1 * var(--s4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--panel); border: 2px solid var(--link); }
+.tpage .ttimeline .when { color: var(--dim); font-variant-numeric: tabular-nums; }

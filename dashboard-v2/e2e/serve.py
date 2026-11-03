@@ -4,8 +4,8 @@ With no --fixture: GET /api/live replays fixtures/live/<name>.ndjson, and the ot
 the hello and the first snapshot of the same file. The name comes from the fixture query or cookie, else the
 V2_LIVE environment variable, else basic. The replay stops after a bye; a resume (since) goes on after that id.
 With --fixture (a v1 page fixture, as parity-v2.sh uses): the fixture fills the server's feeds, so /api/snapshot,
-/api/stats, /api/overview and /api/teams are the real Handler answers, /api/live says bye off, so the page polls,
-and every other API path answers from the fixture, as page.sh does."""
+/api/stats and /api/overview are the real Handler answers, /api/live says bye off, so the page polls,
+and every other API path (/api/teams too) answers from the fixture, as page.sh does."""
 import argparse, datetime, json, os, re, sys, tempfile, time
 from http.cookies import SimpleCookie
 from http.server import ThreadingHTTPServer
@@ -55,7 +55,8 @@ for name, data in (("FULL", snap.get("snapshot")), ("AGENTS", snap.get("agents")
     f = server.Feed(name.lower(), [], 60, 30)
     f.data, f.fetched_at = data, now
     setattr(server, name, f)
-FEEDS = ("/api/snapshot", "/api/stats", "/api/overview", "/api/teams", "/api/live")
+# /api/teams answers from the fixture: the Handler reads the access of each team again from files this host lacks.
+FEEDS = ("/api/snapshot", "/api/stats", "/api/overview", "/api/live")
 LIVE_DIR = V2 / "fixtures/live"
 # The live fixtures have no stats copy (a snapshot sends stats null), so /api/stats answers the v1 stats fixture.
 LIVE_STATS = rel(json.load(open(ROOT / "skills/fxa-ctl-dev/page-fixture-stats.json")))["/api/stats"]
