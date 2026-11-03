@@ -57,6 +57,31 @@ jobs:
           # A hung check or Python test fails at 10 min with its name; the 20 min job kill names nothing.
           FXA_CHECK_PROGRESS: '1'
           FXA_CHECK_TIMEOUT: '600'
+  dashboard-v2:
+    # The v2 app: its checks, the committed dist against a new build, and the e2e. npm stays out of the *.check.sh files.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dashboard-v2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: dashboard-v2/.nvmrc
+          cache: npm
+          cache-dependency-path: dashboard-v2/package-lock.json
+      # On Linux, npm ci also proves that the lockfile has the Linux builds of the native packages.
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      # A src change without a new build would ship the old UI.
+      - name: The committed dist is the build
+        run: git diff --exit-code dist && test -z "$(git status --porcelain dist)"
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
   macos:
     # The laptop's OS: bash 3.2 and BSD tools. A 3.2-only break used to pass CI and reach main.
     runs-on: macos-latest
