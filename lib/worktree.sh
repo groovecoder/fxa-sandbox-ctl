@@ -479,6 +479,17 @@ _origin_has_branch() {
   return 2
 }
 
+# _worktree_drop_foreign_merge <path> <branch>   Abort a merge another ticket's cut-off rebase round left open:
+# its ticket no longer owns the slot, and the open merge blocks any checkout.
+_worktree_drop_foreign_merge() {
+  local path="$1" branch="$2" cur
+  git -C "$path" rev-parse -q --verify MERGE_HEAD >/dev/null || return 0
+  cur="$(git -C "$path" rev-parse --abbrev-ref HEAD)"
+  [ "$cur" != "$branch" ] || return 0
+  echo "Aborting the merge that '${cur}' left open in ${path}." >&2
+  git -C "$path" merge --abort >&2 || { echo "ERROR: could not abort the open merge in ${path}." >&2; return 1; }
+}
+
 # _worktree_resume_branch <path> <branch>   Check out a local branch and sync it to origin.
 _worktree_resume_branch() {
   local path="$1" branch="$2"
@@ -606,6 +617,7 @@ worktree_prepare_for_issue() {
 
   # FxA's post-checkout hook clones external/l10n and fatals on a second run.
   local nohooks="-c core.hooksPath=/dev/null" has
+  _worktree_drop_foreign_merge "$path" "$branch" || return 1
   if git -C "$path" show-ref --verify --quiet "refs/heads/${branch}"; then
     # A local ref can be weeks old, so sync it to origin before the agent sees it.
     echo "Branch '${branch}' already exists locally; resuming." >&2

@@ -40,4 +40,9 @@ done
 g clone -q -b fxa-1 "$tmp/origin.git" "$tmp/wt3" 2>/dev/null
 _jira_rebase_merge FXA-1 "$tmp/wt3" main >/dev/null 2>&1
 check "a relaunch resumes the branch with its conflicted merge open" "0|0|U" "$(_worktree_resume_branch "$tmp/wt3" fxa-1 2>/dev/null; echo $?)|$(_jira_rebase_merge FXA-1 "$tmp/wt3" main 2>/dev/null; echo $?)|$(git -C "$tmp/wt3" diff --name-only --diff-filter=U | sed 's/^d$/U/')"
+eval "$(sed -n '/^_worktree_drop_foreign_merge() {/,/^}/p' "$(dirname "$0")/worktree.sh")"
+_worktree_drop_foreign_merge "$tmp/wt3" fxa-1 2>/dev/null
+check "the same ticket keeps its open merge" "yes" "$(git -C "$tmp/wt3" rev-parse -q --verify MERGE_HEAD >/dev/null && echo yes)"
+_worktree_drop_foreign_merge "$tmp/wt3" fxa-2 2>/dev/null
+check "another ticket's open merge is aborted, so its checkout works" "no|0" "$(git -C "$tmp/wt3" rev-parse -q --verify MERGE_HEAD >/dev/null && echo yes || echo no)|$(git -C "$tmp/wt3" checkout -q -b fxa-2 origin/main 2>/dev/null; echo $?)"
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"
