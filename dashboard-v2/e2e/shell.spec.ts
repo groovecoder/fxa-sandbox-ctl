@@ -14,7 +14,7 @@ test('the build renders at /v2 and /v2/ under the v2 CSP, with no console error'
   expect(errors).toEqual([]);
 });
 
-test('the fixture feeds answer through the server Handler', async ({ request }) => {
+test('the REST reads answer from the live fixture', async ({ request }) => {
   const r = await request.get('/api/snapshot');
   expect(r.ok()).toBe(true);
   expect((await r.json()).snapshot?.repo).toBe('example/repo');
