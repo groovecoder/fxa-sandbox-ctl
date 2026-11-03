@@ -65,13 +65,13 @@ export function Belts() {
 
   const live = snap ? g.working.filter((r: J) => r.t.agent_alive).map((r: J) => r.t.key as string) : [];
   const liveKeys = live.join(' ');
-  // The fixture page of the shell tests has no stream, and connect() would open one.
-  const fixture = !!(window as { __V2_FIXTURE__?: unknown }).__V2_FIXTURE__;
+  // Only a page with a stream or its polls asks for tails: connect() on a fixture page would open a stream.
+  const streams = !!s.live.sid || s.conn.mode === 'polling';
   useEffect(() => {
-    if (fixture) return;
+    if (!streams) return;
     connect().showTails(liveKeys ? liveKeys.split(' ') : []);
     return () => connect().showTails([]);
-  }, [liveKeys, fixture]);
+  }, [liveKeys, streams]);
 
   // An update that replaces the focused row puts the focus back on the same row and control.
   useLayoutEffect(() => {
@@ -287,9 +287,9 @@ function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string 
       <div className="blks">{ci}{agent}{review}{runs}</div>
       <div className="acts">
         {main}
-        {jh && <a data-focus="jira" href={jh} target="_blank" rel="noopener">Jira ↗</a>}
-        {ph && <a data-focus="pr" href={ph} target="_blank" rel="noopener">PR ↗</a>}
-        {ph && <a data-focus="checks" href={`${ph}/checks`} target="_blank" rel="noopener">Checks ↗</a>}
+        {jh && <a data-focus="d-jira" href={jh} target="_blank" rel="noopener">Jira ↗</a>}
+        {ph && <a data-focus="d-pr" href={ph} target="_blank" rel="noopener">PR ↗</a>}
+        {ph && <a data-focus="d-checks" href={`${ph}/checks`} target="_blank" rel="noopener">Checks ↗</a>}
         {sess && <a data-focus="sess" href={sess}>Session</a>}
       </div>
     </div>
