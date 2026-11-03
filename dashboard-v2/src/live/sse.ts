@@ -26,7 +26,7 @@ export async function probe(): Promise<'signin' | 'offline' | 'json'> {
 
 export function startLive(env: Omit<Env, 'tails'>): Live {
   let es: EventSource | null = null, opened = 0, stopPoll: (() => void) | null = null, stopped = false;
-  let fails: number[] = [], backoff = 0, statsAt = 0, tails: string[] = [];
+  let fails: number[] = [], backoff = 0, statsAt = 0, tails: string[] = [], asleep = false, notBefore = 0;
   const timers = { retry: 0 as unknown as ReturnType<typeof setTimeout>, hello: 0 as unknown as ReturnType<typeof setTimeout>, hidden: 0 as unknown as ReturnType<typeof setTimeout> };
   const conn = (data: Partial<Store['conn']>) => env.dispatch({ event: 'conn', data });
   const pollEnv: Env = { ...env, tails: () => tails };
@@ -39,11 +39,12 @@ export function startLive(env: Omit<Env, 'tails'>): Live {
   const retryIn = (s: number) => { clearTimeout(timers.retry); timers.retry = setTimeout(open, s * 1000); };
   const fallback = (retryS?: number) => {
     close(); poll(true); conn({ mode: 'polling' });
+    if (retryS) notBefore = Date.now() + retryS * 1000;
     retryIn(retryS ?? BACKOFF_S[Math.min(backoff++, BACKOFF_S.length - 1)]!);
   };
 
   function open() {
-    if (stopped || es) return;
+    if (stopped || es || asleep) return;
     const seq = env.getState().conn.seq;
     es = new EventSource(seq ? `/api/live?since=${encodeURIComponent(seq)}` : '/api/live');
     if (env.getState().conn.mode !== 'polling') conn({ mode: 'connecting' });
@@ -61,7 +62,7 @@ export function startLive(env: Omit<Env, 'tails'>): Live {
     // A stream that was open drops now and then: reconnect at once with since, and show nothing yet.
     if (wasOpen && fails.length < 3) return retryIn(1);
     const p = await probe();
-    if (stopped) return;
+    if (stopped || asleep) return;
     if (p === 'signin') { poll(false); return conn({ mode: 'signin', error: 'Your sign-in ended. Reload the page.' }); }
     if (p === 'offline') { poll(false); conn({ mode: 'offline', error: 'Server unreachable' }); return retryIn(BACKOFF_S[Math.min(backoff++, BACKOFF_S.length - 1)]!); }
     fallback();
@@ -118,11 +119,14 @@ export function startLive(env: Omit<Env, 'tails'>): Live {
   const dead = setInterval(() => {
     if (es && opened && Date.now() - Math.max(opened, env.getState().conn.lastEventAt) > DEAD_MS) { close(); open(); }
   }, 5000);
-  // A tab hidden for 120 s closes its stream; it opens again with since when it shows.
+  // A tab hidden for 120 s closes its stream and sleeps; on show it opens with since, after the retry_s of a bye.
   const vis = () => {
     clearTimeout(timers.hidden);
-    if (document.hidden) timers.hidden = setTimeout(() => { close(); poll(false); }, HIDDEN_MS);
-    else if (!es && env.getState().conn.mode !== 'signin') { clearTimeout(timers.retry); open(); }
+    if (document.hidden) { timers.hidden = setTimeout(() => { asleep = true; close(); poll(false); clearTimeout(timers.retry); }, HIDDEN_MS); return; }
+    asleep = false;
+    if (es || env.getState().conn.mode === 'signin') return;
+    const wait = notBefore - Date.now();
+    if (wait > 0) { poll(true); retryIn(wait / 1000); } else { clearTimeout(timers.retry); open(); }
   };
   const online = () => { if (!es && env.getState().conn.mode === 'offline') open(); };
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', vis);

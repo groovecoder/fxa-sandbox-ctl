@@ -85,6 +85,27 @@ test('a tab hidden for 120 s closes its stream and opens it with since when it s
   expect(open().map((e) => e.url)).toEqual(['/api/live?since=e1-1']);
 });
 
+test('a retry that falls due after the hidden close opens no stream in the hidden tab', async () => {
+  await connect();
+  doc.hidden = true; doc.dispatchEvent(new Event('visibilitychange'));
+  await vi.advanceTimersByTimeAsync(100000);
+  last().emit('bye', { reason: 'full', retry_s: 60 });
+  await vi.advanceTimersByTimeAsync(81000);
+  expect(open()).toHaveLength(0);
+  doc.hidden = false; doc.dispatchEvent(new Event('visibilitychange'));
+  expect(open()).toHaveLength(1);
+});
+
+test('a tab that shows again keeps the retry_s of a bye full', async () => {
+  await connect();
+  last().emit('bye', { reason: 'full', retry_s: 30 });
+  doc.hidden = true; doc.dispatchEvent(new Event('visibilitychange'));
+  doc.hidden = false; doc.dispatchEvent(new Event('visibilitychange'));
+  expect(open()).toHaveLength(0);
+  await vi.advanceTimersByTimeAsync(30000);
+  expect(open()).toHaveLength(1);
+});
+
 test('a failed connect and a probe that gets JSON: poll, retry the stream with backoff, stop the polls on hello', async () => {
   live = startLive(env);
   last().onerror?.();
