@@ -166,9 +166,9 @@ for (const t of ["all", "pipeline", "slack", "routines"]) {
 }
 return JSON.stringify(out);'
 # Teams part B: the routines list and the page of routine 1 of the team "example" (the routine fixtures).
-# A seconds age drops its number: v1 and v2 render a few seconds apart.
+# An age in seconds or minutes and a clock time drop their numbers: v1 and v2 start their clocks up to a minute apart.
 PROBE="${PROBE%return JSON.stringify(out);}"'
-const rtAll = (s) => [...document.querySelectorAll(s)].map((e) => e.textContent.replace(/\s+/g, " ").trim().replace(/\b\d+s ago\b/g, "s ago")).join("|");
+const rtAll = (s) => [...document.querySelectorAll(s)].map((e) => e.textContent.replace(/\s+/g, " ").trim().replace(/\b\d+[sm] ago\b/g, "s ago").replace(/\b\d{1,2}:\d\d\s?[AP]M\b/g, "hh:mm")).join("|");
 out.routines = {};
 for (const r of ["teams/example/routines", "teams/example/routines/1"]) {
   location.hash = "#" + r; await sleep(800);
@@ -210,7 +210,7 @@ bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
   # The view probes visit many routes: the virtual time must cover every sleep.
-  r="$(PAGE_BUDGET="${PAGE_BUDGET:-20000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  r="$(PAGE_BUDGET="${PAGE_BUDGET:-45000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
