@@ -44,4 +44,10 @@ unset -f git
 g update-ref refs/remotes/origin/master HEAD; g update-ref -d refs/remotes/origin/main
 f="$(PIPE_BASE_BRANCH=master cmd_ground "$key" | head -1)"
 check "ground reads the profile's base branch" "1|0" "$(grep -c '^## Cited paths on origin/master' "$f")|$(grep -c 'MISSING' "$f")"
+# A skipped ticket with no new text: ground writes no bundle, unless --force.
+PIPE_STATE_DIR="$tmp/state"; mkdir -p "$PIPE_STATE_DIR"; : > "$PIPE_STATE_DIR/${key}.skipped"; rm -f "/tmp/fxa-${key}-ground.md"
+pipeline_skip_changed() { [ -n "${CHANGED:-}" ] && echo changed; }
+check "skipped and unchanged: no bundle" "1|no" "$(cmd_ground "$key" | grep -c 'nothing to ground')|$([ -f "/tmp/fxa-${key}-ground.md" ] && echo yes || echo no)"
+check "skipped and changed: the bundle" "yes" "$(CHANGED=1 PIPE_BASE_BRANCH=master cmd_ground "$key" | grep -q 'ground.md$' && echo yes)"
+check "--force grounds an unchanged skip" "yes" "$(PIPE_BASE_BRANCH=master cmd_ground "$key" --force | grep -q 'ground.md$' && echo yes)"
 exit "$fail"

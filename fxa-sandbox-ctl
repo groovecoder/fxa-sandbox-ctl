@@ -154,7 +154,7 @@ PIPELINE COMMANDS:
   env                          The team's loaded PIPE_* settings (backend, workspace, stack dir, repos), with no login
   jira-write transition <KEY> <id> | label <KEY> add|remove <label>   One Jira write with the pipeline login
   sentry-card <ID|SHORT-ID>    A Sentry issue as JSON for a Slack card (no user data); null when unreadable
-  ground <ISSUE-KEY>           Write /tmp/fxa-KEY-ground.md: ticket, cited paths checked on
+  ground <ISSUE-KEY> [--force] Write /tmp/fxa-KEY-ground.md: ticket, cited paths checked on
                                origin/main, frozen/stories checks, overlapping open PRs
   reporter <ISSUE-KEY>         Reporter's GitHub login, empty if unmapped
   label <ISSUE-KEY> <state> [kind] [reason]
@@ -1769,6 +1769,10 @@ _frozen_patterns() {
 
 cmd_ground() {
   local key; key="$(_key "$1")"
+  # A skipped ticket with no new text has nothing new to read (passes re-grounded the whole queue).
+  if [ "${2:-}" != --force ] && [ -f "${PIPE_STATE_DIR:-}/${key}.skipped" ] && ! pipeline_skip_changed "$key" >/dev/null 2>&1; then
+    echo "${key}: skipped and unchanged since the skip; nothing to ground (ground ${key} --force reads it anyway)"; return 0
+  fi
   local out="/tmp/fxa-${key}-ground.md" repo="$PIPE_REPO" b="${PIPE_BASE_BRANCH:-main}"
   pipeline_ensure_clone || { echo "ERROR: could not clone ${PIPE_REPO_SLUG} on this host" >&2; return 1; }
   git -C "$repo" fetch -q origin "$b" 2>/dev/null || true

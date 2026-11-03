@@ -34,6 +34,9 @@ you; do not read this file on a quiet pass. `SKILL.md` names the section beside 
 
 ## Admission
 
+- **The skipped queue grounded again (2026-11-02).** 13 of 43 passes ran `ground` in a loop over
+  every skipped key to look for a change. `ground` now refuses a skipped ticket with no new text;
+  precheck already lists the changed ones. `ground KEY --force` only when a person asks.
 - **Underspecified vs blocked (FXA-14325).** Skipped while it read "Proposal (to discuss)",
   shipped once the reporter answered. A comment fixes underspecified; nothing but a human fixes
   blocked.

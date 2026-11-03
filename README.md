@@ -399,7 +399,7 @@ See [AI_FIXME_PIPELINE.md](AI_FIXME_PIPELINE.md) for the lifecycle these command
 | `drain` | Done keys whose PR merged, closed, or went red |
 | `ticket <ISSUE-KEY>` | Ticket text **including comments** — ground with this |
 | `reporter <ISSUE-KEY>` | Reporter's GitHub login, empty if unmapped |
-| `ground <ISSUE-KEY>` | Write `/tmp/fxa-KEY-ground.md`: ticket, cited paths checked on origin/main, frozen and stories checks, overlapping open PRs, recent commits |
+| `ground <ISSUE-KEY> [--force]` | Write `/tmp/fxa-KEY-ground.md`: ticket, cited paths checked on origin/main, frozen and stories checks, overlapping open PRs, recent commits. A skipped ticket with no new text gets no bundle unless `--force` |
 | `label <ISSUE-KEY> <state> [kind] [reason]` | WRITE: move the ticket; also reaps its VM; for `blocked`, keeps the kind and reason for the Board, and on `merged` assigns the approver, sprints it, and closes it |
 | `slots` | Pool slots, and any VM running on each |
 | `freeslots` | Slots a ticket can claim — **use this, not `slots`** |
