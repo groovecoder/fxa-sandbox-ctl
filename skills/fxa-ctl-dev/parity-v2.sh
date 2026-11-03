@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compare the dashboard shell of v1 and v2 on the v1 page fixtures: rail badges and their tones, tab counts,
 # the health word and the tab title. v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
-#   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json
+#   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json and parity-fixture*.json
 #   bash skills/fxa-ctl-dev/parity-v2.sh --compare v1.json v2.json [name]   only the compare step, on probe outputs
 # A diff that parity-allow.json lists (a known v1 bug that v2 fixes) passes; any other diff fails.
 # The views add their probes to PROBE in wave 2.
@@ -52,9 +52,29 @@ for (const v of ["overview", "pipeline", "sessions", "errors", "runners", "teams
   out.tones[v] = (b?.className ?? "").replace(/\bn\b/, "").trim();
 }
 out.title = document.title;
+// Errors: the head, the rows with their tag and meta, the empty and failure texts, the list and the details.
+const norm = (t) => (t ?? "").replace(/\s+/g, " ").replace(/\b-?\d+[smhd] ago\b|\bNaNd ago\b/g, "~").trim();
+const all = (sel) => [...document.querySelectorAll(sel)];
+out.errors = {};
+for (const t of ["open", "all"]) {
+  location.hash = "#errors/" + t; await sleep(400);
+  const s = document.getElementById("s-errors");
+  out.errors[t] = {
+    head: norm(s?.querySelector("h2")?.textContent),
+    rows: all("#s-errors .errs .err").map((e) => e.id + " " + norm(e.firstElementChild?.textContent)).join(", "),
+    meta: all("#s-errors .errs .err .meta").map((e) => norm(e.textContent)).join(" | "),
+    empty: norm(s?.querySelector(".emptybox:not([role=alert])")?.textContent),
+    alert: norm(s?.querySelector("[role=alert]")?.textContent),
+    hint: all("#s-errors p.empty").length,
+    side: all("#side button.si").map((b) => b.dataset.id + (b.getAttribute("aria-current") ? "*" : "") + " " + norm(b.querySelector(".t")?.textContent) + " / " + norm(b.querySelector(".m")?.textContent)).join(" | "),
+    sideEmpty: norm(document.querySelector("#side .slist2 .empty")?.textContent),
+    right: norm(document.querySelector("#right h2.rh")?.textContent),
+  };
+}
 return JSON.stringify(out);'
 
-[ $# -gt 0 ] || set -- "$here"/page-fixture*.json
+# parity-fixture-*.json are v1 page fixtures for a view's probes only, so v1-golden.sh does not read them.
+[ $# -gt 0 ] || set -- "$here"/page-fixture*.json "$here"/parity-fixture*.json
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"; pid=""
 trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 printf '%s' "$PROBE" > "$tmp/probe.js"
@@ -64,7 +84,8 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  r="$(bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  # The probe steps through 9 routes after page.sh's 2.5 s start: more than its default 6 s of virtual time.
+  r="$(PAGE_BUDGET="${PAGE_BUDGET:-10000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done

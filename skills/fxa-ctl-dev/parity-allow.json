@@ -4,5 +4,11 @@
   "v1": "",
   "v2": "?",
   "why": "v1 index.html 4080: a snapshot with no review list showed no badge; v2 shows it as unknown"
+ },
+ {
+  "key": "errors.all.empty",
+  "v1": "No open errors.",
+  "v2": "No errors recorded.",
+  "why": "v1 index.html 1707: the All tab with no row said \"No open errors.\"; v2 says \"No errors recorded.\""
  }
 ]
