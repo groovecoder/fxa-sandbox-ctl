@@ -16,6 +16,8 @@ export async function probe(): Promise<'signin' | 'offline' | 'json'> {
   try {
     const r = await fetch('/api/team-admin', { redirect: 'manual', cache: 'no-store', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
     if (r.type === 'opaqueredirect' || r.status === 401) return 'signin';
+    // A 5xx text answer is the gateway while the server restarts, not an ended sign-in.
+    if (!r.ok) return 'offline';
     return (await r.json().then(() => true, () => false)) ? 'json' : 'signin';
   } catch {
     return 'offline';

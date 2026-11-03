@@ -22,7 +22,7 @@ const last = () => FakeES.all[FakeES.all.length - 1]!;
 const HELLO = { v: 1, epoch: 'e1', sid: 's1', viewer: { user: 'user@example.com', admin: true, teams: [] }, retention_s: 300, max_life_s: 900 };
 const SNAP = { feeds: {}, sessions: [], errors: [], stats: null, flow: [] };
 
-let st: State, live: Live, probe: 'json' | '401' | 'redirect' | 'throw', calls: string[], doc: EventTarget & { hidden: boolean };
+let st: State, live: Live, probe: 'json' | '401' | 'redirect' | 'throw' | '500', calls: string[], doc: EventTarget & { hidden: boolean };
 const env = { dispatch: (a: Action) => { st = apply(st, a); }, getState: () => st };
 const res = (body: unknown, status = 200, headers: Record<string, string> = {}) => ({ ok: status < 300, status, type: 'basic', headers: new Headers(headers), json: async () => body });
 
@@ -38,6 +38,7 @@ beforeEach(() => {
     if (url === '/api/team-admin' && init?.redirect === 'manual') {
       if (probe === 'throw') throw new TypeError('Failed to fetch');
       if (probe === 'redirect') return { ok: false, status: 0, type: 'opaqueredirect', headers: new Headers(), json: async () => { throw new SyntaxError('no body'); } };
+      if (probe === '500') return { ok: false, status: 500, type: 'basic', headers: new Headers(), json: async () => { throw new SyntaxError('text/plain'); } };
       return probe === '401' ? res({ error: 'sign in' }, 401) : res({ admin: true });
     }
     if (url.startsWith('/api/stats')) return res({ rows: [] }, 200, { ETag: '"e-1"' });
@@ -117,6 +118,16 @@ test.each([['401'], ['redirect']] as const)('a probe that gets %s: sign-in mode,
 
 test('a probe that throws: offline, and the stream is tried again', async () => {
   probe = 'throw';
+  live = startLive(env);
+  last().onerror?.();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(st.conn.mode).toBe('offline');
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(FakeES.all).toHaveLength(2);
+});
+
+test('a probe that gets a 500 text answer (the server restarts): offline, not sign-in, and the stream is tried again', async () => {
+  probe = '500';
   live = startLive(env);
   last().onerror?.();
   await vi.advanceTimersByTimeAsync(0);
