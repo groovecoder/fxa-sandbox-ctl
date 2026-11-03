@@ -1,5 +1,5 @@
 """Serve a v1 page fixture through dashboard/server.py's Handler, and the v2 build at /v2, for Playwright.
-  python3 e2e/serve.py [--port 4174] [--fixture skills/fxa-ctl-dev/page-fixture-overview.json]
+  python3 e2e/serve.py [--port 4174] [--fixture skills/fxa-ctl-dev/page-fixture-overview.json] [--dist dist]
 The fixture's snapshot, stats and teams fill the server's feeds, so /api/snapshot, /api/stats, /api/overview and
 /api/teams are the real Handler answers. Every other API path answers from the fixture, as page.sh does, because
 it would run the controller or read the store. The /v2 handler here is temporary until server.py has its route."""
@@ -13,7 +13,9 @@ ROOT = V2.parent
 p = argparse.ArgumentParser()
 p.add_argument("--port", type=int, default=4174)
 p.add_argument("--fixture", default=str(ROOT / "skills/fxa-ctl-dev/page-fixture-overview.json"))
+p.add_argument("--dist", default=str(V2 / "dist"), help="the build to serve (parity-v2.sh builds into a temp folder)")
 a = p.parse_args()
+DIST = Path(a.dist)
 
 # Before the import: the server must never read the real store, sessions or errors.
 tmp = tempfile.mkdtemp(prefix="v2-serve.")
@@ -66,13 +68,13 @@ class Handler(server.Handler):
             if not self._allowed(False):
                 return
             if path in ("/v2", "/v2/", "/v2/index.html"):
-                page = (V2 / "dist/index.html").read_text()
+                page = (DIST / "index.html").read_text()
                 return self._send(200, page, "text/html; charset=utf-8", csp=csp(page))
             name = path[len("/v2/assets/"):] if path.startswith("/v2/assets/") else ""
             m = ASSET.fullmatch(name)
-            if not m or not (V2 / "dist/assets" / name).is_file():
+            if not m or not (DIST / "assets" / name).is_file():
                 return self._send(404, "not found", "text/plain")
-            return self._send(200, (V2 / "dist/assets" / name).read_bytes(), TYPES[m.group(1)])
+            return self._send(200, (DIST / "assets" / name).read_bytes(), TYPES[m.group(1)])
         if path.startswith("/api/") and path not in FEEDS:
             if not self._allowed(True):
                 return

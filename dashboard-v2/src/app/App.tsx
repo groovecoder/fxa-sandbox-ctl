@@ -1,20 +1,13 @@
-import { useEffect, useState } from 'react';
-import { viewOf } from './views';
+import { Shell } from './Shell';
+import { SelCtx, StoreCtx, type Sel, type StoreApi } from './store';
+import type { Store } from '../store/types';
 
-// A placeholder until W1-SHELL adds the router and the shell: it names the view of the hash.
-export function App() {
-  const [hash, setHash] = useState(location.hash);
-  useEffect(() => {
-    const on = () => setHash(location.hash);
-    addEventListener('hashchange', on);
-    return () => removeEventListener('hashchange', on);
-  }, []);
-  const view = viewOf(hash.slice(1).split(/[/?]/)[0] ?? '');
+export function App({ store, sel, poll }: { store: StoreApi<Store>; sel: Sel; poll?: () => Promise<void> }) {
   return (
-    <main>
-      <h1>{view.title}</h1>
-      <p>{view.sub}</p>
-      <p>This view is not built yet.</p>
-    </main>
+    <StoreCtx.Provider value={store}>
+      <SelCtx.Provider value={sel}>
+        <Shell poll={poll} />
+      </SelCtx.Provider>
+    </StoreCtx.Provider>
   );
 }
