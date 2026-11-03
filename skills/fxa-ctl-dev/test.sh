@@ -5,7 +5,7 @@
 #   test.sh mac|here   this host only (here: any OS, as vm.sh test runs it on the manager)
 #   test.sh linux      the Ubuntu container only
 #   test.sh changed [base]   this host only, only the checks for the files changed since base (origin/main):
-#                      a changed check, and each check that names a changed file; a Python service's tests;
+#                      a changed check, and each check that names a changed file; a Python service's tests (dashboard/*.check.py too);
 #                      the bot e2e when fake-ctl.sh changed (FXA_BOT_REPO, default ../fxa-agent-bot); dashboard-v2's npm
 #                      typecheck, lint, test and build, and its dist against the build, when it changed. CI runs the full suite on push.
 set -uo pipefail
@@ -74,7 +74,7 @@ run_here() {
   if [ "$i" = "$n" ]; then
     py="$(mktemp "${TMPDIR:-/tmp}/fxa-py.XXXXXX")"
     ( b=0
-      for t in infra/llm-proxy/proxy_test.py infra/mcp-gateway/gateway_test.py; do o="$(_tmo python3 "$t" 2>&1)" || { c=$?; echo "FAIL $HOST: $t$([ "$c" != 142 ] || echo " did not finish in ${FXA_CHECK_TIMEOUT}s")"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"
+      for t in infra/llm-proxy/proxy_test.py infra/mcp-gateway/gateway_test.py dashboard/*.check.py; do o="$(_tmo python3 "$t" 2>&1)" || { c=$?; echo "FAIL $HOST: $t$([ "$c" != 142 ] || echo " did not finish in ${FXA_CHECK_TIMEOUT}s")"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"
         [ -z "${FXA_CHECK_VERBOSE:-}" ] || grep -m1 -A25 '^Traceback' <<< "$o" | sed 's/^/  | /'; b=1; }; done
       # The desktop gateway's check needs its packages (desktop-gateway/requirements.txt); without them it is skipped, not passed.
       if python3 -c 'import aiohttp, google.auth' 2>/dev/null; then o="$(python3 desktop-gateway/check.py 2>&1)" || { echo "FAIL $HOST: desktop-gateway/check.py"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; b=1; }
@@ -103,7 +103,7 @@ run_linux() {
     git config --global user.email test@example.com; git config --global user.name test; git config --global init.defaultBranch main
     cp -r /src /work && cd /work; bad=0
     run_pool linux lib/*.check.sh skills/*/*.check.sh infra/*/*.check.sh || bad=1
-    for t in infra/llm-proxy/proxy_test.py infra/mcp-gateway/gateway_test.py desktop-gateway/check.py; do o="$(_tmo python3 "$t" 2>&1)" || { echo "FAIL linux: $t"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; bad=1; }; done
+    for t in infra/llm-proxy/proxy_test.py infra/mcp-gateway/gateway_test.py desktop-gateway/check.py dashboard/*.check.py; do o="$(_tmo python3 "$t" 2>&1)" || { echo "FAIL linux: $t"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; bad=1; }; done
     [ "$bad" = 0 ] && echo "linux: all checks pass"; exit "$bad"' 2>&1 | tail -20 || rc=1
 }
 
@@ -118,7 +118,8 @@ run_changed() {
     [ -f "$f" ] || continue
     case "$f" in *.check.sh) picked+=("$f"); continue ;; esac
     # The v2 app has its own npm checks below; its file names (index.html, package.json) would pick v1 checks.
-    case "$f" in dashboard-v2/*) v2=1; continue ;; esac
+    # The live fixtures are C1: the dashboard's Python checks replay them.
+    case "$f" in dashboard-v2/*) v2=1; case "$f" in dashboard-v2/fixtures/live/*) py+=" $(echo dashboard/*.check.py)" ;; esac; continue ;; esac
     # The check named after the file's folder: lib/db/008-x.sql is lib/db.check.sh's.
     c="$(dirname "$(dirname "$f")")/$(basename "$(dirname "$f")").check.sh"; [ -f "$c" ] && picked+=("$c")
     # The text a check names the file by; a skill's check.sh by its folder too, since every check's own name ends in check.sh.
@@ -148,6 +149,7 @@ run_changed() {
       infra/llm-proxy/*) py+=" infra/llm-proxy/proxy_test.py" ;;
       infra/mcp-gateway/*) py+=" infra/mcp-gateway/gateway_test.py" ;;
       desktop-gateway/*) py+=" desktop-gateway/check.py" ;;
+      dashboard/*.py|lib/fxadb.py) py+=" $(echo dashboard/*.check.py)" ;;
       skills/fxa-ctl-dev/fake-ctl.sh) e2e=1 ;;
     esac
   done
