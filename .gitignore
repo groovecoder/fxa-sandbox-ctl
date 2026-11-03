@@ -34,3 +34,8 @@ Claude outputs/
 
 # Operator-only data: Jira emails.
 reporters.tsv
+
+# Dashboard v2: npm packages and test output. The build in dashboard-v2/dist is committed.
+node_modules/
+dashboard-v2/test-results/
+dashboard-v2/playwright-report/
