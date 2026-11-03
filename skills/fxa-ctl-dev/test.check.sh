@@ -63,4 +63,17 @@ check "a skill's check.sh picks the checks that name its folder, not every check
 check "a controller change does not pick a page check that only names it as text" "" "$(picks fxa-sandbox-ctl)"
 check "a dashboard change picks the page check" "skills/fxa-ctl-dev/page-x.check.sh" "$(picks dashboard/index.html)"
 check "a function whose name is in most checks picks none by that name" "" "$(picks lib/w.sh)"
+# dashboard-v2: its npm checks run, its dist must equal the build, and its file names pick no other check.
+mkdir -p "$r/dashboard-v2/src" "$r/dashboard-v2/node_modules"; echo 'node_modules/' > "$r/.gitignore"; echo '# reads the bot package.json' > "$r/lib/pkg.check.sh"
+echo 'export {};' > "$r/dashboard-v2/src/a.ts"; v2pkg() { printf '{"scripts":{"typecheck":"%s","lint":"true","test":"true","build":"%s"}}\n' "$1" "$2" > "$r/dashboard-v2/package.json"; }
+v2pkg 'touch ../marker && exit 1' true; ( cd "$r" && git add -A && git -c user.email=t@example.com -c user.name=t commit -qm v2 )
+check "a dashboard-v2 file picks no check that names its file name" "" "$(picks dashboard-v2/package.json)"
+if node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 20 || (a === 20 && b >= 19) ? 0 : 1)' 2>/dev/null; then
+  check "a changed dashboard-v2 file runs its npm checks, and a failed one fails the run" "1|yes|yes" \
+    "$(changed dashboard-v2/src/a.ts)|$(grep -q 'FAIL [a-z]*: dashboard-v2 npm checks' "$tmp/out" && echo yes)|$([ -e "$r/marker" ] && echo yes)"
+  v2pkg true 'mkdir -p dist && echo x > dist/a.js'; ( cd "$r" && git -c user.email=t@example.com -c user.name=t commit -qam build )
+  check "a build that changes dashboard-v2/dist fails the run" "1|yes" "$(changed dashboard-v2/src/a.ts)|$(grep -q 'FAIL [a-z]*: dashboard-v2/dist is not the build' "$tmp/out" && echo yes)"
+else
+  check "with Node before 20.19, the dashboard-v2 checks skip and say so" "0|yes" "$(changed dashboard-v2/src/a.ts)|$(grep -q 'skipped: needs Node 20.19+' "$tmp/out" && echo yes)"
+fi
 exit "$fail"

@@ -6,7 +6,8 @@
 #   test.sh linux      the Ubuntu container only
 #   test.sh changed [base]   this host only, only the checks for the files changed since base (origin/main):
 #                      a changed check, and each check that names a changed file; a Python service's tests;
-#                      the bot e2e when fake-ctl.sh changed (FXA_BOT_REPO, default ../fxa-agent-bot). CI runs the full suite on push.
+#                      the bot e2e when fake-ctl.sh changed (FXA_BOT_REPO, default ../fxa-agent-bot); dashboard-v2's npm
+#                      typecheck, lint, test and build, and its dist against the build, when it changed. CI runs the full suite on push.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -108,7 +109,7 @@ run_linux() {
 
 # run_changed <base>   The checks that name a file changed since base (committed, staged, unstaged or new).
 run_changed() {
-  local base="${1:-origin/main}" f b c n fn picked=() bad=0 py="" e2e=""
+  local base="${1:-origin/main}" f b c n fn picked=() bad=0 py="" e2e="" v2=""
   local files; files="$( { git diff --name-only "$base"...HEAD; git diff --name-only HEAD; git ls-files -o --exclude-standard; } 2>/dev/null | sort -u)"
   [ -n "$files" ] || { echo "$HOST: no changed files since $base"; return; }
   local all; all="$(ls lib/*.check.sh skills/*/*.check.sh infra/*/*.check.sh 2>/dev/null)"
@@ -116,6 +117,8 @@ run_changed() {
   for f in $files; do
     [ -f "$f" ] || continue
     case "$f" in *.check.sh) picked+=("$f"); continue ;; esac
+    # The v2 app has its own npm checks below; its file names (index.html, package.json) would pick v1 checks.
+    case "$f" in dashboard-v2/*) v2=1; continue ;; esac
     # The check named after the file's folder: lib/db/008-x.sql is lib/db.check.sh's.
     c="$(dirname "$(dirname "$f")")/$(basename "$(dirname "$f")").check.sh"; [ -f "$c" ] && picked+=("$c")
     # The text a check names the file by; a skill's check.sh by its folder too, since every check's own name ends in check.sh.
@@ -149,7 +152,7 @@ run_changed() {
     esac
   done
   py="$(printf '%s\n' $py | sort -u)"
-  [ ${#picked[@]} -gt 0 ] || [ -n "$py" ] || [ -n "$e2e" ] || { echo "$HOST: no check names the changed files; CI runs the full suite"; [ "$bad" = 0 ] || rc=1; return; }
+  [ ${#picked[@]} -gt 0 ] || [ -n "$py" ] || [ -n "$e2e" ] || [ -n "$v2" ] || { echo "$HOST: no check names the changed files; CI runs the full suite"; [ "$bad" = 0 ] || rc=1; return; }
   # The page checks render dashboard/index.html in Chrome, about 100 times: only a dashboard or page
   # change needs them (page.check.sh's fixtures name the controller as text).
   if [ ${#picked[@]} -gt 0 ] && ! grep -qE '^(dashboard/|skills/fxa-ctl-dev/page)' <<< "$files"; then
@@ -172,6 +175,19 @@ run_changed() {
       ( cd "$bot" && FXA_CTL_REPO="$ROOT" npm run -s e2e ) > "${TMPDIR:-/tmp}/fxa-e2e-$$.log" 2>&1 \
         || { echo "FAIL $HOST: the bot e2e (log: ${TMPDIR:-/tmp}/fxa-e2e-$$.log)"; bad=1; }
     else echo "skip $HOST: the bot e2e (no bot tree at $bot; set FXA_BOT_REPO)"; fi
+  fi
+  # Vite needs Node 20.19+; test.sh linux has the apt Node 18. The e2e needs Playwright's Chromium, so CI runs it.
+  if [ -n "$v2" ]; then
+    if ! node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 20 || (a === 20 && b >= 19) ? 0 : 1)' 2>/dev/null; then
+      echo "skip $HOST: dashboard-v2: skipped: needs Node 20.19+"
+    else
+      local log="${TMPDIR:-/tmp}/fxa-v2-$$.log" s=""
+      echo "$HOST: dashboard-v2 changed: typecheck, lint, test, build"
+      ( cd dashboard-v2 && { [ -d node_modules ] || npm ci --no-audit --no-fund; } && npm run -s typecheck && npm run -s lint && npm test -s && npm run -s build ) > "$log" 2>&1 \
+        || { echo "FAIL $HOST: dashboard-v2 npm checks (log: $log)"; bad=1; }
+      s="$(git status --porcelain -- dashboard-v2/dist)"
+      [ -z "$s" ] || { echo "FAIL $HOST: dashboard-v2/dist is not the build: commit the new dist"; head -5 <<< "$s" | sed 's/^/  /'; bad=1; }
+    fi
   fi
   [ "$bad" = 0 ] && echo "$HOST: the changed files' checks pass" || rc=1
 }
