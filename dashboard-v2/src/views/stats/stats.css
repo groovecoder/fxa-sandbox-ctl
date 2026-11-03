@@ -1,0 +1,54 @@
+/* The Stats view, ported from the v1 stats CSS: tokens only. */
+.st h2 { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; }
+.st h3 { display: flex; align-items: baseline; gap: 0 var(--s2); flex-wrap: wrap; font-size: var(--t-heading); margin: 0 0 var(--s2); }
+.st .key { white-space: nowrap; }
+.st * + h3 { margin-top: var(--s4); }
+.st :is(h2, h3) .sub { font: 400 var(--t-sub) var(--sans); color: var(--faint); }
+.st h3 .note { margin-left: auto; font: 400 var(--t-sub) var(--sans); color: var(--faint); }
+.st-head { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.st .fchips { display: inline-flex; flex-wrap: wrap; gap: var(--s1); }
+.st .chip { padding: 1px 6px; font: 500 var(--t-label) var(--sans); color: var(--dim); border-color: var(--line); white-space: nowrap; }
+.st-ov { font-size: var(--t-sub); color: var(--warn); margin-bottom: var(--s2); }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--link); font: inherit; font-weight: 600; cursor: pointer; }
+.linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
+.st .unknown { color: var(--warn); font-size: var(--t-sub); font-weight: 600; }
+.st .emptybox { margin-top: var(--s4); }
+.st .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); margin: var(--s4) 0; }
+.st .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+.st .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
+.st * + .charts, .st * + .three { margin-top: var(--s3); }
+.st-chart { min-width: 0; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.st-card { min-width: 0; }
+.st-card [data-new] { margin-top: var(--s4); }
+.st-toggle { display: flex; align-items: center; gap: var(--s1); margin-bottom: var(--s2); font-size: var(--t-label); color: var(--dim); }
+.st-toggle button { padding: 2px var(--s2); font-size: var(--t-label); }
+.st-toggle button[aria-pressed="true"], .st-seg button[aria-pressed="true"] { color: var(--link); border-color: var(--link); background: var(--infobg); }
+@media (max-width: 900px) {
+  .st .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .st .charts, .st .three { grid-template-columns: minmax(0, 1fr); }
+}
+
+.st-kv { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s1) var(--s1); font-size: var(--t-sub); border-radius: var(--r-sm); }
+.st-kv .k { min-width: 0; overflow-wrap: anywhere; }
+.st-kv .v { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+.st-kv .v b { color: var(--ink); }
+.st-kv.na .k { color: var(--faint); }
+.st-share { background: linear-gradient(90deg, color-mix(in srgb, var(--info) 14%, transparent) var(--p), transparent var(--p)); }
+.st .note { color: var(--faint); font-size: var(--t-sub); }
+.st .mono { font-family: var(--mono); font-size: var(--t-label); }
+.st .add { color: var(--ok); } .st .del { color: var(--bad); } .st .warnt { color: var(--warn); } .st .nowrap { white-space: nowrap; }
+
+.st .tscroll { overflow-x: auto; margin-top: var(--s2); }
+.st-table { width: 100%; border-collapse: collapse; font-size: var(--t-sub); }
+.st-table th { text-align: left; font-size: var(--t-label); font-weight: 600; color: var(--dim); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.st-table td { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); }
+.st-table tr:last-child td { border-bottom: 0; }
+.st-table :is(th, td):not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.st-filters { display: flex; flex-direction: column; gap: var(--s3); padding: 0 var(--s4) var(--s4); overflow: auto; }
+.st-filters label, .st-fl { display: flex; flex-direction: column; gap: 6px; font: 700 var(--t-label) var(--sans); color: var(--dim); }
+.st-filters select, .st-filters input { min-height: 32px; width: 100%; border: 1px solid var(--line2); border-radius: var(--r-md); background: var(--panel);
+  color: var(--ink); padding: 0 var(--s2); font: 400 var(--t-body) var(--sans); }
+.st-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.st-seg button { background: var(--panel); }
+.st-err { margin: 0; color: var(--bad); font: 600 var(--t-sub) var(--sans); }

@@ -5,7 +5,8 @@ import type { Store } from '../store/types';
 import type { SideGroup } from './store';
 
 // The default export of a view's lazy chunk: its main content, and its side list and details when it has them.
-export type ViewChunk = { Main: ComponentType; side?: (s: Store) => SideGroup[] | null; right?: (s: Store) => ReactNode | null };
+// Side is the whole side panel, for a view whose side panel is not a list (the Stats filters).
+export type ViewChunk = { Main: ComponentType; side?: (s: Store) => SideGroup[] | null; right?: (s: Store) => ReactNode | null; Side?: ComponentType };
 
 export type ViewDef = {
   id: ViewId;
@@ -35,6 +36,7 @@ export const VIEWS: ViewDef[] = [
   {
     id: 'stats', title: 'Stats', sub: 'Spend, time and capacity',
     tabs: tabs(['spend', 'Spend'], ['prs', 'PRs'], ['runners', 'Runners and LLM'], ['pipeline', 'Pipeline']), side: true, right: false, bareTabs: [],
+    load: () => import('../views/stats'),
   },
   {
     id: 'errors', title: 'Errors', sub: 'Failures from the controller and the bot, grouped by signature',
