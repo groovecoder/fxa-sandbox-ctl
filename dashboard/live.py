@@ -406,11 +406,9 @@ class LiveHub:
             threading.Thread(target=self.recompute, daemon=True).start()
 
     def files(self):
-        """The local files of stats.compute(con, files)."""
-        srv = self.srv
-        state = os.path.dirname(srv.ERRORS_FILE)
-        return {"state_dir": state, "prs": os.path.join(state, "prs.json"), "session_dir": str(srv.SESSION_DIR),
-                "state_root": srv.STATE_ROOT, "teams_dir": os.environ.get("FXA_TEAMS_DIR") or os.path.expanduser("~/.claude/state/teams")}
+        """The local files of stats.compute(con, files): the ones snapshot --stats reads for this server's pipeline."""
+        p = getattr(self.srv, "PIPELINE", "fxa")
+        return stats.files("fxa" if p == "fxa-ai-fixme" else p) if stats else {}
 
     def etag(self, obj):
         """The ETag that /api/stats?inproc=1 sends for obj (Handler._send)."""
@@ -435,7 +433,8 @@ class LiveHub:
             self.stats, self.stats_etag = new, etag
             if old is not None and etag != base:
                 p = self.parts(old, new)
-                self.publish("stats", dict({"reload": True} if p.get("reload") else p, base=base, etag=etag))
+                if p is not None:
+                    self.publish("stats", dict({"reload": True} if p.get("reload") else p, base=base, etag=etag))
         finally:
             self.stats_lock.release()
 

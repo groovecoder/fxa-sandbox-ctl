@@ -493,6 +493,12 @@ class Stats(unittest.TestCase):
         server.STATS = feed("stats", {"rows": ["shell"]})
         self.assertEqual(json.loads(testkit.request(f"{BASE}/api/stats")[2]), {"rows": ["shell"]})
 
+    def test_the_hub_gives_stats_compute_the_files_it_reads(self):
+        h = reset_server()
+        self.assertEqual(set(h.files()), set(live.stats.files("fxa")))
+        server.PIPELINE = "fxa-ai-fixme"
+        self.assertEqual(h.files()["state"], live.stats.files("fxa")["state"])
+
 
 def golden_inputs():
     """(name, SNAP, AGENTS, the v1 laneRows) of each golden file, the fixture times at the golden clock."""
