@@ -1,0 +1,84 @@
+/* The Sessions view, ported from the v1 .sx, .thread, .tmsg and .media rules: tokens only. */
+.sx .sxbar { display: flex; align-items: center; gap: var(--s2); min-height: 36px; padding-bottom: var(--s2); border-bottom: 1px solid var(--line); }
+.sx .sxt { font: 600 var(--t-body) var(--sans); margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sx .sxm { color: var(--dim); font-size: var(--t-sub); white-space: nowrap; }
+.sx .sp { flex: 1; }
+.sx .lnk { font-size: var(--t-sub); color: var(--link); white-space: nowrap; } .sx .lnk a { color: var(--link); }
+.sx .key, .chain .key { color: var(--info); font-weight: 600; }
+.tgl { border: 1px solid transparent; background: transparent; color: var(--dim); padding: 4px 8px; border-radius: var(--r-md); font: 500 var(--t-sub) var(--sans); }
+.tgl:hover:not(:disabled) { background: var(--sunk); color: var(--ink); }
+.tgl[aria-pressed="true"] { color: var(--link); border-color: var(--link); background: var(--infobg); }
+.tgl.sm { padding: 1px 6px; font-size: var(--t-label); margin-top: var(--s2); white-space: nowrap; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--link); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+.linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
+.linkbtn.toggle { color: inherit; font-weight: inherit; text-decoration: underline dotted; }
+.sowner { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s2); font: 600 var(--t-label) var(--sans); color: var(--dim); }
+.sowner select { flex: 1; min-width: 0; min-height: 28px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel); color: var(--ink); padding: 0 8px; font: 400 var(--t-sub) var(--sans); }
+
+.sxout { margin: var(--s3) 0; }
+.sxout .kvs { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); font-size: var(--t-sub); } .sxout .kvs b { color: var(--dim); font-weight: 600; margin-right: 6px; }
+.sxout .kvs a { color: var(--link); }
+.sxout .notes { margin-top: var(--s2); white-space: pre-wrap; color: var(--dim); font-size: var(--t-sub); }
+.sxbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.withterm .sxbody { grid-template-columns: minmax(0, 1fr) minmax(380px, 44%); }
+/* The shell's button rule is not in a layer, so it wins over the terminal's own classes: set them again here. */
+.ttyw button { background: transparent; border-color: var(--tty-line); color: var(--tty-dim); padding: 0 var(--s2); font: 400 var(--t-label) var(--mono); white-space: nowrap; }
+.ttyw button:hover:not(:disabled) { background: var(--tty-line); }
+.ttyw button[aria-pressed="true"] { color: var(--tty-prompt); }
+.sx a:not(.key), .kvl a:not(.key), .answers a, .emptybox a { color: var(--link); }
+.table.figures.answers :is(th, td):nth-child(2) { text-align: left; }
+.ttyw { position: sticky; top: var(--s4); margin-top: var(--s3); height: calc(100vh - 150px); min-height: 320px; }
+@media (max-width: 1200px) {
+  .sxbody, .withterm .sxbody { grid-template-columns: minmax(0, 1fr); }
+  .ttyw { position: static; height: clamp(240px, 45vh, 480px); min-height: 0; }
+}
+@media (max-width: 640px) { .sx .sxbar { flex-wrap: wrap; } .sx .sxt { order: -1; flex: 1 1 100%; white-space: normal; } }
+
+.thread { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s3) 0; }
+.tsep { display: flex; align-items: center; gap: var(--s3); font-size: var(--t-label); color: var(--dim); }
+.tsep::before, .tsep::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.tmsg { display: flex; gap: var(--s3); align-items: flex-start; }
+.tmsg > div { min-width: 0; } .tmsg .media-box { flex: 1; }
+.tmsg .av { width: 36px; height: 36px; flex: none; border-radius: var(--r-md); background: var(--sunk); color: var(--dim); display: flex; align-items: center; justify-content: center; }
+.tmsg img.av { background: transparent; }
+.tmsg .who { display: flex; gap: var(--s2); align-items: baseline; font-size: var(--t-label); color: var(--dim); white-space: nowrap; }
+.tmsg .who b { white-space: nowrap; font-size: var(--t-body); color: var(--ink); }
+.tmsg .txt { overflow-wrap: anywhere; font-size: var(--t-body); }
+.tmsg.agent .txt { background: var(--sunk); padding: var(--s2) var(--s3); border-radius: var(--r-sm) var(--r-lg) var(--r-lg) var(--r-lg); }
+.tmsg .more { margin-top: 4px; margin-right: var(--s3); font-size: var(--t-sub); }
+.md.clip { max-height: 240px; overflow: hidden; }
+.md p { margin: 0 0 var(--s2); } .md p:last-child, .md ul:last-child, .md ol:last-child, .md pre:last-child { margin-bottom: 0; }
+.md ul, .md ol { margin: 0 0 var(--s2); padding-left: 22px; } .md ul { list-style: disc; } .md ol { list-style: decimal; } .md li { margin: 2px 0; } .md li.sub { margin-left: 18px; }
+.md code { font-family: var(--mono); font-size: .88em; padding: 1px 5px; border-radius: var(--r-sm); background: var(--panel); border: 1px solid var(--line); }
+.md pre { margin: 0 0 var(--s2); padding: var(--s2) var(--s3); border-radius: var(--r-md); background: var(--tty-bg); color: var(--tty-ink); overflow-x: auto; font: var(--t-label)/1.5 var(--mono); }
+.md pre code { background: none; border: 0; padding: 0; color: inherit; }
+.md .h { display: block; font: 700 var(--t-body) var(--sans); margin: var(--s2) 0 4px; }
+.md a { color: var(--link); text-decoration: underline; }
+.tact { align-self: center; font-size: var(--t-label); color: var(--dim); padding: 3px 12px; border: 1px dashed var(--line2); border-radius: var(--r-pill); }
+.media { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s3); margin-top: var(--s2); }
+.media figure { margin: 0; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; background: var(--sunk); }
+.media img, .media video { display: block; width: 100%; max-height: 200px; object-fit: contain; background: var(--tty-bg); }
+.media figcaption { font: var(--t-tiny) var(--mono); color: var(--dim); padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.right .dh { font: 600 var(--t-label)/1.5 var(--head); text-transform: uppercase; letter-spacing: .05em; color: var(--dim); margin: 0 0 var(--s2); }
+.right .na { color: var(--faint); font-weight: 400; }
+.chain { display: flex; flex-wrap: wrap; gap: var(--s1); list-style: none; margin: var(--s2) 0 0; padding: 0; font-size: var(--t-label); }
+.chain li { display: flex; flex-direction: column; padding: var(--s1) var(--s2); border: 1px solid var(--line); border-radius: var(--r-md); }
+.chain li[aria-current] { border-color: var(--info); background: var(--infobg); }
+.chain li + li::before { content: none; }
+.chain .m { color: var(--dim); }
+.ring { display: inline-flex; align-items: center; gap: var(--s2); }
+.usebar { display: flex; height: 10px; border-radius: var(--r-sm); overflow: hidden; background: var(--sunk); }
+.uselegend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); font-size: var(--t-tiny); color: var(--dim); margin-top: var(--s1); }
+.uselegend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+
+.table { width: 100%; border-collapse: collapse; font-size: var(--t-sub); }
+.table th { text-align: left; font-size: var(--t-label); font-weight: 600; color: var(--dim); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.table td { padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tr:last-child td, .table tr.tot td { border-bottom: 0; }
+.table.figures :is(th, td):not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.table.dense { font-size: var(--t-label); } .table.dense :is(th, td) { padding: 3px 4px; }
+.answers td .key { color: var(--dim); margin-left: var(--s1); }
+.answers td.mono { font-family: var(--mono); }
+.anshead { color: var(--dim); font-size: var(--t-sub); margin-bottom: var(--s3); }
+.anscharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s4); margin-bottom: var(--s4); }

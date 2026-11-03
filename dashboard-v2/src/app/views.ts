@@ -32,6 +32,7 @@ export const VIEWS: ViewDef[] = [
   {
     id: 'sessions', title: 'Sessions', sub: 'Slack threads and their sandboxes',
     tabs: tabs(['live', 'Live'], ['paused', 'Paused'], ['stopped', 'Stopped'], ['answers', 'Answers']), side: true, right: true, bareTabs: ['answers'],
+    load: () => import('../views/sessions'),
   },
   {
     id: 'stats', title: 'Stats', sub: 'Spend, time and capacity',
