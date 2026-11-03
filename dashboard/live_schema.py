@@ -12,8 +12,8 @@ which keeps every v1 field. The TS guards ignore an unknown field, so a new serv
 
 The stats module (W1-STATS) gives the hub two functions:
   stats.compute(con, files) -> dict      the whole /api/stats copy, from the store and the local files
-  stats.parts(old, new) -> dict          a StatsFrame without base and etag: rows_add and the changed parts,
-                                         or {"reload": True} when a row that the old copy had changed
+  stats.parts(old, new) -> dict          a StatsFrame: base and etag (stats.etag of old and new), rows_add and the changed
+                                         parts, or reload when a row that the old copy had changed; None when equal
 """
 import json
 import re
