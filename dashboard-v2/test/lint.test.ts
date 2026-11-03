@@ -25,6 +25,22 @@ describe('the token lint', () => {
     expect(await errors("export const c = '#0060DF';\n", 'src/teams/fox.ts')).toEqual([]);
   });
 
+  it('fails on a shadcn token alias in src/', async () => {
+    const msg = 'Use a project token, not a shadcn alias.';
+    expect(await errors('export const C = () => <i className="bg-background text-muted-foreground" />;\n', 'src/x.tsx')).toEqual([msg]);
+    expect(await errors("export const c = 'var(--muted-foreground)';\n", 'src/x.ts')).toEqual([msg]);
+    expect(await errors("export const c = 'bg-panel text-dim border-line';\n", 'src/x.ts')).toEqual([]);
+  });
+
+  it('fails on an import through a path alias that tsconfig.json does not define', async () => {
+    for (const from of ['@/components/ui/button', '@/lib/utils', '~/ui', '#/ui']) {
+      const msg = `'${from}' import is restricted from being used by a pattern. Use a relative import: tsconfig.json defines no such path alias.`;
+      expect(await errors(`import { x } from '${from}';\nexport const y = x;\n`, 'src/x.ts')).toEqual([msg]);
+      expect(await errors(`export { x } from '${from}';\n`, 'src/ui/x.ts')).toEqual([msg]);
+    }
+    expect(await errors("import { Dialog } from 'radix-ui';\nimport { cx } from '../ui/tone';\nimport x from '@visx/sankey';\nexport const y = [Dialog, cx, x];\n", 'src/charts/x.ts')).toEqual([]);
+  });
+
   it('finds no hex value in a stylesheet in src/ other than theme.css', () => {
     const css = readdirSync(join(root, 'src'), { recursive: true, encoding: 'utf8' })
       .filter((f) => f.endsWith('.css') && f !== join('styles', 'theme.css'));
