@@ -1,6 +1,8 @@
 /* Scan only the app code, so a class in a test or the e2e never reaches the build. */
 @import "tailwindcss" source("..");
 @source not "../**/*.test.ts";
+/* Tailwind reads a class name from any word: skip the live schema, which holds no classes. */
+@source not "../live/**";
 
 /* Remove the default palette, scales and fonts, so only the project tokens make classes. */
 @theme {
