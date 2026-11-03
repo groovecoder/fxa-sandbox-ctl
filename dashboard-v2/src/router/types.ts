@@ -3,7 +3,7 @@
 export type ViewId = 'overview' | 'pipeline' | 'sessions' | 'stats' | 'errors' | 'runners' | 'teams';
 
 // The keys that the hash query keeps (#stats/spend?range=7d&src=slack). The router drops the others.
-export type QueryKey = 'range' | 'metric' | 'src';
+export type QueryKey = 'range' | 'metric' | 'src' | 'team';
 
 // The hash is #view/tab/sel/rid. On Teams the hash is #teams/<team>/<tab>/<id>: sel is the team
 // ('' for All teams, 'new' for New team), tab is the team tab, and rid is a routine id.
