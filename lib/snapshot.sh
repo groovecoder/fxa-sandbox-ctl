@@ -399,7 +399,9 @@ _stats_add_prs() {
   # list's time (it refreshes every 10 min), so a page can tell an old list from a live one.
   [ -s "$f" ] || { jq -c '.prs = null | .prs_at = null'; return; }
   # Each merged ticket's assignee and status, as jira_close_merged saved them.
-  local jm; jm="$(for t in "${PIPE_STATE_DIR}"/*.jira.json; do [ -e "$t" ] && jq -c --arg k "$(basename "$t" .jira.json)" '{($k): .}' "$t" 2>/dev/null; done | jq -sc 'add // {}' 2>/dev/null)" || jm='{}'
+  # One jq for all the files: a jq for each file made the stats feed miss its 30 s limit.
+  local jm; jm="$(jq -nc 'reduce inputs as $x ({}; . + {(input_filename | sub(".*/"; "") | sub("\\.jira\\.json$"; "")): $x})' \
+    "${PIPE_STATE_DIR}"/*.jira.json 2>/dev/null)" || jm='{}'
   jq -c --slurpfile p <(jq -c --argjson jm "$jm" 'map({ n: .number, title, state, created: .createdAt, merged: .mergedAt, closed: .closedAt,
       by: (.mergedBy.login // null), add: .additions, del: .deletions,
       src: (if (.headRefName | startswith("agent-")) then "slack" else "pipeline" end),
@@ -431,17 +433,17 @@ _stats_add_load() {
 # passes' own spend; and each ticket's wait from first queued to first run, PR and merge
 # (queued-at files against the run log and .prs, so _stats_add_prs runs first).
 _stats_add_pipeline() {
-  local passes='[]' waits='[]' f k q r
+  local passes='[]' waits
   [ -s "${PIPE_STATE_DIR}/passes.jsonl" ] && passes="$(jq -sc 'group_by(.at | todate | .[0:10]) | map({day: (.[0].at | todate | .[0:10]),
       passes: length, work: (map(select(.work)) | length), max_queued: (map(.queued) | max), inflight: (last | .inflight),
       awaiting: (last | .awaiting), merged: (map(.merged // 0) | add), rejected: (map(.rejected // 0) | add),
       woke: (map(.woke // {} | to_entries[]) | group_by(.key) | map({key: .[0].key, value: (map(.value) | add)}) | from_entries)}) | .[-14:]' "${PIPE_STATE_DIR}/passes.jsonl" 2>/dev/null || echo '[]')"
-  for f in "${PIPE_STATE_DIR}"/*.queued-at; do
-    [ -f "$f" ] || continue
-    k="$(basename "$f" .queued-at)"; q="$(tr -dc 0-9 < "$f")"
-    r="$(jq -r --arg k "$k" 'select(.issue == $k) | .recorded_at' "$PIPE_RUNS_FILE" 2>/dev/null | sort | head -1)"
-    [ -n "$q" ] && [ -n "$r" ] && waits="$(jq -c --arg k "$k" --argjson q "$q" --arg r "$r" '. + [{key: $k, q: $q, hours: ((($r | fromdate? // $q) - $q) / 3600 | . * 10 | round / 10)}]' <<< "$waits")"
-  done
+  # Each queued ticket's wait to its first run, in one jq: a read of the runs file for each ticket took 10 s.
+  waits="$({ grep -H '' "${PIPE_STATE_DIR}"/*.queued-at 2>/dev/null || true; } | jq -Rsc --slurpfile runs "$PIPE_RUNS_FILE" '
+    ($runs | map(select(.recorded_at != null)) | group_by(.issue) | map({key: (.[0].issue | tostring), value: (map(.recorded_at) | min)}) | from_entries) as $first
+    | [split("\n")[] | capture("^(?:[^:]*/)?(?<k>[^/:]+)\\.queued-at:(?<q>.*)$")? | .q |= gsub("[^0-9]"; "") | select(.q != "")
+       | (.q | tonumber) as $q | $first[.k] as $r | select($r != null)
+       | {key: .k, q: $q, hours: ((($r | fromdate? // $q) - $q) / 3600 | . * 10 | round / 10)}]' 2>/dev/null)" || waits='[]'
   jq -c --argjson p "${passes:-[]}" --argjson w "$waits" '
     def h($t; $q): if $t == null then null else ((($t | fromdate? // null) // $q) - $q) / 3600 | if . < 0 then null else . * 10 | round / 10 end end;
     ((.prs // []) | map({key: .key, value: .}) | from_entries) as $pr
@@ -453,14 +455,10 @@ _stats_add_pipeline() {
 
 # Fix attempts and feedback rounds live in the pipeline's state files.
 _stats_add_rounds() {
-  local rounds='{}' f k
-  for f in "${PIPE_STATE_DIR}"/*.attempts "${PIPE_STATE_DIR}"/*.feedback-rounds; do
-    [ -f "$f" ] || continue
-    k="$(basename "$f")"
-    local n; n="$(tr -dc '0-9' < "$f" | head -c 9)"; n="${n:-0}"
-    rounds="$(jq -c --arg k "${k%%.*}" --arg what "${k#*.}" --argjson n "$n" \
-      '.[$k][$what] = $n' <<< "$rounds")"
-  done
+  # All the counter files in one jq; an empty file counts as 0, as a missing one does.
+  local rounds; rounds="$({ grep -H '' "${PIPE_STATE_DIR}"/*.attempts "${PIPE_STATE_DIR}"/*.feedback-rounds 2>/dev/null || true; } | jq -Rsc '
+    [split("\n")[] | capture("^(?:[^:]*/)?(?<k>[^/.:]+)\\.(?<w>[^/:]+):(?<n>.*)$")?]
+    | reduce .[] as $x ({}; .[$x.k][$x.w] = ($x.n | gsub("[^0-9]"; "") | .[0:9] | if . == "" then 0 else tonumber end))' 2>/dev/null)" || rounds='{}'
   jq -c --argjson r "$rounds" '.tickets |= with_entries(.value += { attempts: ($r[.key].attempts // 0), feedback_rounds: ($r[.key]["feedback-rounds"] // 0) })'
 }
 

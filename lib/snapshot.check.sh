@@ -41,16 +41,28 @@ rm -rf "$sd"
 # The pipeline block: passes by day, and the wait from queued to the first run.
 pd="$(mktemp -d)"; now=$(date +%s)
 printf '%s\n' "{\"at\":$now,\"queued\":5,\"awaiting\":2,\"inflight\":1,\"work\":true,\"merged\":1,\"woke\":{\"queue\":1,\"drain\":2}}" "{\"at\":$now,\"queued\":7,\"awaiting\":2,\"inflight\":3,\"work\":false,\"woke\":{\"drain\":1}}" > "$pd/passes.jsonl"
-echo $(( now - 7200 )) > "$pd/FXA-1.queued-at"
+echo $(( now - 7200 )) > "$pd/FXA-1.queued-at"; echo $(( now - 60 )) > "$pd/FXA-3.queued-at"
 echo "{\"issue\":\"FXA-1\",\"recorded_at\":\"$(date -u +%FT%TZ)\"}" > "$pd/runs.jsonl"
 out="$(PIPE_STATE_DIR="$pd" PIPE_RUNS_FILE="$pd/runs.jsonl"; eval "$(sed -n '/^_stats_add_pipeline() {/,/^}/p' "$(dirname "$0")/snapshot.sh")"
   jq -nc --arg d "$(date -u +%F)" --arg pc "$(date -u -r $(( now - 3600 )) +%FT%TZ 2>/dev/null || date -u -d @$(( now - 3600 )) +%FT%TZ)" '{tickets: {"FXA-1": {attempts: 2}, "FXA-2": {attempts: 1}},
     rows: [{src: "pass", kind: "pass", at: ($d + "T01:00:00Z"), usd: 0.2}, {src: "pass", kind: "triage", at: ($d + "T01:00:00Z"), usd: 5}, {src: "pass", kind: "pass", at: ($d + "T02:00:00Z"), usd: 0.15}],
     prs: [{key: "FXA-1", created: $pc, merged: null}]}' | _stats_add_pipeline)"
 check "pipeline: a day's passes, work, max queue, last in flight" "2|1|7|3" "$(jq -r '.pipeline.days[0] | "\(.passes)|\(.work)|\(.max_queued)|\(.inflight)"' <<< "$out")"
-check "pipeline: queue wait and retries" "2|1|2" "$(jq -r '.pipeline | "\(.waits[0].hours | round)|\(.retried)|\(.tickets)"' <<< "$out")"
+check "pipeline: queue wait and retries; a ticket with no run yet has no wait" "2|1|2|1" "$(jq -r '.pipeline | "\(.waits[0].hours | round)|\(.retried)|\(.tickets)|\(.waits | length)"' <<< "$out")"
 check "pipeline: what woke the passes, merges, and the passes' own spend" '{"drain":3,"queue":1}|1|0.35' "$(jq -r '.pipeline.days[0] | "\(.woke | tojson)|\(.merged)|\(.usd)"' <<< "$out")"
 check "pipeline: queued to PR, and no merge yet" "1|null" "$(jq -r '.pipeline.waits[0] | "\(.pr_hours | round)|\(.merge_hours)"' <<< "$out")"
+echo 3 > "$pd/FXA-1.attempts"; echo 2 > "$pd/FXA-1.feedback-rounds"; : > "$pd/FXA-2.attempts"
+out="$(PIPE_STATE_DIR="$pd"; eval "$(sed -n '/^_stats_add_rounds() {/,/^}/p' "$(dirname "$0")/snapshot.sh")"
+  echo '{"tickets": {"FXA-1": {"runs": 1}, "FXA-2": {}, "FXA-4": {}}}' | _stats_add_rounds)"
+check "rounds: each ticket's attempts and feedback rounds; an empty or missing file is 0" "3|2|1|0|0|0" \
+  "$(jq -r '.tickets | "\(.["FXA-1"].attempts)|\(.["FXA-1"].feedback_rounds)|\(.["FXA-1"].runs)|\(.["FXA-2"].attempts)|\(.["FXA-4"].attempts)|\(.["FXA-4"].feedback_rounds)"' <<< "$out")"
+# The jq calls do not grow with the tickets: a jq for each file took the stats feed past its 30 s limit.
+for i in $(seq 10 40); do echo "$now" > "$pd/FXA-$i.queued-at"; echo 1 > "$pd/FXA-$i.attempts"; echo '{}' > "$pd/FXA-$i.jira.json"; done
+echo '[]' > "$pd/prs.json"
+n="$(PIPE_STATE_DIR="$pd" PIPE_RUNS_FILE="$pd/runs.jsonl"; jq() { echo >> "$pd/jq-calls"; command jq "$@"; }; _mtime() { date +%s; }
+  eval "$(sed -n -e '/^_stats_add_pipeline() {/,/^}/p' -e '/^_stats_add_rounds() {/,/^}/p' -e '/^_stats_add_prs() {/,/^}/p' "$(dirname "$0")/snapshot.sh")"
+  echo '{"tickets": {}}' | _stats_add_rounds | _stats_add_prs | _stats_add_pipeline >/dev/null; wc -l < "$pd/jq-calls" | tr -d ' ')"
+check "stats: 31 more tickets add no jq calls" "yes" "$([ "${n:-0}" -gt 0 ] && [ "$n" -le 10 ] && echo yes || echo "no, ${n:-0}")"
 rm -rf "$pd"
 
 # Load: the most Slack sessions live at once each day, waits at the cap, and drops.
