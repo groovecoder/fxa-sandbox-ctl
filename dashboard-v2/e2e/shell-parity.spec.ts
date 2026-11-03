@@ -30,12 +30,12 @@ test('badges: tones, labels, and the unknown and alert forms', async ({ page }) 
 
 test('badges: "!" at 0 Needs with an alert, "?" for unknown Needs, reviews and errors', async ({ browser }) => {
   let page = await browser.newPage();
-  await open(page, '#overview', { sel: { ovNeeds: { total: 0, sandbox: 0, by: {}, unknown: false }, alerts: [{ tone: 'warn', subject: 'pass', what: 'x' }] } });
+  await open(page, '#overview', { sel: { ovNeeds: { total: 0, sandbox: 0, by: {}, unknown: '' }, alerts: [{ tone: 'warn', subject: 'pass', what: 'x' }] } });
   await expect(badge(page, 'overview')).toHaveText('!');
   await expect(badge(page, 'overview')).toHaveClass('n warn');
   await page.close();
   page = await browser.newPage();
-  await open(page, '#overview', { sel: { ovNeeds: { total: 0, sandbox: 0, by: {}, unknown: true } } }, (fx) => {
+  await open(page, '#overview', { sel: { ovNeeds: { total: 0, sandbox: 0, by: {}, unknown: 'the board read failed' } } }, (fx) => {
     (fx.sel.pipeSnap as Record<string, unknown>).review = null;
     fx.store.feeds.errors!.error = 'errors --json failed';
   });

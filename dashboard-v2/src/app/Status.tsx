@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Alert, Health } from '../model';
 import type { FeedName, Store } from '../store/types';
 import { agentsOf, connWord, snapOf } from './derive';
-import { ago, usd } from './parts';
+import { ago, usd } from '../format';
 import { safe, type Sel } from './store';
 
 type Row = Record<string, unknown>;

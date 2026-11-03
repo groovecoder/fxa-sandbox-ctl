@@ -2,8 +2,10 @@
 import { createContext, useContext, useSyncExternalStore } from 'react';
 import * as model from '../model';
 import type { Alert, Badge, BeltGroups, Health, Needs, Snapshot, SkippedTicket, StatsRow } from '../model';
+import { initial } from '../live/reducers';
 import { HOME } from '../router';
-import type { Prefs, Session, StatsFilter, Store, Theme } from '../store/types';
+import { loadPrefs, savePref } from '../store/prefs';
+import type { Session, Store } from '../store/types';
 
 export type StoreApi<T> = {
   getState: () => T;
@@ -24,67 +26,10 @@ export function createStore<T>(init: T): StoreApi<T> {
   };
 }
 
-const read = (k: string) => {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-};
-export const savePref = (k: string, v: string | null) => {
-  try {
-    if (v == null) localStorage.removeItem(k);
-    else localStorage.setItem(k, v);
-  } catch {
-    // A blocked storage keeps the choice for this page only.
-  }
-};
-const json = (k: string): Record<string, unknown> => {
-  try {
-    const v = JSON.parse(read(k) ?? '{}');
-    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
-  } catch {
-    return {};
-  }
-};
+export { savePref };
 
-export const SF_DEFAULT: StatsFilter = { range: '30d', from: '', to: '', src: 'all', kind: 'all', model: 'all', team: 'all', q: '' };
-
-// The v1 localStorage keys; a stored value of the wrong type falls back to the default.
-export function loadPrefs(): Prefs {
-  const t = read('theme');
-  const w = json('panelW');
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-  const sf = json('statsFilter');
-  const sx = json('sx');
-  return {
-    theme: (t === 'light' || t === 'dark' ? t : 'system') as Theme,
-    keys: read('keys') === '1',
-    pipeTeam: read('pipeTeam') ?? '',
-    sowner: read('sowner') ?? '',
-    panelW: { '--side': num(w['--side']), '--right': num(w['--right']) },
-    noside: read('noside') === '1',
-    noright: read('noright') === '1',
-    sx: { term: sx.term !== false },
-    statsFilter: Object.fromEntries(
-      Object.entries(SF_DEFAULT).map(([k, d]) => [k, typeof sf[k] === 'string' ? sf[k] : d]),
-    ) as StatsFilter,
-  };
-}
-
-export const initialStore = (): Store => ({
-  conn: { mode: 'connecting', lastEventAt: 0, seq: null },
-  viewer: { admin: false, teams: [] },
-  feeds: {},
-  sessions: { byKey: {}, order: [] },
-  tails: {},
-  history: {},
-  usage: {},
-  teamsUi: { routines: {}, routineHist: {}, memory: {} },
-  flow: { points: [] },
-  route: HOME,
-  prefs: loadPrefs(),
-});
+// One initial store for the shell and the live data: the W1-DATA copy, at the shell's home route.
+export const initialStore = (): Store => ({ ...initial(loadPrefs()), route: HOME });
 
 // A side list item: d is the dot tone, find the text that the search matches (default t and m).
 export type SideItem = { id: string; d: string; t: string; m: string[]; tip?: string; find?: string };

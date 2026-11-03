@@ -23,7 +23,7 @@ const useMedia = (q: string) => {
 
 const THEMES: Theme[] = ['system', 'light', 'dark'];
 export function applyTheme(t: Theme) {
-  savePref('theme', t === 'system' ? null : t);
+  savePref('theme', t);
   document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
 }
 
@@ -116,7 +116,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
     } else {
       const k = which === 'side' ? 'noside' : 'noright';
       const v = !st.getState().prefs[k];
-      savePref(k, v ? '1' : '0');
+      savePref(k, v);
       setPrefs({ [k]: v });
     }
   }, [narrowSide, narrowRight, setPrefs, st, setShowside, setShowright]);
@@ -136,7 +136,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   }, [setPrefs, st]);
 
   const setKeys = useCallback((on: boolean) => {
-    savePref('keys', on ? '1' : '0');
+    savePref('keys', on);
     setPrefs({ keys: on });
   }, [setPrefs]);
 
@@ -268,7 +268,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
         <Resize key={k} which={k} width={prefs.panelW[PANES[k].v]} onWidth={(w) => {
           const panelW = { ...st.getState().prefs.panelW, [PANES[k].v]: w };
           if (w == null) delete panelW[PANES[k].v];
-          savePref('panelW', JSON.stringify(panelW));
+          savePref('panelW', panelW);
           setPrefs({ panelW });
         }} />
       ))}

@@ -41,7 +41,3 @@ export class Boundary extends Component<BoundaryProps, { error: Error | null }> 
     );
   }
 }
-
-export const ago = (s: number | null | undefined) =>
-  s == null ? 'never' : s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 172800 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
-export const usd = (n: number | null | undefined) => (n == null ? '—' : '$' + Number(n).toFixed(2));
