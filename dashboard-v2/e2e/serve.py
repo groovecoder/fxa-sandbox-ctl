@@ -49,7 +49,8 @@ def rel(v):
 
 fx = rel(json.load(open(a.fixture))) if a.fixture else {}
 snap = fx.get("/api/snapshot") or {}
-for name, data in (("FULL", snap.get("snapshot")), ("AGENTS", snap.get("agents")), ("STATS", fx.get("/api/stats")),
+# A fixture with no stats gets {}, as page.sh answers a missing path, so v1 and v2 read the same stats.
+for name, data in (("FULL", snap.get("snapshot")), ("AGENTS", snap.get("agents")), ("STATS", fx.get("/api/stats", {} if a.fixture else None)),
                    ("TEAMS", (fx.get("/api/teams") or {}).get("teams"))):
     f = server.Feed(name.lower(), [], 60, 30)
     f.data, f.fetched_at = data, now
