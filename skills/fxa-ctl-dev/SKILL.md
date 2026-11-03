@@ -88,6 +88,19 @@ To answer "is everything shipped?" or "what is the status?", run `bash skills/fx
 
 To render a dashboard view with live data and this tree's dashboard code, with no dev bot: `bash skills/fxa-ctl-dev/live-render.sh '#runners' [--admin] [--query 'ended=1&limit=100'] [page.sh options]` (about 15 s). A change to `lib/snapshot.sh` still needs `vm.sh dev`.
 
+Dashboard v2 (`dashboard-v2/`, served at `/v2`) is a Vite, React and TypeScript app. It needs Node 20.19 or later (`.nvmrc` has 24).
+The manager does not build it: commit `dashboard-v2/dist` with each change to the app.
+
+```bash
+cd dashboard-v2 && npm ci                     # once, and after a change to package-lock.json
+npm run typecheck && npm run lint && npm test # test.sh changed runs these and the build when dashboard-v2/ changed
+npm run build && git status dist              # then commit dist: CI fails when dist is not the build
+npx playwright install chromium && npm run e2e   # the built page and the fixture API through server.Handler (e2e/serve.py)
+bash skills/fxa-ctl-dev/v1-golden.sh          # after a change to a page fixture or to v1 model code: writes test/golden/
+```
+
+Pin each npm package to an exact version (`npm view <pkg>@<version> version`), and commit `package-lock.json`.
+
 A new check must fail without the change it tests. `prove.sh` runs it with the
 change, then with the named files put back to `HEAD`, and restores them.
 

@@ -61,3 +61,8 @@ cls("tag", tone, { run: true })             // a class list
 
 4. Look at both screenshots. Make sure that the text is legible and that nothing overlaps.
 5. Run `bash skills/fxa-ctl-dev/test.sh changed` before you push.
+
+## Dashboard v2
+
+The v2 app in `dashboard-v2/` keeps the rules above. For its build and its tests, see the Dashboard v2 steps in `skills/fxa-ctl-dev/SKILL.md`.
+After a change to v1 model code (`laneRows`, `beltGroups`, `ovNeeds` and the others in `dashboard-v2/src/model/index.ts`), run `bash skills/fxa-ctl-dev/v1-golden.sh` and commit `dashboard-v2/test/golden`.
