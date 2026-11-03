@@ -1,0 +1,71 @@
+/* The Sandboxes view, scoped to .sbv: the v1 class names, so the parity probe reads both pages the same way. */
+.sbv { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); min-width: 0; }
+.sbv h2 { margin: 0 0 var(--s2); font: 700 var(--t-body) var(--head); }
+.sbv #sb-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
+@media (max-width: 900px) { .sbv #sb-cards { grid-template-columns: 1fr; } }
+.sb-card { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sb-card .lbl { font: 600 var(--t-sub) var(--head); color: var(--dim); }
+.sb-card .big { font: 700 var(--t-page)/1.1 var(--head); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.sb-card .sub { font-size: var(--t-sub); color: var(--faint); }
+.sbv a, .sbp a { color: var(--link); }
+
+.sbstrip { display: flex; gap: 3px; margin: 4px 0; }
+.sbstrip i { flex: 1; height: 10px; border-radius: 2px; background: var(--sunk); }
+.sbstrip i.busy { background: var(--info); }
+.sbstrip i.gce, .sbtile.gce::before { background: repeating-linear-gradient(135deg, var(--info) 0 4px, var(--panel) 4px 6px); }
+.sbstrip i.held { background: var(--warn); } .sbstrip i.unknown { background: var(--line); }
+
+.sbgrid { display: grid; gap: var(--s3); margin-top: var(--s3); }
+.sbgrid h3 { margin: 0 0 var(--s1); font: 600 var(--t-label) var(--head); color: var(--dim); }
+.sbtiles { display: flex; flex-wrap: wrap; gap: var(--s1); list-style: none; margin: 0; padding: 0; }
+.sbtile { min-width: 92px; padding: var(--s1) var(--s2); border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--sunk); font-size: var(--t-label); line-height: 1.3; }
+.sbtile.gce { position: relative; padding-left: 16px; }
+.sbtile.gce::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; border-radius: var(--r-sm) 0 0 var(--r-sm); }
+.sbtile b { display: block; font: 600 var(--t-label) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 14ch; }
+.sbtile span { display: inline-block; margin-top: 2px; padding: 0 4px; border-radius: var(--r-sm); background: var(--panel); color: var(--ink); }
+.sbtile.running { border-color: var(--info); } .sbtile.running span { color: var(--info); }
+.sbtile.held { border-color: var(--warn); } .sbtile.held span { color: var(--warn); }
+.sbtile.fix { border-color: var(--bad); } .sbtile.fix span { color: var(--bad); }
+.sbtile.unknown { border-style: dashed; } .sbtile.unknown span { color: var(--dim); }
+
+.sbt { width: 100%; border-collapse: collapse; font-size: var(--t-sub); }
+.sbt th { text-align: left; font-size: var(--t-label); color: var(--dim); font-weight: 600; padding: var(--s1) var(--s2); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.sbt td { padding: var(--s1) var(--s2); border-bottom: 1px solid var(--line); vertical-align: top; }
+.sbt .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sbl { overflow-x: auto; } .sbl .what { min-width: 20ch; overflow-wrap: anywhere; } .sbl td:first-child { white-space: nowrap; }
+.sbl tr.sel td { background: var(--infobg); }
+.sbl tr.fixr:not(.sel) td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+.sbl tr.bad button { color: var(--bad); }
+.sbl button { font: 600 var(--t-sub) var(--mono); background: none; border: 0; padding: 0; color: var(--link); cursor: pointer; text-align: left; }
+.sbl button:hover { text-decoration: underline; }
+.sbl .steps { display: block; color: var(--dim); }
+.sbl .mt { display: inline-block; width: 60px; vertical-align: middle; margin-right: 4px; }
+.sbl .over { color: var(--bad); white-space: nowrap; }
+.sbl code { display: block; width: max-content; max-width: 100%; margin-top: 4px; font: var(--t-label) var(--mono); background: var(--sunk); padding: 2px 6px; border-radius: var(--r-sm); overflow-wrap: anywhere; user-select: all; }
+.sbh { margin: var(--s4) 0 var(--s1); font: 700 var(--t-body) var(--head); }
+.sbfree, .sbage, .sbstale { font-size: var(--t-sub); color: var(--dim); margin: var(--s2) 0; overflow-wrap: anywhere; }
+.sbfree { font-family: var(--mono); } .sbstale { color: var(--warn); }
+#sb-list:focus { outline: none; }
+
+.sbd-scroll { overflow-x: auto; }
+.sbd-scroll .sbt { table-layout: fixed; min-width: 760px; }
+.sbd-for { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbd-stop, .sbknote { color: var(--dim); font-size: var(--t-label); }
+.sbknote { margin: 0 0 var(--s2); color: var(--warn); font-size: var(--t-sub); }
+.sbd-more { display: flex; gap: var(--s4); margin-top: var(--s2); font-size: var(--t-sub); }
+.sbd-legend { display: flex; flex-wrap: wrap; gap: var(--s3); font-size: var(--t-label); color: var(--dim); }
+
+/* The details panel. */
+.sbp .rh { margin: 0 0 var(--s3); font: 700 var(--t-body) var(--head); overflow-wrap: anywhere; }
+.sbp .rh small { display: block; font: 500 var(--t-label) var(--sans); color: var(--faint); }
+.sbp .sb-panel + .sb-panel { margin-top: var(--s4); }
+.sbp .sb-panel h3 { margin: 0 0 var(--s1); font: 600 var(--t-label) var(--head); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+.sbp .sb-panel p { margin: 0 0 var(--s2); font-size: var(--t-sub); overflow-wrap: anywhere; }
+.sbp .sb-panel code { font: var(--t-label) var(--mono); background: var(--sunk); padding: 2px 6px; border-radius: var(--r-sm); user-select: all; }
+.sbp .na { color: var(--faint); font-size: var(--t-sub); }
+.sbp .sbsteps { display: grid; gap: 2px; margin: var(--s2) 0; }
+.sbp .sbsteps > div { display: grid; grid-template-columns: minmax(0, 9ch) minmax(0, 1fr) 5ch; gap: var(--s2); align-items: center; font-size: var(--t-label); }
+.sbp .sbsteps .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
+.sbp .sbsteps .tr { position: relative; height: 8px; background: var(--sunk); border-radius: 2px; }
+.sbp .sbsteps .tr i { position: absolute; top: 0; bottom: 0; background: var(--chart-1); border-radius: 2px; min-width: 2px; }
+.sbp .sbsteps b { text-align: right; font-variant-numeric: tabular-nums; }
