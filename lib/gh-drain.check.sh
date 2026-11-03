@@ -33,4 +33,13 @@ sleep() { :; }; : > "$tmp/heads"
 pr() { printf '{"number":%s,"state":"%s","headRefName":"%s","statusCheckRollup":[],"mergeable":"UNKNOWN","headRefOid":"abc","isCrossRepository":%s}' "$@"; }
 gh_drain FXA-2 >/dev/null 2>&1
 check "an UNKNOWN mergeable re-reads the list once" "2" "$(grep -c '^$' "$tmp/heads")"
+# GitHub's GraphQL times out on 200 rollups of a repo with many checks: drain reads 50, and the error names the cause.
+pr() { printf '{"number":%s,"state":"%s","headRefName":"%s","statusCheckRollup":[],"mergeable":"MERGEABLE","headRefOid":"abc","isCrossRepository":%s}' "$@"; }
+gh() { local q="" lim=""; while [ $# -gt 0 ]; do case "$1" in -q) q="$2"; shift ;; --limit) lim="$2"; shift ;; esac; shift; done
+  echo "$lim" >> "$tmp/lims"
+  [ "$lim" -le "${OKLIM:-50}" ] || { echo "HTTP 504: 504 Gateway Timeout (https://api.github.com/graphql)" >&2; return 1; }
+  jq -r "$q" <<< "[$(pr 2 MERGED fxa-2 false)]"; }
+: > "$tmp/lims"
+check "a 504 at 200 PRs: drain reads 50 and reports" "FXA-2 2 MERGED|200,50" "$(gh_drain FXA-2 2>/dev/null | cut -d' ' -f1-3)|$(paste -sd, "$tmp/lims")"
+check "both reads fail: the error says why" "1" "$(OKLIM=10 gh_drain FXA-2 2>&1 >/dev/null | grep -c 'exit 1: HTTP 504')"
 exit "$fail"

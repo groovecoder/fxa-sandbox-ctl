@@ -147,25 +147,29 @@ gh_drain() {
   # `|| rc=$?` keeps `set -e` from killing the function before the guard below.
   # GitHub computes `mergeable` lazily and says UNKNOWN until then, but the
   # request starts the computation, so one re-poll resolves most of them.
+  # A repo with many checks per PR (syncstorage-rs) gets HTTP 504 for 200 rollups: 50 still works,
+  # and the branch read below covers the older PRs.
+  local err lim=200; err="$(mktemp)"
   _gh_drain_fetch() {
-    gh pr list --repo "$PIPE_REPO_SLUG" --state all --limit 200 \
+    gh pr list --repo "$PIPE_REPO_SLUG" --state all --limit "${1:-200}" \
       --json number,state,headRefName,statusCheckRollup,mergeable,headRefOid \
-      -q "$jqx" 2>/dev/null
+      -q "$jqx" 2>"$err"
   }
-  map="$(_gh_drain_fetch)" || rc=$?
+  map="$(_gh_drain_fetch)" || { rc=0; lim=50; map="$(_gh_drain_fetch 50)" || rc=$?; }
   # mergeable is the next to last field (the head SHA ends the line), so ' UNKNOWN ' and not ' UNKNOWN$'.
   if [ "$rc" -eq 0 ] && printf '%s\n' "$map" | grep -q ' UNKNOWN '; then
     sleep 2
     local remap
-    remap="$(_gh_drain_fetch)" && [ -n "$remap" ] && map="$remap"
+    remap="$(_gh_drain_fetch "$lim")" && [ -n "$remap" ] && map="$remap"
   fi
   unset -f _gh_drain_fetch
   # A failed or empty fetch would make every done key print `none -`. The repo
   # always has PRs, so treat both as a tool failure, not as PRs that vanished.
   if [ "$rc" -ne 0 ] || [ -z "$map" ]; then
-    echo "drain: gh pr list failed (exit $rc) -- refusing to report 'none' for $(printf '%s\n' "$keys" | grep -c .) done key(s)" >&2
-    return 1
+    echo "drain: gh pr list failed (exit $rc: $(head -1 "$err")) -- refusing to report 'none' for $(printf '%s\n' "$keys" | grep -c .) done key(s)" >&2
+    rm -f "$err"; return 1
   fi
+  rm -f "$err"
   local key br line num state ok bad run mrg sha
   for key in $keys; do
     br="$(worktree_branch_for "$key")"
