@@ -15,6 +15,8 @@
   --radius-*: initial;
   --shadow-*: initial;
   --font-*: initial;
+  /* Zero is not a size token, but min-w-0, p-0 and inset-0 need it. */
+  --spacing-0: 0px;
 }
 
 /* inline: a class reads the var at run time. reference: emit no vars, as --shadow-pop would refer to itself. */

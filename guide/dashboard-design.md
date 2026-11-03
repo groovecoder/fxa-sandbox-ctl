@@ -11,7 +11,7 @@ Read this before you change `dashboard/index.html`. The page is one file: the CS
 5. Use only the type sizes `--t-tiny` (11px) to `--t-huge` (32px). Use `--t-kpi` for every KPI and spend number. Give each number that changes `tabular-nums`.
 6. Space with `s1`, `s2`, `s3`, `s4` and `s6`. Space blocks with a sibling rule on a class (`* + .charts`), not an inline margin.
 7. Style a reusable part by class, never by an element id.
-8. Only a running item moves (`.dot.live`, `.tag.run.live`). Keep the `prefers-reduced-motion` rule that stops all motion.
+8. Use motion only to show a data change or a running item. A data change moves once, in 300 ms or less: a belt moves to its new stop, a number counts to its new value, a bar grows. A running item can loop (`live` dot, the terminal cursor). Do not move anything on the first paint, on hover, or on an update that changed nothing. Under `prefers-reduced-motion`, stop all motion: set `MotionConfig reducedMotion="user"` and keep the CSS rule that stops every animation and transition.
 9. Give each link, button and summary the 2px `link` focus outline.
 10. Write the words in short, plain sentences in sentence case. Use no emoji. Show a Jira key or a PR number in the `key` class.
 
