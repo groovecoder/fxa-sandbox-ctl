@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Compare the dashboard shell of v1 and v2 on the v1 page fixtures: rail badges and their tones, tab counts,
-# the health word and the tab title. v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
+# the health word and the tab title, and per Stats tab its KPI tiles, headings and empty texts.
+# v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
 #   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json
 #   bash skills/fxa-ctl-dev/parity-v2.sh --compare v1.json v2.json [name]   only the compare step, on probe outputs
 # A diff that parity-allow.json lists (a known v1 bug that v2 fixes) passes; any other diff fails.
@@ -107,6 +108,18 @@ if (tbl) {
 for (const id of Object.keys(out.teams.side).filter((x) => x !== "__all").slice(0, 4)) {
   location.hash = "#teams/" + id; await sleep(600);
   out.teams.pages[id] = { head: norm(document.getElementById("team-h")), tabs: [...document.querySelectorAll(".tpage nav.ttabs a")].map(norm).join(" | ") };
+}
+// Stats: per tab, the KPI tiles (label and value), the card and chart headings in order, and the empty texts.
+// A v2 chart that v1 does not have sits in [data-new] and is left out.
+out.stats = {};
+const first = (e) => ([...e.childNodes].find((n) => n.nodeType === 3)?.textContent ?? "").trim();
+for (const t of ["spend", "prs", "runners", "pipeline"]) {
+  location.hash = "#stats/" + t; await sleep(600);
+  const m = document.getElementById("s-stats"), kp = {};
+  if (!m) { out.stats[t] = { missing: true }; continue; }
+  m.querySelectorAll(".kpis > *").forEach((k) => { kp[k.dataset.lbl ?? k.querySelector(".lbl")?.textContent ?? ""] = k.dataset.big ?? k.querySelector(".big")?.textContent ?? ""; });
+  const heads = [...m.querySelectorAll("h2, h3, figcaption")].filter((h) => !h.closest("[data-new]")).map(first);
+  out.stats[t] = { kpis: kp, heads: heads.join("|"), empty: [...m.querySelectorAll(".empty, .emptybox")].map((e) => e.textContent.trim()).join("|") };
 }
 out.title = document.title;
 // Sessions: the list, the bar, the conversation and the details of the shown session on each tab, without white space.

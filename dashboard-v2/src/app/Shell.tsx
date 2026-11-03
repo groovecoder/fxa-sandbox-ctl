@@ -32,6 +32,8 @@ export const RIGHT: Partial<Record<ViewId, (s: Store) => ReactNode | null>> = {}
 // The main content per view; the views add theirs in wave 2.
 export const MAIN: Partial<Record<ViewId, () => ReactNode>> = {};
 const TOOLS: Partial<Record<ViewId, ComponentType>> = {};
+// The whole side panel, for a view whose chunk gives a Side in place of a list.
+export const SIDEPANE: Partial<Record<ViewId, () => ReactNode>> = {};
 
 const PANES = { side: { v: '--side', min: 220, max: 640, def: 300, dir: 1 }, right: { v: '--right', min: 260, max: 720, def: 340, dir: -1 } } as const;
 
@@ -65,6 +67,8 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       if (c.right) RIGHT[id] = c.right;
       if (c.side) SIDE[id] = c.side;
       if (c.sideTools) TOOLS[id] = c.sideTools;
+      const Side = c.Side;
+      if (Side) SIDEPANE[id] = () => <Side />;
     }, () => {
       MAIN[id] = () => <p className="empty">This view did not load. Reload the page.</p>;
     }).finally(() => setLoaded((n) => n + 1));
@@ -257,7 +261,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       </Boundary>
       <aside className="side" id="side" aria-label="List">
         <Boundary key={route.view}>
-          {route.view === 'stats' ? (
+          {sideOn && SIDEPANE[route.view] ? SIDEPANE[route.view]!() : route.view === 'stats' ? (
             <><div className="sh"><h2>Filters</h2></div><p className="empty sgroup">loading…</p></>
           ) : sideOn ? (
             <SideList title={def.title} groups={safe(() => sel.side(s))} q={q} setQ={setQ} keys={prefs.keys} route={route} onSelect={select} Tools={TOOLS[route.view]} />
