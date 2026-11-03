@@ -26,7 +26,8 @@ except ImportError:
 RING_MAX, QUEUE_MAX, MAX_KEYS = 5000, 512, 8
 RETENTION_S, MAX_LIFE_S, PING_S, TAIL_S, FLOW_S, SEEN_S, STATS_DELAY_S = 300, 900, 15, 5, 60, 60, 5
 STATS_TABLES = {"runs", "passes", "job_costs", "llm"}
-# The tables that only a team admin reads (routines are admins only, D1); a record admin gets the rows of their teams.
+# The tables that only a team admin reads (routines are admins only, D1); a record admin gets the rows of their teams,
+# but not team_audit: /api/teams/<t>/audit is for team admins only.
 ADMIN_TABLES = {"routines", "routine_runs", "routine_tick", "team_audit"}
 STATS_PARTS = ("prs", "prs_at", "llm", "load", "pipeline", "memory", "tickets", "kinds", "models", "ranges", "team_passes", "top", "weeks")
 STAGE_STOP = {"starting": 1, "watching": 2, "stalled": 2, "error": 2, "squashing": 3, "pushed": 4, "pr": 5}
@@ -218,6 +219,8 @@ class LiveHub:
             return d
         if d["tbl"] == "sessions":
             return dict(d, rows=[srv.session_for(r, admin) for r in d["rows"]])
+        if d["tbl"] == "team_audit" and not admin:
+            return None
         if d["tbl"] in ADMIN_TABLES and not admin:
             rows = [r for r, t in zip(d["rows"], meta.get("teams") or []) if t in v["teams"]]
             return dict(d, rows=rows) if v["teams"] and (rows or d["deleted"]) else None

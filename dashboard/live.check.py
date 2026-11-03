@@ -291,9 +291,11 @@ class Stream(unittest.TestCase):
                            "data": {"team": {"profile": "example-secret"}}})
         h.publish("feed", {"name": "team-test:crew", "age_seconds": 0, "interval": 1, "error": None, "refreshing": False, "fetched_at": 1, "data": {"lines": []}})
         h.publish("delta", {"tbl": "routines", "rows": [{"id": 1, "team": "crew"}, {"id": 2, "team": "example"}], "deleted": []}, {"teams": ["crew", "example"]})
+        h.publish("delta", {"tbl": "team_audit", "rows": [{"team": "crew", "at": 3, "actor": "user@example.com", "action": "update"}], "deleted": []}, {"teams": ["crew"]})
         h.publish("delta", {"tbl": "history", "rows": [{"key": "agent-p1"}], "deleted": []})
-        a = [pull(streams["admin"]) for _ in range(6)]
-        self.assertEqual([x["event"] for x in a], ["delta", "tail", "feed", "feed", "delta", "delta"])
+        a = [pull(streams["admin"]) for _ in range(7)]
+        self.assertEqual([x["event"] for x in a], ["delta", "tail", "feed", "feed", "delta", "delta", "delta"])
+        self.assertEqual(a[5]["data"]["tbl"], "team_audit")
         self.assertEqual(a[0]["data"]["rows"][0]["request"], PRIV["request"])
         self.assertNotIn("owner_image", a[0]["data"]["rows"][0])
         u = [pull(streams["user"]) for _ in range(2)]
@@ -303,9 +305,10 @@ class Stream(unittest.TestCase):
         self.assertFalse(set(p) & set(PRIV) or set(p["agent"]) & set(PRIV), p)
         self.assertFalse(set(f) & server.FIX_PRIVATE, f)
         self.assertTrue(f["fix_run"])
-        c = [pull(streams["crew"]) for _ in range(2)]
+        c = [pull(streams["crew"]) for _ in range(3)]
         self.assertEqual(c[0]["data"]["rows"], u[0]["data"]["rows"])
         self.assertEqual(c[1]["data"]["rows"], [{"id": 1, "team": "crew"}])
+        self.assertEqual(c[2]["data"]["tbl"], "history")  # a record admin gets no audit rows, as /api/teams/<t>/audit
         self.assertEqual(problems([{"event": "hello", "data": {"v": 1, "epoch": h.epoch, "sid": "s", "viewer": ADMIN, "retention_s": 300, "max_life_s": 900}},
                                    {"id": f"{h.epoch}-1", "event": "snapshot", "data": {"feeds": {}, "sessions": [], "errors": [], "stats": None, "flow": []}}] + a), [])
 
