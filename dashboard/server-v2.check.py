@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The /v2 static route of server.py: no-store and the v2 CSP for the page, immutable assets, 404 for any other
-path, 503 with no build; the CSP hashes the theme script of the built page; and v1 stays as it was.
+path, 503 with no build; the CSP hashes the theme script of the built page; v1 stays as it was; the deploy_check probes.
   python3 dashboard/server-v2.check.py
 """
 import base64
@@ -8,6 +8,7 @@ import hashlib
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,7 @@ os.environ.update(FXA_DB=f"{TMP}/fxa.db", FXA_SESSION_DIR=f"{TMP}/sessions", FXA
                   FXA_DASHBOARD_HMAC_FILE=f"{TMP}/hmac", FXA_TEAMS_DIR=f"{TMP}/teams")
 sys.path.insert(0, HERE)
 import server  # noqa: E402
+import live  # noqa: E402
 import testkit  # noqa: E402
 
 DIST = server.V2_DIST
@@ -89,6 +91,27 @@ class Assets(unittest.TestCase):
 
     def test_a_foreign_host_is_refused(self):
         self.assertEqual(get("/v2/", headers={"Host": "evil.example.com"})[0], 421)
+
+
+@unittest.skipUnless(shutil.which("curl"), "needs curl")
+class Probes(unittest.TestCase):
+    def test_the_deploy_check_probes_pass_against_this_server(self):
+        with open(os.path.join(ROOT, "skills", "fxa-manager", "vm.sh")) as f:
+            body = re.search(r"\ndeploy_check\(\) \{\n[\s\S]*?\n# v2 probes[^\n]*\n([\s\S]*?)\nEOF\n", f.read()).group(1)
+        lines = [x.replace("\\$", "$") for x in body.splitlines()]
+        self.assertEqual(len(lines), 4, lines)
+        port = BASE.rsplit(":", 1)[1]
+        script = "\n".join(lines).replace("localhost:8787", f"127.0.0.1:{port}")
+        server.HUB = live.LiveHub(server)
+        for n in ("FULL", "AGENTS", "TEAMS"):
+            f = server.Feed(n.lower(), [], 60, 30)
+            setattr(server, n, f)
+        try:
+            out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout
+        finally:
+            server.HUB.shutdown()
+            server.HUB = None
+        self.assertEqual(out.splitlines(), ["  v2 page ok", "  v2 asset immutable", "  live stream hello"])
 
 
 if __name__ == "__main__":
