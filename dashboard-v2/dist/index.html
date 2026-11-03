@@ -4,7 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FxA Agent</title>
-  <script type="module" crossorigin src="/v2/assets/index-s61Vb2PV.js"></script>
+<script>
+// Set data-theme before the first paint. With no saved choice, follow the system theme as it changes.
+(function () {
+  var root = document.documentElement, dark = matchMedia("(prefers-color-scheme: dark)");
+  function apply() {
+    var t = null;
+    try { t = localStorage.getItem("theme"); } catch (e) {}
+    root.dataset.theme = t === "light" || t === "dark" ? t : dark.matches ? "dark" : "light";
+  }
+  apply();
+  dark.addEventListener("change", apply);
+})();
+</script>
+  <script type="module" crossorigin src="/v2/assets/index-D4aAD12a.js"></script>
+  <link rel="stylesheet" crossorigin href="/v2/assets/index-DTP3kzwl.css">
 </head>
 <body>
 <div id="root"></div>
