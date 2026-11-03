@@ -3,7 +3,7 @@
 The fixture's snapshot, stats and teams fill the server's feeds, so /api/snapshot, /api/stats, /api/overview and
 /api/teams are the real Handler answers. Every other API path answers from the fixture, as page.sh does, because
 it would run the controller or read the store. The /v2 handler here is temporary until server.py has its route."""
-import argparse, datetime, json, os, re, sys, tempfile, time
+import argparse, base64, datetime, hashlib, json, os, re, sys, tempfile, time
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -53,8 +53,8 @@ TYPES = {"js": "text/javascript", "css": "text/css", "svg": "image/svg+xml", "wo
 
 
 def csp(page):
-    hashes = " ".join(f"'sha256-{h}'" for h in (server.base64.b64encode(server.hashlib.sha256(s.encode()).digest()).decode()
-                                               for s in re.findall(r"<script>([\s\S]*?)</script>", page)))
+    hashes = " ".join(f"'sha256-{base64.b64encode(hashlib.sha256(s.encode()).digest()).decode()}'"
+                      for s in re.findall(r"<script>([\s\S]*?)</script>", page))
     return (f"default-src 'none'; script-src 'self' {hashes}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
             "media-src 'self'; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 
