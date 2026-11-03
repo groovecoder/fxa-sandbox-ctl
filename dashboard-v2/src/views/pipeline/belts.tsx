@@ -1,0 +1,297 @@
+// The Belts tab (v1 beltsHtml, beltRow, beltDetails): tiles, the 9-stop belts by phase, the outside list, and the flow.
+import { motion } from 'motion/react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
+import { Belt, Spark, Terminal, type TerminalState } from '../../charts';
+import { ago, days, jiraHref, plainMd, prUrl, usd } from '../../format';
+import { beltCount, boardItems, beltGroups } from '../../model';
+import { LANE_ST, type J } from '../../model/base';
+import { SNAP, hasChecks, jiraSite, laneTitle, openPrCounts, teamRepo } from '../../model/pipeline';
+import { badPipeLink, sessTabOf } from '../../router';
+import { connect, useApp } from '../../store';
+import type { Store } from '../../store/types';
+import { Card, CheckBars, EmptyBox, Tag } from '../../ui';
+import { cx } from '../../ui/tone';
+import { BELT_HINT, BELT_PHASES, BELT_SUBS, GROUP_NAME, GROUPS, ageSecs, ageWords, beltTone, doneRows, mergesPerDay, NODE_STOPS } from './data';
+import { Flow } from './flow';
+import { Ext, SrcBadge, Tile, useOpen } from './parts';
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const q = (x: number | null) => (x == null ? null : x);
+
+// A link that names no ticket: the shell drops the key before this chunk loads, so the first one comes from the page load.
+let navBad = (() => {
+  try {
+    const n = (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.name;
+    return n ? badPipeLink(new URL(n).hash) : false;
+  } catch {
+    return false;
+  }
+})();
+function useBadLink() {
+  const [bad, setBad] = useState(navBad);
+  useEffect(() => {
+    const on = (e: HashChangeEvent) => {
+      navBad = false;
+      setBad(badPipeLink(new URL(e.newURL).hash));
+    };
+    addEventListener('hashchange', on);
+    return () => removeEventListener('hashchange', on);
+  }, []);
+  return bad;
+}
+
+// cost_so_far of each live belt, one value per agents feed frame that changed it.
+const COST: Record<string, number[]> = {};
+function trackCost(agents: J) {
+  for (const r of agents?.runners ?? []) {
+    const c = r.agent?.cost_so_far, xs = (COST[r.key] ??= []);
+    if (typeof c === 'number' && xs[xs.length - 1] !== c) {
+      xs.push(c);
+      xs.splice(0, xs.length - 60);
+    }
+  }
+}
+
+
+export function Belts() {
+  const s = useApp((x) => x);
+  const g: J = beltGroups(s), snap = SNAP(s), sel = s.route.sel, bad = useBadLink();
+  const [stops, setStops] = useState<[number, number] | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const focus = useRef<{ el: HTMLElement; key: string; f: string } | null>(null);
+  const said = useRef<HTMLParagraphElement>(null);
+  const outside = useOpen('outside', false);
+  useMemo(() => trackCost(s.feeds.agents?.data), [s.feeds.agents?.data]);
+
+  const live = snap ? g.working.filter((r: J) => r.t.agent_alive).map((r: J) => r.t.key as string) : [];
+  const liveKeys = live.join(' ');
+  // The fixture page of the shell tests has no stream, and connect() would open one.
+  const fixture = !!(window as { __V2_FIXTURE__?: unknown }).__V2_FIXTURE__;
+  useEffect(() => {
+    if (fixture) return;
+    connect().showTails(liveKeys ? liveKeys.split(' ') : []);
+    return () => connect().showTails([]);
+  }, [liveKeys, fixture]);
+
+  // An update that replaces the focused row puts the focus back on the same row and control.
+  useLayoutEffect(() => {
+    const f = focus.current;
+    if (!f || f.el.isConnected || document.activeElement !== document.body || !box.current) return;
+    const li = box.current.querySelector(`[data-belt="${CSS.escape(f.key)}"]`);
+    const to = li?.querySelector<HTMLElement>(`[data-focus="${f.f}"]`) ?? li?.querySelector<HTMLElement>('[data-focus="row"]');
+    if (to) to.focus({ preventScroll: true });
+    else {
+      box.current.focus({ preventScroll: true });
+      if (said.current) said.current.textContent = `${f.key} left the belts.`;
+      focus.current = null;
+    }
+  });
+  const onFocus = (e: FocusEvent) => {
+    const el = e.target as HTMLElement, li = el.closest<HTMLElement>('[data-belt]');
+    focus.current = li ? { el, key: li.dataset.belt!, f: el.dataset.focus ?? 'row' } : null;
+  };
+  useEffect(() => {
+    if (sel) box.current?.querySelector(`[data-belt="${CSS.escape(sel)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [sel]);
+
+  if (!snap) return <EmptyBox>Loading the pipeline…</EmptyBox>;
+  const n = beltCount(g), anyLive = live.length > 0;
+  const shown = (r: J) => !stops || (r.st >= stops[0] && r.st <= stops[1]);
+  const counts = LANE_ST.map((_, j) => GROUPS.reduce((c, k) => c + g[k].filter((r: J) => r.st === j).length, 0));
+  const unknownAny = GROUPS.some((k) => g.unknown[k]);
+  const old = g.outside.filter((r: J) => r.age >= 3).length;
+  const repo = teamRepo(s, ''), lbl = snap.team?.pr_label;
+  const prHref = repo && lbl ? `https://github.com/${repo}/pulls?q=is%3Apr+state%3Aopen+label%3A${encodeURIComponent(lbl)}` : '';
+  // Needs you is the Overview's number: the belts only a person can move. Review waits on a reviewer, so it is named apart.
+  const you = g.unknown.needs ? null : g.needs.length, pc = openPrCounts(s);
+  const done = doneRows(snap), merged = snap.merged_prs == null ? null : snap.merged_prs.filter((p: J) => p.key && (days(p.merged) ?? 99) <= 7).length;
+  // Blocked tickets that wait on a reporter or another ticket have no belt: the header still counts them.
+  const offBelts = g.unknown.needs ? 0 : boardItems(s).filter((i: J) => i.column === 'blocked' && i.group === 'wait').length;
+  const all = [...GROUPS.flatMap((k) => g[k]), ...g.outside] as J[];
+  const ageMax = Math.max(1, ...all.map((r) => ageSecs(r) ?? 0));
+  const row = (r: J) => <BeltRow key={r.t.key} r={r} s={s} open={r.t.key === sel} ageMax={ageMax} />;
+
+  const sub = ([k, who, name, pick]: (typeof BELT_SUBS)[number], lo: number, hi: number) => {
+    if (g.unknown[k]) return null;
+    const rs = g[k].filter((r: J) => r.st >= lo && r.st <= hi && pick(r) && shown(r));
+    return rs.length ? (
+      <div key={name} role="group" aria-label={name}>
+        <h3 className="bsub"><span className="who">{who}</span>{name} <span className="cnt">{rs.length}</span><span className="hint">{BELT_HINT[name]}</span></h3>
+        <ul className="belts">{rs.map(row)}</ul>
+      </div>
+    ) : null;
+  };
+  const phases = BELT_PHASES.map(([name, why, lo, hi]) => {
+    const body = BELT_SUBS.map((x) => sub(x, lo, hi)).filter(Boolean);
+    const c = BELT_SUBS.reduce((t, [k, , , pick]) => t + g[k].filter((r: J) => r.st >= lo && r.st <= hi && pick(r)).length, 0);
+    return body.length ? (
+      <div key={name} role="group" aria-labelledby={`bp-${lo}`}>
+        <h2 className="bgh" id={`bp-${lo}`}>{name} <span className="cnt">{unknownAny ? '?' : c}</span><span className="why">{why}</span></h2>
+        {body}
+      </div>
+    ) : null;
+  }).filter(Boolean);
+  const unknown = GROUPS.filter((k) => g.unknown[k]).map((k) => <EmptyBox key={k}>{GROUP_NAME[k]}: {g.unknown[k]}</EmptyBox>);
+  const stopName = stops && (stops[0] === stops[1] ? LANE_ST[stops[0]] : `${LANE_ST[stops[0]]} to ${LANE_ST[stops[1]]}`);
+
+  return (
+    <div id="s-lanes">
+      <div className="ptiles">
+        <Tile label="Needs you" value={q(you)} tone={you ? 'warn' : undefined}
+          sub={you == null ? 'a feed failed' : `to decide or fix${g.unknown.review ? '' : ` · ${g.review.length} more wait on a review`}${offBelts ? ` · ${offBelts} wait off the belts` : ''}`} />
+        <Tile label="Agents working" value={q(g.unknown.working ? null : g.working.length)}
+          sub={<>{anyLive && <><span aria-hidden="true" className="ds-live ds-run inline-flex text-info" /> live · </>}{n == null ? '?' : n} belt{n === 1 ? '' : 's'} in all</>} />
+        <Tile label="Open PRs" value={pc ? pc.total : '—'} sub={pc ? pc.parts : 'GitHub did not answer'} href={pc ? prHref || undefined : undefined} />
+        <Tile label="Merged, 7 days" value={merged ?? '—'}
+          sub={merged == null ? 'GitHub did not answer' : <>pipeline tickets<Spark label={`Merges per day, last 14 days: ${mergesPerDay(done).join(', ')}`} values={mergesPerDay(done)} color="chart-3" /></>} />
+      </div>
+      <Where g={g} s={s} sel={sel} bad={bad} done={done} />
+      {stops && (
+        <p className="bwhere">Showing the belts at {stopName}. <button type="button" className="linkbtn" onClick={() => setStops(null)}>Show all stops</button></p>
+      )}
+      <div className="bwrap" ref={box} tabIndex={-1} onFocus={onFocus} aria-label="Belts">
+        <div className="bgrid bstops" aria-hidden="true">
+          <span>Ticket</span>
+          <div>
+            <div className="phs"><b className="ph-q">Queue</b><b className="ph-a">Agent run</b><b className="ph-p">PR</b></div>
+            <div className="cols">{LANE_ST.map((st, j) => <div key={st}><b title={st}>{st}</b><span>{unknownAny ? '?' : counts[j] || '·'}</span></div>)}</div>
+          </div>
+          <span className="r">Status</span>
+        </div>
+        {unknown}
+        {phases.length ? phases : unknown.length ? null : <EmptyBox>Nothing on the belts.</EmptyBox>}
+        {g.outside.length > 0 && (
+          <details className="bout" open={outside.open || g.outside.some((r: J) => r.t.key === sel)} onToggle={outside.onToggle}>
+            <summary>Outside the pipeline ({g.outside.length}){old ? ` · ${old} wait 3+ days` : ''}</summary>
+            <ul className="belts">{g.outside.filter(shown).map(row)}</ul>
+          </details>
+        )}
+      </div>
+      <p className="sr-only" aria-live="polite" ref={said} />
+      <Flow g={g} snap={snap} done={done} points={s.flow.points} onStops={(id) => setStops(NODE_STOPS[id] ?? null)} />
+    </div>
+  );
+}
+
+// Where a key from a link is when it has no belt: a hold, the queue, Done, or nowhere.
+function Where({ g, s, sel, bad, done }: { g: J; s: Store; sel: string; bad: boolean; done: J[] }) {
+  const qv = <>(<a href="#pipeline/queue">Queue and review</a>)</>;
+  let text: ReactNode = null;
+  if (bad) text = 'That link names no ticket.';
+  else if (sel && !['working', 'needs', 'fixes', 'review', 'outside'].some((x) => g[x].some((r: J) => r.t.key === sel))) {
+    const i = boardItems(s).find((x: J) => x.key === sel), d = done.find((x) => x.t.key === sel);
+    text = i?.waitsOn ? <>{sel} waits on {i.waitsOn} {qv}</> : i?.column === 'next' ? <>{sel} is ready in the queue {qv}</> : i ? <>{sel} is in the queue {qv}</>
+      : d ? <>{sel} {d.l1.replace(/^Merged/, 'merged')} (<a href="#pipeline/done">Done</a>)</>
+        : <>{sel} is not on a belt now. Look in <a href="#pipeline/queue">Queue and review</a> or <a href="#pipeline/done">Done</a>.</>;
+  }
+  return text ? <p className="bwhere" id="bwhere">{text}</p> : null;
+}
+
+// A plain click opens or closes the row in place with replace, so Back leaves the page; a modified click keeps the browser default.
+const onRow = (e: MouseEvent<HTMLAnchorElement>) => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+  e.preventDefault();
+  location.replace(e.currentTarget.getAttribute('href')!);
+};
+
+function BeltRow({ r, s, open, ageMax }: { r: J; s: Store; open: boolean; ageMax: number }) {
+  const t = r.t, title = laneTitle(t.summary || t.branch), live = r.group === 'working' && !!t.agent_alive;
+  const jh = jiraHref(t.key, jiraSite(s, t.key)), ph = prUrl(t.pr, teamRepo(s, t.key)), tone = beltTone(r);
+  const age = ageWords(r), secs = ageSecs(r), cost = live ? COST[t.key] ?? [] : [];
+  const href = open ? '#pipeline/belts' : `#pipeline/belts/${encodeURIComponent(t.key)}`;
+  return (
+    <motion.li layout="position" layoutId={`belt-${t.key}`} transition={{ duration: 0.3 }} className={cx('belt', open && 'sel')} data-belt={t.key}>
+      <div className="bgrid brow">
+        <span className="tk">
+          <SrcBadge kind={t.slack ? 'slack' : t.pr ? 'github' : 'jira'} />
+          <span className="m">
+            <Ext className="key mono" href={jh} focus="jira">{t.key}</Ext>
+            {t.pr != null && <Ext className="mono" href={ph} focus="pr">#{t.pr}</Ext>}
+            {title.tag && <Tag sq label={title.tag} />}
+          </span>
+          <a className="t blink" href={href} onClick={onRow} data-focus="row" aria-expanded={open} aria-controls={open ? `bd-${t.key}` : undefined} title={t.summary || undefined}>
+            {title.text || t.key}
+          </a>
+          {r.l2 && <span className="l2" title={r.l2}>{r.l2}</span>}
+        </span>
+        <span className="trk">
+          <Belt stops={LANE_ST} at={r.st} tone={tone ?? 'dim'} label={live ? `${r.l1}, agent working` : r.l1} live={live} />
+          {t.pr != null && hasChecks(t) && <CheckBars ok={t.ok ?? 0} fail={t.fail ?? 0} running={t.running ?? 0} />}
+        </span>
+        <span className="st">
+          <Tag label={r.l1} tone={tone} title={r.l1} />
+          <span className="stn">at {LANE_ST[r.st]}</span>
+          {!/\d+ days?/.test(r.l1) && age && (
+            <span className={cx('age', r.age >= 7 && 'old')} title={`${r.group === 'working' ? 'running' : 'waiting'} ${age}`}>
+              {age}
+              {secs != null && <i className="agebar" aria-hidden="true" style={{ width: `${(Math.log1p(secs) / Math.log1p(ageMax)) * 100}%` }} />}
+            </span>
+          )}
+          {cost.length > 1 && <span className="bcost"><Spark label={`Cost so far: ${usd(cost[cost.length - 1])}`} values={cost} /></span>}
+        </span>
+      </div>
+      {open && <BeltDetails r={r} s={s} jh={jh} ph={ph} />}
+    </motion.li>
+  );
+}
+
+const TTY: Record<string, TerminalState> = { running: 'running', waiting: 'waiting on you', error: 'output unavailable', connecting: 'connecting…' };
+
+// The open row's details: four blocks, one main action and the links, each link checked or plain text.
+function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string }) {
+  const t = r.t, i = r.item ?? {}, k = (s.feeds.stats?.data as J)?.tickets?.[t.key], a = t.agent || {}, lim = SNAP(s)?.limits?.attempts ?? 2;
+  const stats = !!s.feeds.stats?.data, term = useOpen(`term:${t.key}`, false), det = useRef<HTMLDetailsElement>(null);
+  const tail = s.tails[t.key], tstate: TerminalState = tail?.lines.length ? TTY[tail.state] ?? 'running' : tail?.state === 'error' ? 'output unavailable' : 'connecting…';
+  const blk = (h: string, body: ReactNode, bad?: boolean) =>
+    bad ? <Card flat sm tone="bad" label="failed" className="blk"><h3>{h}</h3>{body}</Card> : <Card flat sm className="blk"><h3>{h}</h3>{body}</Card>;
+  const total = (t.ok ?? 0) + (t.fail ?? 0) + (t.running ?? 0);
+  const ci = !t.pr ? blk('CI: no PR yet', <p>Checks start after the agent opens the PR.</p>)
+    : t.fail > 0 ? blk(`CI: ${t.fail} of ${total} checks failed`, <p>{t.infra ? `Known infra failure: ${t.infra}` : `${t.ok ?? 0} passed.`}</p>, true)
+      : t.running > 0 ? blk(`CI: ${t.running} of ${total} running`, <p>{t.ok ?? 0} passed so far.</p>)
+        : blk(`CI: ${t.ok ?? 0} checks passed`, <p>{t.mergeable === 'CONFLICTING' ? 'The branch has merge conflicts.' : 'Nothing failed.'}</p>);
+  const facts = [a.model && <span key="m" className="mono">{a.model}</span>, a.cost_so_far && `${usd(a.cost_so_far)} so far`, a.turns && `${a.turns} turns`].filter(Boolean);
+  const name = `agent@sandbox: ${t.name || String(t.key).toLowerCase()}`;
+  const agent = t.agent_alive
+    ? blk(`Agent: ${LANE_ST[r.st]} · ${Math.round((t.elapsed_seconds ?? 0) / 60)} min`, (
+      <>
+        <p>{facts.length ? facts.map((x, n) => <span key={n}>{n ? ' · ' : ''}{x}</span>) : 'working'}</p>
+        <details className="bterm" id={`lane-term-${t.key}`} ref={det} open={term.open} onToggle={term.onToggle}>
+          <summary data-focus="term">{name} · {tstate}</summary>
+          {term.open && <Terminal title={name} lines={tail?.lines ?? []} state={tstate} />}
+        </details>
+      </>
+    ))
+    : blk(`Agent: ${i.next || r.l1 || ''}`, <p>{t.attempts != null || r.group === 'fixes' ? `Fix attempts ${t.attempts ?? 0} of ${lim}. Then it moves to Needs you.` : plainMd(r.l2)}</p>);
+  const rv = ({ APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested', REVIEW_REQUIRED: 'review required' } as Record<string, string>)[t.review] ?? t.review;
+  const reqd = (t.reviewers ?? []).map((x: string) => x.replace(/^mozilla\//, '')).join(', ');
+  const review = !t.pr ? blk('Review: none yet', <p>A reviewer gets it after CI passes.</p>)
+    : blk(`Review: ${rv || 'none yet'}`, <p>{t.last_human_review ? `${t.last_human_review.login} reviewed ${ago(Math.round((days(t.last_human_review.at) ?? 0) * 86400))}` : `no human review${reqd ? ` · requested ${reqd}` : ''}`}</p>);
+  const runs = blk(`Agent runs: ${k ? k.runs : stats ? 'none' : '…'}`, (
+    <p>{k ? [plural(k.turns, 'turn'), `${k.median_min} min`, usd(k.cost), plural(k.files, 'file')].join(' · ') : stats ? 'not in the run log: a run records only when it reaches handoff' : 'loading…'}</p>
+  ));
+  // The session's own tab: the Sessions view shows a key only on the tab of its state.
+  const sess = t.sess && /^agent-[a-z0-9]{4,12}$/.test(t.sess.key) ? `#sessions/${sessTabOf(t.sess.state)}/${t.sess.key}` : '';
+  const [label, href] = t.slack ? ['Open the session', sess] : t.agent_alive ? ['Watch the agent', ''] : t.fail > 0 && ph ? ['Open the failing check', `${ph}/checks`]
+    : r.group === 'needs' && i.column === 'blocked' && jh ? ['Answer in Jira', jh] : ph ? ['Open the PR', ph] : jh ? ['Answer in Jira', jh] : ['', ''];
+  const watch = () => {
+    if (!det.current) return;
+    det.current.open = true;
+    term.set(true);
+    det.current.querySelector('summary')?.focus();
+  };
+  const main = t.agent_alive
+    ? <button type="button" className="main" data-focus="main" onClick={watch}>Watch the agent</button>
+    : href ? <a className="main" data-focus="main" href={href} {...(href.startsWith('#') ? {} : { target: '_blank', rel: 'noopener' })}>{label}</a> : null;
+  return (
+    <div className="bdet" id={`bd-${t.key}`} role="region" aria-label={`Details of ${t.key}`}>
+      <div className="blks">{ci}{agent}{review}{runs}</div>
+      <div className="acts">
+        {main}
+        {jh && <a data-focus="jira" href={jh} target="_blank" rel="noopener">Jira ↗</a>}
+        {ph && <a data-focus="pr" href={ph} target="_blank" rel="noopener">PR ↗</a>}
+        {ph && <a data-focus="checks" href={`${ph}/checks`} target="_blank" rel="noopener">Checks ↗</a>}
+        {sess && <a data-focus="sess" href={sess}>Session</a>}
+      </div>
+    </div>
+  );
+}
