@@ -236,9 +236,8 @@ class LiveHub:
             t, recs = name.split(":", 1)[1], srv.read_records()
             if t not in srv.pipeline_teams(recs) or (recs[t].get("secret") is True and not admin):
                 return None
-            if "data" in f:
-                snap = srv.team_snapshot(t, f["data"], recs[t], admin, srv.STATE_ROOT)
-                return None if snap is None else dict(f, data=snap)
+            if "data" in f:  # the secret check is above: a None here is a failed first read, which v1 sends with its error
+                return dict(f, data=srv.team_snapshot(t, f["data"], recs[t], admin, srv.STATE_ROOT))
         return f
 
     def snapshot(self, state, v):

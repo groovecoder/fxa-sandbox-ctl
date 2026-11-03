@@ -312,6 +312,12 @@ class Stream(unittest.TestCase):
         self.assertEqual(problems([{"event": "hello", "data": {"v": 1, "epoch": h.epoch, "sid": "s", "viewer": ADMIN, "retention_s": 300, "max_life_s": 900}},
                                    {"id": f"{h.epoch}-1", "event": "snapshot", "data": {"feeds": {}, "sessions": [], "errors": [], "stats": None, "flow": []}}] + a), [])
 
+    def test_a_team_feed_with_no_data_yet_still_shows_its_error(self):
+        f = {"name": "snapshot:example", "age_seconds": None, "interval": 300, "error": "jira: 500", "refreshing": False, "fetched_at": None, "data": None}
+        for v in (ADMIN, USER):
+            self.assertEqual(self.hub.feed_view(f, v), f)
+            self.assertEqual(self.hub.snapshot({"feeds": {f["name"]: f}, "sessions": [], "errors": [], "flow": []}, v)["feeds"], {f["name"]: f})
+
     def test_feed_frames_send_data_only_when_it_changed(self):
         h = self.hub
         h.tick()
