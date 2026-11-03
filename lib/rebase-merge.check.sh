@@ -32,4 +32,12 @@ g clone -q -b fxa-1 "$tmp/origin.git" "$tmp/wt2" 2>/dev/null
 ( cd "$tmp/wt2" && g merge -q --no-edit origin/main 2>/dev/null )
 _jira_rebase_merge FXA-1 "$tmp/wt2" main 2>/dev/null
 check "an old host-only merge commit is dropped first" "$tip|yes" "$(git -C "$tmp/wt2" rev-parse HEAD)|$(git -C "$tmp/wt2" rev-parse -q --verify MERGE_HEAD >/dev/null && echo yes)"
+# A round cut off with a conflict still open: the relaunch's branch resume must not fail on it.
+for f in _worktree_resume_branch _worktree_sync_to_origin _origin_has_branch; do
+  eval "$(sed -n '/^'"$f"'() {/,/^}/p' "$(dirname "$0")/worktree.sh")"
+done
+( cd "$tmp/up" && g checkout -q fxa-1 && echo x > d && g add d && g commit -qm conflict && g push -q origin fxa-1 )
+g clone -q -b fxa-1 "$tmp/origin.git" "$tmp/wt3" 2>/dev/null
+_jira_rebase_merge FXA-1 "$tmp/wt3" main >/dev/null 2>&1
+check "a relaunch resumes the branch with its conflicted merge open" "0|0|U" "$(_worktree_resume_branch "$tmp/wt3" fxa-1 2>/dev/null; echo $?)|$(_jira_rebase_merge FXA-1 "$tmp/wt3" main 2>/dev/null; echo $?)|$(git -C "$tmp/wt3" diff --name-only --diff-filter=U | sed 's/^d$/U/')"
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"

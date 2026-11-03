@@ -479,6 +479,15 @@ _origin_has_branch() {
   return 2
 }
 
+# _worktree_resume_branch <path> <branch>   Check out a local branch and sync it to origin.
+_worktree_resume_branch() {
+  local path="$1" branch="$2"
+  # A cut-off rebase round leaves its merge open, and a checkout then fails; _jira_rebase_merge resumes it.
+  [ "$(git -C "$path" rev-parse --abbrev-ref HEAD)" = "$branch" ] \
+    || git -C "$path" -c core.hooksPath=/dev/null checkout "$branch" >&2 || return 1
+  _worktree_sync_to_origin "$path" "$branch"
+}
+
 _worktree_sync_to_origin() {
   local path="$1" branch="$2"
   # FxA's post-checkout hook clones external/l10n and is not idempotent.
@@ -600,8 +609,7 @@ worktree_prepare_for_issue() {
   if git -C "$path" show-ref --verify --quiet "refs/heads/${branch}"; then
     # A local ref can be weeks old, so sync it to origin before the agent sees it.
     echo "Branch '${branch}' already exists locally; resuming." >&2
-    git -C "$path" $nohooks checkout "$branch" >&2 || return 1
-    _worktree_sync_to_origin "$path" "$branch" || return 1
+    _worktree_resume_branch "$path" "$branch" || return 1
   elif { has=0; _origin_has_branch "$path" "$branch" || has=$?; [ "$has" != 1 ]; }; then
     # A fix round on another slot: cutting from <base> would drop the PR's
     # commits, so "origin did not answer" must not read as "not there".
