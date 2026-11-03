@@ -52,6 +52,15 @@ for (const v of ["overview", "pipeline", "sessions", "errors", "runners", "teams
   out.tones[v] = (b?.className ?? "").replace(/\bn\b/, "").trim();
 }
 out.title = document.title;
+// Teams part B: the routines list and the page of routine 1 of the team "example" (the routine fixtures).
+// A seconds age drops its number: v1 and v2 render a few seconds apart.
+const all = (s) => [...document.querySelectorAll(s)].map((e) => e.textContent.replace(/\s+/g, " ").trim().replace(/\b\d+s ago\b/g, "s ago")).join("|");
+out.routines = {};
+for (const r of ["teams/example/routines", "teams/example/routines/1"]) {
+  location.hash = "#" + r; await sleep(800);
+  out.routines[r.endsWith("/1") ? "detail" : "list"] = { head: all("[data-routines] .rt-head .n"), kpis: all("[data-routines] .rtkpis > *"),
+    names: all("[data-routines] [data-rt-sel]"), says: all("[data-routines] .says"), runs: all("[data-routines] .rtd .item .title"), lives: all("[data-routines] [data-rt-live] .key") };
+}
 return JSON.stringify(out);'
 
 [ $# -gt 0 ] || set -- "$here"/page-fixture*.json
