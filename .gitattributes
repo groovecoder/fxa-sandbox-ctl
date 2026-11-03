@@ -1,0 +1,2 @@
+# The dashboard v2 build output, committed so the manager serves it with no build: review diffs collapse it.
+dashboard-v2/dist/** linguist-generated
