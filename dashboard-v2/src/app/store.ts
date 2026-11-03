@@ -1,10 +1,9 @@
-// The shell's view of the C2 store: the Zustand StoreApi shape, so the W1-DATA store plugs in as it is.
+// The shell's view of the C2 store: the Zustand StoreApi shape of the W1-DATA store.
 import { createContext, useContext, useSyncExternalStore } from 'react';
 import * as model from '../model';
 import type { Alert, Badge, BeltGroups, Health, Needs, Snapshot, SkippedTicket, StatsRow } from '../model';
-import { initial } from '../live/reducers';
-import { HOME } from '../router';
-import { loadPrefs, savePref } from '../store/prefs';
+import { store } from '../store';
+import { savePref } from '../store/prefs';
 import type { Session, Store } from '../store/types';
 
 export type StoreApi<T> = {
@@ -13,23 +12,7 @@ export type StoreApi<T> = {
   subscribe: (fn: () => void) => () => void;
 };
 
-export function createStore<T>(init: T): StoreApi<T> {
-  let state = init;
-  const subs = new Set<() => void>();
-  return {
-    getState: () => state,
-    setState: (p) => {
-      state = { ...state, ...(typeof p === 'function' ? p(state) : p) };
-      subs.forEach((f) => f());
-    },
-    subscribe: (f) => (subs.add(f), () => subs.delete(f)),
-  };
-}
-
 export { savePref };
-
-// One initial store for the shell and the live data: the W1-DATA copy, at the shell's home route.
-export const initialStore = (): Store => ({ ...initial(loadPrefs()), route: HOME });
 
 // A side list item: d is the dot tone, find the text that the search matches (default t and m).
 export type SideItem = { id: string; d: string; t: string; m: string[]; tip?: string; find?: string };
@@ -81,7 +64,7 @@ export const fixedSel = (f: FixedSel): Sel => ({
   side: (s) => f.side[s.route.view] ?? null,
 });
 
-export const StoreCtx = createContext<StoreApi<Store>>(createStore(initialStore()));
+export const StoreCtx = createContext<StoreApi<Store>>(store);
 export const SelCtx = createContext<Sel>(modelSel);
 
 export const useStore = () => useContext(StoreCtx);
