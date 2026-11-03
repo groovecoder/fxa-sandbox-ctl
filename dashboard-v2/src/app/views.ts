@@ -43,6 +43,7 @@ export const VIEWS: ViewDef[] = [
   {
     id: 'runners', title: 'Sandboxes', sub: 'Where the agents run, who uses them, and what it costs',
     tabs: tabs(['all', 'All'], ['pipeline', 'Pipeline'], ['slack', 'Slack'], ['routines', 'Routines']), side: false, right: true, bareTabs: [],
+    load: () => import('../views/runners'),
   },
   {
     id: 'teams', title: 'Teams', sub: 'Which teams exist, what each gets, who can start one, and how each is doing',
