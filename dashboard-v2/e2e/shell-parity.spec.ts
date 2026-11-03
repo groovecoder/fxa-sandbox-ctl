@@ -139,7 +139,8 @@ test('side list: "loading…" before the list loads', async ({ page }) => {
 });
 
 test('right panel: the empty text, the drawer close button, and noitem on sessions', async ({ page }) => {
-  await open(page, '#errors/open');
+  // With a row, Errors picks the first one, so the empty text needs an empty list.
+  await open(page, '#errors/open', {}, (fx) => { fx.store.feeds.errors!.data = []; });
   await expect(page.locator('#right')).toContainText('Select an item in the list to see its details.');
   await expect(page.locator('#rclose')).toBeHidden();
   await page.goto('/v2/#sessions/live');
