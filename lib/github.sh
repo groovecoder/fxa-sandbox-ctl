@@ -105,6 +105,60 @@ gh_red_infra() {
   return 1
 }
 
+# Log lines that mean the CI's outside services failed, not the change. Any team, any check.
+_GH_RERUN_RE='internal server error|502 bad gateway|503 service unavailable|504 gateway time-?out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset by peer|temporary failure in name resolution|TLS handshake timeout|the runner has received a shutdown signal|lost communication with the server|toomanyrequests|API rate limit exceeded'
+
+# gh_red_rerun <KEY>
+#   When every failed GitHub Actions check on the key's open PR logs an outside fault (_GH_RERUN_RE),
+#   rerun the failed jobs once for that head sha as the App, comment once, and print why.
+#   Exit 1 otherwise: a second red on the same sha, a CircleCI check, or a refused rerun is a normal red.
+#   Unlike gh_red_infra, a match never makes the PR green: the rerun decides.
+gh_red_rerun() {
+  pipeline_require || return 1
+  local key="${1:-}"; [ -n "$key" ] || return 1
+  [ "${PIPE_RERUN_INFRA:-1}" != 0 ] && [ "${PIPE_PR_OPEN:-1}" != 0 ] && github_app_enabled 2>/dev/null || return 1
+  local br json num sha mark
+  br="$(worktree_branch_for "$key")" || return 1
+  json="$(gh pr list --repo "$PIPE_REPO_SLUG" --state open --head "$br" \
+    --json number,headRefOid,statusCheckRollup,isCrossRepository 2>/dev/null \
+    | jq -c '[.[] | select(.isCrossRepository | not)][0] // empty' 2>/dev/null)" || return 1
+  [ -n "$json" ] || return 1
+  num="$(jq -r .number <<< "$json")"; sha="$(jq -r .headRefOid <<< "$json")"
+  mark="${PIPE_STATE_DIR}/${key}.reran"
+  [ "$(head -1 "$mark" 2>/dev/null)" != "$sha" ] || return 1
+  local name url run job line runs="" why="" list=""
+  while IFS=$'\t' read -r name url; do
+    [ -n "$name" ] || continue
+    run="$(grep -oE 'runs/[0-9]+' <<< "$url" | cut -d/ -f2 || true)"
+    job="$(grep -oE 'job/[0-9]+' <<< "$url" | cut -d/ -f2 || true)"
+    [ -n "$run" ] && [ -n "$job" ] || return 1
+    line="$(gh run view "$run" --repo "$PIPE_REPO_SLUG" --job "$job" --log-failed 2>/dev/null \
+      | grep -iE -m1 "$_GH_RERUN_RE" | cut -f3- | sed 's/^[0-9TZ:.-]* //' | tr -d '`' | cut -c1-200 || true)"
+    [ -n "$line" ] || return 1
+    why="${why}${why:+; }${name}: ${line}"
+    list="${list}- ${name}: \`${line}\`
+"
+    case " $runs " in *" $run "*) ;; *) runs="${runs} ${run}" ;; esac
+  done < <(jq -r '.statusCheckRollup[]
+    | select(((.conclusion // .state) | ascii_upcase) as $c | $c=="FAILURE" or $c=="ERROR" or $c=="TIMED_OUT")
+    | "\(.name // .context)\t\(.detailsUrl // .targetUrl // "")"' <<< "$json")
+  [ -n "$runs" ] || return 1
+  # One try for each sha, even when the rerun is refused: then the red is reported as before.
+  printf '%s\n%s\n' "$sha" "$why" > "$mark"
+  local GH_TOKEN; GH_TOKEN="$(github_app_token 2>/dev/null)" || return 1
+  export GH_TOKEN
+  for run in $runs; do
+    gh api -X POST "repos/${PIPE_REPO_SLUG}/actions/runs/${run}/rerun-failed-jobs" >/dev/null 2>&1 || {
+      echo "rerun of run ${run} refused: the GitHub App needs Actions: read and write on ${PIPE_REPO_SLUG}" >&2; return 1; }
+  done
+  gh pr comment "$num" --repo "$PIPE_REPO_SLUG" --body "CI failed outside this change, so I reran the failed jobs once. If they fail again, a person needs to look.
+
+${list}
+
+_This comment is from an AI agent._" >/dev/null 2>&1 || true
+  echo "$why"
+}
+
 # gh_gate_stuck <KEY> [MIN-AGE-SECONDS]
 #   Exit 0 when the PR's only pending checks are the CircleCI functional-tests
 #   approval gate (and the workflow that waits on it), and the head commit is

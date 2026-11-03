@@ -19,6 +19,7 @@ gh_feedback() { echo '{}'; }
 # The red is not known infra. gh_red_infra writes no cache here, as when it returns early (no
 # PIPE_INFRA_CHECKS): the fingerprint must take the head from the drain line.
 gh_red_infra() { return 1; }
+gh_red_rerun() { return 1; }
 cmd_drain() { echo "FXA-7 70 RED ok=9 fail=$(cat "$tmp/fails") running=$(cat "$tmp/running") head=$(cat "$tmp/sha")"; }
 echo aaa > "$tmp/sha"; echo 1 > "$tmp/fails"; echo 0 > "$tmp/running"
 q() { cmd_precheck 2>&1 | head -1 | cut -c1-6; }
