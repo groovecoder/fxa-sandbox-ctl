@@ -4,8 +4,10 @@ resume rules, reset, redaction per viewer, bye, the LIVE cap, ping, seen(), tail
   python3 dashboard/live.check.py
 """
 import collections
+import contextlib
 import copy
 import glob
+import io
 import json
 import os
 import shutil
@@ -516,6 +518,22 @@ class Stats(unittest.TestCase):
         self.assertEqual(problems([{"id": "e1-1", "event": "stats", "data": f["data"]}])[:1], ["frame 1 (stats): a stream starts with hello"])
         server.STATS = feed("stats", {"rows": ["shell"]})
         self.assertEqual(json.loads(testkit.request(f"{BASE}/api/stats")[2]), {"rows": ["shell"]})
+
+    def test_the_port_runs_only_with_its_flag_and_logs_its_diff_each_hour(self):
+        server.STATS = feed("stats", {"rows": ["shell"], "llm": {}})
+        self.assertIs(reset_server().compute(None, {}), server.STATS.data)
+        os.environ["FXA_STATS_INPROC"] = "1"
+        try:
+            h = reset_server()
+        finally:
+            del os.environ["FXA_STATS_INPROC"]
+        self.assertIs(h.compute, live.stats.compute)
+        server.STATS = feed("stats", {"rows": ["shell"], "llm": {}})
+        h.compute, err = (lambda con, files: {"rows": ["shell"], "llm": {"a": 1}}), io.StringIO()
+        with contextlib.redirect_stderr(err):
+            h.recompute()
+            h.recompute()
+        self.assertEqual(err.getvalue(), "stats: 1 keys differ between the shell and the in-process copy: llm\n")
 
     def test_the_hub_gives_stats_compute_the_files_it_reads(self):
         h = reset_server()

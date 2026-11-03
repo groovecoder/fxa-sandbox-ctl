@@ -145,7 +145,9 @@ class LiveHub:
         self.flowed = time.time()
         self.closed = False
         self.stats_lock = threading.Lock()
-        self.compute = stats.compute if stats else (lambda con, files: srv.STATS.read()[0])
+        # FXA_STATS_INPROC=1 runs the port next to the shell feed and logs their diff each hour; else the hub sends the shell copy.
+        self.differ = stats.Live(None, None, None) if stats and os.environ.get("FXA_STATS_INPROC") == "1" else None
+        self.compute = stats.compute if self.differ else (lambda con, files: srv.STATS.read()[0])
         self.parts = stats.parts if stats else stub_parts
 
     # The ring and the streams.
@@ -441,6 +443,9 @@ class LiveHub:
                 return
             old, base, etag = self.stats, self.stats_etag, self.etag(new)
             self.stats, self.stats_etag = new, etag
+            if self.differ:
+                self.differ.data = new
+                self.differ.hourly(self.srv.STATS.read()[0])
             if old is not None and etag != base:
                 p = self.parts(old, new)
                 if p is not None:
