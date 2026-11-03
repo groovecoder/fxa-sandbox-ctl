@@ -18,7 +18,8 @@ describe('the token lint', () => {
       'Use a token class, not an arbitrary value.',
       hex,
     ]);
-  });
+    // The first lint loads the TypeScript parser: on a busy host that takes more than 5 s.
+  }, 30_000);
 
   it('passes a route hash and the fox palettes', async () => {
     expect(await errors("export const r = '#overview';\n", 'src/x.ts')).toEqual([]);
