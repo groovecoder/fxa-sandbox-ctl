@@ -336,7 +336,9 @@ _stats_add_rows() {
   fi
   # A session goes direct to the API, not through the proxy, and its cost prices every token at the
   # main model (_snapshot_agent_json), so its spend counts there, as the main agent only.
-  sess="$(_session_records | jq -sc --argjson llm "$llm" --arg cm "${FXA_AGENT_MODEL:-claude-opus-5-5}" --arg xm "${FXA_CODEX_MODEL:-gpt-6-astra}" '
+  # $llm goes in as a file: it passed 128 KB, the most one argument can hold, and every session row was lost.
+  sess="$(_session_records | jq -sc --slurpfile L <(printf '%s' "$llm") --arg cm "${FXA_AGENT_MODEL:-claude-opus-5-5}" --arg xm "${FXA_CODEX_MODEL:-gpt-6-astra}" '
+    $L[0] as $llm |
     def n: if . == null or . == "" then null else (tonumber? // null) end;
     # conv: the first session of a resume chain, so one Slack conversation counts once.
     (map({key: .key, value: (.resume_from // null)}) | from_entries) as $rf
@@ -356,7 +358,7 @@ _stats_add_rows() {
           t0: (.created | n | if . then floor else null end), end: (.stopped_at | n), queued_s: (.queued_s | n),
           live: ((.state // "") | IN("starting", "active", "wrapping")) })' 2>/dev/null || echo '[]')"
   jobs='[]'
-  [ -s "${PIPE_STATE_DIR}/job-costs.jsonl" ] && jobs="$(jq -sc --argjson llm "$llm" "$_STATS_JOB_ROW"'map(jobrow($llm))' "${PIPE_STATE_DIR}/job-costs.jsonl" 2>/dev/null || echo '[]')"
+  [ -s "${PIPE_STATE_DIR}/job-costs.jsonl" ] && jobs="$(jq -sc --slurpfile L <(printf '%s' "$llm") "$_STATS_JOB_ROW"'map(jobrow($L[0]))' "${PIPE_STATE_DIR}/job-costs.jsonl" 2>/dev/null || echo '[]')"
   # Quick answers from the answer runner (lib/answer.sh): one row each, so Spend counts them.
   local asks='[]' athreads='{}'
   # The Slack thread of each answer: written since 2026-10-06, and for older ones from the LLM calls.
@@ -364,7 +366,7 @@ _stats_add_rows() {
     athreads="$(db_json "SELECT run, max(thread) AS thread FROM llm_calls WHERE run LIKE 'ask-%' AND thread IS NOT NULL GROUP BY run;" \
       | jq -c 'map({key: .run, value: .thread}) | from_entries' 2>/dev/null || echo '{}')"
   fi
-  [ -s "${PIPE_STATE_DIR}/answers.jsonl" ] && asks="$(jq -sc --argjson th "$athreads" --argjson llm "$llm" 'map(select(.env != "dev" and (.id | test("^ask-[0-9a-f]{6}$")))) | map({ at, src: "answer", key: .id,
+  [ -s "${PIPE_STATE_DIR}/answers.jsonl" ] && asks="$(jq -sc --argjson th "$athreads" --slurpfile L <(printf '%s' "$llm") '$L[0] as $llm | map(select(.env != "dev" and (.id | test("^ask-[0-9a-f]{6}$")))) | map({ at, src: "answer", key: .id,
           kind: (if .upgrade then "upgraded" elif .error then "failed" else "answered" end),
           usd: (($llm.runs[.id] // .cost_usd // 0) * 100 | round / 100), min: ((.secs // 0) / 60 | round), secs, turns, model: "", models: ($llm.run_models[.id] // null), pr: false,
           thread: (.thread // $th[.id]), q: (.q // null) })' \

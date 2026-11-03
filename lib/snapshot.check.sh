@@ -8,6 +8,8 @@ check() { # check <name> <want> <got>
   else printf 'FAIL %s: want [%s] got [%s]\n' "$1" "$2" "$3"; fail=1; fi
 }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+# Not the host's proxy log: on the manager it holds real calls.
+export FXA_LLM_PROXY_DIR="$tmp/llm-proxy"
 source "$(dirname "$0")/config.sh"
 source "$(dirname "$0")/telemetry.sh"
 source "$(dirname "$0")/snapshot.sh"
@@ -87,6 +89,17 @@ rm -rf "$pd"
   for n in $(seq 100 160); do printf '{"key":"agent-b%s","owner":"U1","created":%s,"summary":"{\\"note\\":\\"%s\\"}"}\n' "$n" "$n" "$big" > "$SESSION_DIR/agent-b$n.json"; done
   out="$(echo '{"rows":[]}' | _stats_add_rows 2>&1)"
   check "stats: more than 128 KB of sessions still builds" "61" "$(jq '[.rows[] | select(.src == "slack")] | length' <<< "$out" 2>/dev/null)"
+  exit "$fail" ) || fail=1
+# More than 1 MB of LLM costs (over the argument limit on Linux and macOS): the sessions, passes and answers still get rows.
+( export SESSION_DIR="$tmp/bigl" PIPE_STATE_DIR="$tmp/biglps"; mkdir -p "$SESSION_DIR" "$PIPE_STATE_DIR"
+  _session_records() { echo '{"key":"agent-7","owner":"U1","created":1}'; }; db_on() { true; }
+  jq -nc '[{llm: ({runs: ([range(60000)] | map({key: "agent-\(.)", value: 0.25}) | from_entries)} | tojson)}]' > "$tmp/bigl.json"
+  db_json() { case "$1" in *"run LIKE 'ask-%'"*) echo '[]' ;; *) cat "$tmp/bigl.json" ;; esac; }
+  echo '{"at":"2026-10-12T15:00:00Z","job":"pass","run":"agent-8","cost_usd":0.5}' > "$PIPE_STATE_DIR/job-costs.jsonl"
+  echo '{"at":"2026-10-07T10:00:00Z","id":"ask-ccc003","secs":9,"cost_usd":0.2,"turns":2}' > "$PIPE_STATE_DIR/answers.jsonl"
+  out="$(echo '{"rows":[]}' | _stats_add_rows 2>/dev/null)"
+  check "stats: more than 1 MB of LLM costs still gives the session, pass and answer rows" "slack 0.25|pass 0.25|answer 0.2" \
+    "$(jq -r '[.rows[] | "\(.src) \(.usd)"] | join("|")' <<< "$out" 2>/dev/null)"
   exit "$fail" ) || fail=1
 
 # Quick answers carry their Slack thread: their own field, else the one the LLM calls name.
