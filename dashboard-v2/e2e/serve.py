@@ -120,6 +120,10 @@ def replay(fs, since):
 
 
 class Handler(server.Handler):
+    def _team_admin(self, path):
+        # A fixture's viewer is its /api/team-admin, as page.sh gives v1, so both pages see the same rows.
+        return bool((fx.get("/api/team-admin") or {}).get("admin")) if a.fixture else super()._team_admin(path)
+
     def live_name(self, query):
         cookie = SimpleCookie(self.headers.get("Cookie") or "").get("fixture")
         name = (query.get("fixture") or [""])[0] or (cookie.value if cookie else "") or os.environ.get("V2_LIVE") or "basic"

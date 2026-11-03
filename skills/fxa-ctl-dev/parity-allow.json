@@ -60,16 +60,6 @@
   "why": "v1 index.html 1440: answerRows ignores the Stats range that the head names; v2 shows only the answers in it"
  },
  {
-  "key": "sessions.live.side",
-  "fixture": "page-fixture-depfix",
-  "why": "fixture harness: serve.py's server redacts fix_pr for its localhost viewer, who is not an admin, while the fixture's /api/team-admin says admin; page.sh gives v1 the rows unredacted"
- },
- {
-  "key": "sessions.stopped.side",
-  "fixture": "page-fixture-depfix",
-  "why": "fixture harness: serve.py's server redacts fix_pr for its localhost viewer, who is not an admin, while the fixture's /api/team-admin says admin; page.sh gives v1 the rows unredacted"
- },
- {
   "key": "routines.detail.runs",
   "fixture": "page-fixture-routines",
   "v1": "|",

@@ -17,4 +17,11 @@ echo '{"badges": {"pipeline": "", "sessions": "2"}, "title": "(1) FxA Agent"}' >
 if o="$(run allow.json v1.json v3.json)"; then no "an unlisted diff passed"
 elif grep -q '^DIFF fx badges.sessions: v1="1" v2="2"$' <<< "$o"; then ok "an unlisted diff fails and names the key"; else no "an unlisted diff: $o"; fi
 python3 -c 'import json, sys; [e["why"] for e in json.load(open(sys.argv[1]))]' "$here/parity-allow.json" && ok "every parity-allow.json entry says why" || no "parity-allow.json: an entry has no why"
+# serve.py gives v2 the fixture's viewer, as page.sh gives v1: an admin fixture's snapshot keeps a fix's fix_pr.
+port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+python3 "$here/../../dashboard-v2/e2e/serve.py" --port "$port" --fixture "$here/page-fixture-depfix.json" > "$tmp/serve.log" 2>&1 & pid=$!
+for _ in $(seq 50); do curl -sf "http://localhost:$port/api/snapshot" -o "$tmp/snap.json" && break; python3 -c 'import time; time.sleep(0.1)'; done
+kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+python3 -c 'import json, sys; assert {s["key"]: s.get("fix_pr") for s in json.load(open(sys.argv[1]))["agents"]["sessions"]}["agent-fix001"] == 90001' "$tmp/snap.json" 2>/dev/null \
+  && ok "serve.py: an admin fixture's /api/snapshot keeps fix_pr" || no "serve.py: an admin fixture's /api/snapshot lost fix_pr: $(head -c 300 "$tmp/snap.json" "$tmp/serve.log" 2>&1)"
 exit "$fail"
