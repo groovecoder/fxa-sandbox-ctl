@@ -1,6 +1,11 @@
-// C2, the selector names and signatures. W1-DATA ports each from dashboard/index.html, tests it
-// against test/golden/, and refines the result types below without a change to the signatures.
+// C2: only the selectors, since test/golden.test.ts wants a golden result for each function here.
 import type { Session, Store } from '../store/types';
+import * as fl from './floor';
+import * as pl from './pipeline';
+import * as se from './sessions';
+import * as st from './stats';
+import * as su from './status';
+import * as tm from './teams';
 
 type Row = Record<string, unknown>;
 export type Snapshot = Row;
@@ -8,54 +13,53 @@ export type Card = Row;
 export type Ticket = Row;
 export type BoardItem = Row;
 export type LaneRow = Row;
-export type BeltGroups = Row;
+export type BeltGroups = Row & { unknown: Record<'working' | 'needs' | 'fixes' | 'review', string> };
 export type FloorRow = Row;
+export type Floor = { rows: FloorRow[]; stale: boolean; unknown: boolean; slots: number; admin: boolean };
 export type OvFloor = Row;
 export type SbRow = Row;
+export type SbRows = { live: SbRow[]; fix: SbRow[]; free: Row[]; unknown: { slot: string; why: string }[]; stale: boolean; err: string | null; sessionFree: number | null };
 export type Instance = Row;
 export type StatsRow = Row;
 export type PrRow = Row;
 export type ReviewRow = Row;
 export type SkippedTicket = Row;
 export type Team = Row;
-export type Verdict = { label: string; tone: string };
+export type Verdict = { label: string; tone: pl.VerdictTone; run?: true; title?: string };
 export type Badge = { n: number | string; tone: string; label: string };
-export type Needs = { total: number; sandbox: number; by: Record<string, number>; unknown: boolean };
+// unknown is why the count is unknown, or "".
+export type Needs = { total: number; sandbox: number; by: Record<string, number>; unknown: string };
 export type Health = { level: '' | 'dead' | 'warn' | 'paused'; word: string; title: string };
-export type Alert = { tone: 'bad' | 'warn'; subject: string; what: string; fix?: string };
-export type CostPerMerged = { mergedIn: PrRow[]; spentIn: number };
+export type Alert = su.AlertRow;
+export type CostPerMerged = { mergedIn: PrRow[]; spentIn: number; per: number | null };
 
-const notDone = (): never => {
-  throw new Error('not done');
-};
-
-export const pipeSnap: (s: Store) => Snapshot | null = notDone;
-export const merged: (s: Store) => { cards: Card[]; waiting: Ticket[] } = notDone;
-export const boardItems: (s: Store) => BoardItem[] = notDone;
-export const classify: (s: Store, item: BoardItem) => string = notDone;
-export const laneRows: (s: Store) => LaneRow[] = notDone;
-export const beltGroups: (s: Store) => BeltGroups = notDone;
-export const beltCount: (g: BeltGroups) => number | null = notDone;
-export const floorRows: (s: Store) => FloorRow[] = notDone;
-export const ovFloor: (s: Store) => OvFloor = notDone;
-export const ovNeeds: (s: Store) => Needs = notDone;
-export const sbRows: (s: Store) => SbRow[] = notDone;
-export const sbBadge: (s: Store) => Badge = notDone;
-export const strays: (s: Store) => Instance[] = notDone;
+export const pipeSnap: (s: Store) => Snapshot | null = pl.SNAP;
+export const merged: (s: Store) => { cards: Card[]; waiting: Ticket[] } = pl.merged;
+export const boardItems: (s: Store) => BoardItem[] = pl.boardItems;
+export const classify = (_s: Store, item: BoardItem): BoardItem => pl.classify(item);
+export const laneRows: (s: Store) => LaneRow[] = pl.laneRows;
+export const beltGroups: (s: Store) => BeltGroups = pl.beltGroups;
+export const beltCount: (g: BeltGroups) => number | null = pl.beltCount;
+export const floorRows: (s: Store) => Floor = fl.floorRows;
+export const ovFloor: (s: Store) => OvFloor = fl.ovFloor;
+export const ovNeeds: (s: Store) => Needs = fl.ovNeeds;
+export const sbRows: (s: Store) => SbRows = fl.sbRows;
+export const sbBadge: (s: Store) => Badge = fl.sbBadge;
+export const strays: (s: Store) => Instance[] = pl.strays;
 // [lo, hi) in epoch ms of local days; hi is Infinity for an open range.
-export const statsBounds: (range: string, now: number, custom?: { from: string; to: string }) => [number, number] = notDone;
-export const answerRows: (s: Store) => StatsRow[] = notDone;
-export const sessHeads: (sessions: Session[]) => Session[] = notDone;
-export const chainOf: (session: Session, sessions: Session[]) => Session[] = notDone;
-export const sessStatus: (s: Store, session: Session) => [string, string] = notDone;
-export const sessUsd: (s: Store, session: Session) => number | null = notDone;
-export const isWaitingOnHuman: (row: ReviewRow) => boolean = notDone;
-export const verdictTag: (row: ReviewRow) => Verdict | null = notDone;
-export const queueWaits: (s: Store) => SkippedTicket[] = notDone;
-export const skipGroups: (ks: SkippedTicket[]) => [string, SkippedTicket[]][] = notDone;
-export const teamNeeds: (s: Store, team: Team) => boolean = notDone;
-export const teamBadge: (s: Store, teams: Team[]) => '' | 'warn' | 'bad' = notDone;
-export const teamErrs: (s: Store) => Record<string, number> | null = notDone;
-export const costPerMerged: (lo: number, hi: number, prs: PrRow[], rows: StatsRow[]) => CostPerMerged = notDone;
-export const health: (s: Store) => Health = notDone;
-export const alerts: (s: Store) => Alert[] = notDone;
+export const statsBounds: (range: string, now: number, custom?: { from: string; to: string }) => [number, number] = st.statsBounds;
+export const answerRows: (s: Store) => StatsRow[] = se.answerRows;
+export const sessHeads: (sessions: Session[]) => Session[] = se.sessHeads;
+export const chainOf: (session: Session, sessions: Session[]) => Session[] = se.chainOf;
+export const sessStatus = (_s: Store, session: Session): [string, string] => se.sessStatus(session);
+export const sessUsd = (s: Store, session: Session): number | null => se.sessUsd(s, session) ?? null;
+export const isWaitingOnHuman: (row: ReviewRow) => boolean = pl.isWaitingOnHuman;
+export const verdictTag: (row: ReviewRow) => Verdict | null = pl.verdictTag;
+export const queueWaits: (s: Store) => SkippedTicket[] = pl.queueWaits;
+export const skipGroups: (ks: SkippedTicket[]) => [string, SkippedTicket[]][] = pl.skipGroups;
+export const teamNeeds: (s: Store, team: Team) => boolean = tm.teamNeeds;
+export const teamBadge: (s: Store, teams: Team[]) => '' | 'warn' | 'bad' = tm.teamBadge;
+export const teamErrs: (s: Store) => Record<string, number> | null = tm.teamErrs;
+export const costPerMerged: (lo: number, hi: number, prs: PrRow[], rows: StatsRow[]) => CostPerMerged = st.costPerMerged;
+export const health: (s: Store) => Health = su.health;
+export const alerts: (s: Store) => Alert[] = su.alerts;
