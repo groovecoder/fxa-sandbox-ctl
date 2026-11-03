@@ -27,6 +27,7 @@ export const VIEWS: ViewDef[] = [
   {
     id: 'pipeline', title: 'Pipeline', sub: 'Jira tickets from the queue to the merge',
     tabs: tabs(['belts', 'Belts'], ['queue', 'Queue and review'], ['done', 'Done']), side: false, right: false, bareTabs: [],
+    load: () => import('../views/pipeline'),
   },
   {
     id: 'sessions', title: 'Sessions', sub: 'Slack threads and their sandboxes',

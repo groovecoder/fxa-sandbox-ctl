@@ -17,6 +17,7 @@
     "@visx/sankey": "4.0.0",
     "cmdk": "1.1.1",
     "d3-scale": "4.0.2",
+    "motion": "14.4.0",
     "radix-ui": "1.8.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",

@@ -4,5 +4,18 @@
   "v1": "",
   "v2": "?",
   "why": "v1 index.html 4080: a snapshot with no review list showed no badge; v2 shows it as unknown"
+ },
+ {
+  "key": "pipe.queue.heads",
+  "fixture": "page-fixture-pipeline",
+  "v1": "2 | 3 | 3",
+  "v2": "2 | 3 | 2",
+  "why": "v1 index.html 3901 vs 4181: the queue head counted held tickets and the tab count did not; v2 leaves held tickets out of both"
+ },
+ {
+  "key": "pipe.done.line",
+  "v1": "Could not read merged PRs from GitHub.",
+  "v2": "Loading the pipeline…",
+  "why": "v1 index.html 3830: before the first snapshot, Done said the GitHub fetch failed; v2 says it is loading"
  }
 ]

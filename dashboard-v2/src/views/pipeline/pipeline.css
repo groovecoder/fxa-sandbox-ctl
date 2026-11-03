@@ -1,0 +1,132 @@
+/* The pipeline view, ported from the v1 belt, queue and done styles. The px sizes keep the v1 geometry. */
+.ptiles { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); margin-bottom: var(--s4); }
+.bwhere { margin: 0 0 var(--s3); font-size: var(--t-sub); color: var(--dim); }
+.linkbtn { font: inherit; color: var(--link); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+.pnote { margin: var(--s1) 0 0; font-size: var(--t-tiny); color: var(--faint); }
+
+.bwrap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md); }
+.bwrap:focus-visible { outline-offset: -2px; }
+.bgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 440px) minmax(120px, 170px); gap: var(--s4); align-items: center; padding: 0 var(--s3); }
+.bstops { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) 0 0; padding-top: var(--s2); padding-bottom: var(--s2); font-size: var(--t-label); color: var(--dim); font-weight: 650; }
+.bstops .phs { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); margin-bottom: 4px; }
+.bstops .phs b { margin: 0 6px; padding-bottom: 2px; border-bottom: 2px solid var(--line2); text-align: center; font-size: var(--t-tiny); text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.bstops .ph-q { grid-column: 1 / 2; } .bstops .ph-a { grid-column: 2 / 6; } .bstops .ph-p { grid-column: 6 / 10; }
+.bstops .cols { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); text-align: center; }
+.bstops .cols b { display: block; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bstops .cols span { font-weight: 400; color: var(--faint); }
+.bstops .r { text-align: right; }
+
+.bgh { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0; padding: var(--s3) var(--s3) 4px; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+.bgh .why { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
+.bgh .cnt { font-size: var(--t-tiny); font-weight: 700; background: var(--sunk); color: var(--ink); border-radius: var(--r-pill); padding: 0 6px; line-height: 18px; letter-spacing: 0; }
+.bsub { margin: 0; padding: var(--s2) var(--s3) 2px calc(var(--s3) + 14px); display: flex; align-items: center; gap: 6px; font-size: var(--t-label); font-weight: 650; color: var(--ink); }
+.bsub .who { font-size: var(--t-tiny); border: 1px solid var(--line2); border-radius: var(--r-pill); padding: 0 7px; color: var(--dim); }
+.bsub .cnt { color: var(--faint); font-weight: 400; }
+.bsub .hint { font-weight: 400; color: var(--faint); margin-left: var(--s1); }
+
+.belts { list-style: none; margin: 0; padding: 0; }
+.belt { background: var(--panel); }
+.brow { position: relative; padding-top: var(--s2); padding-bottom: var(--s2); border-top: 1px solid var(--sunk); min-height: 44px; }
+.brow:hover { background: var(--bg); }
+.belt.sel > .brow { background: var(--infobg); box-shadow: inset 3px 0 0 var(--info); }
+/* The title link covers the row; the key and PR links sit above it, so each is its own link. */
+.blink { color: var(--ink); text-decoration: none; }
+.blink::after { content: ""; position: absolute; inset: 0; }
+.blink:focus-visible { outline: none; }
+.blink:focus-visible::after { outline: 2px solid var(--link); outline-offset: -2px; }
+.belt .tk { min-width: 0; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--s3); row-gap: 2px; }
+.belt .tk > :not(.psrc) { grid-column: 2; }
+.belt .tk .m { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: var(--t-label); color: var(--faint); }
+.belt .tk .m a, .belt .tk .m span { position: relative; z-index: 1; }
+.belt .tk .key { font-weight: 700; color: var(--info); }
+.belt .tk .t { font-size: var(--t-body); font-weight: 600; line-height: 1.35; }
+.belt .tk .l2 { font-size: var(--t-sub); color: var(--dim); line-height: 1.4; }
+.belt .trk { display: flex; flex-direction: column; gap: 2px; }
+/* The stops line up with the 9 header columns: the first and last node sit at the centre of their column. */
+.belt .trk > [role="img"]:first-child { margin-inline: calc(100% / 18 - var(--s1)); }
+.belt .st { min-width: 0; display: flex; flex-direction: column; align-items: flex-end; gap: var(--s1); }
+.belt .st > span:first-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.belt .stn { display: none; font-size: var(--t-label); color: var(--dim); }
+.belt .age { font-size: var(--t-label); color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 60px; }
+.belt .age.old { color: var(--ink); font-weight: 700; }
+/* The shared log time axis of the ages, on wide screens only. */
+.belt .agebar { display: none; height: 3px; border-radius: 2px; background: var(--line2); align-self: flex-end; }
+@media (min-width: 1100px) { .belt .agebar { display: block; } }
+.belt .bcost { width: 80px; }
+
+.psrc { width: 28px; height: 28px; border-radius: var(--r-pill); display: grid; place-items: center; flex: none; grid-row: 1 / span 3; align-self: start; margin-top: 2px; }
+.psrc svg { width: 14px; height: 14px; }
+.psrc-jira { background: var(--infobg); color: var(--info); }
+.psrc-github, .psrc-slack { background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+
+.bdet { padding: 0 var(--s3) var(--s3); display: flex; flex-direction: column; gap: var(--s2); background: var(--infobg); box-shadow: inset 3px 0 0 var(--info); }
+.bdet .blks { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.bdet .blk { flex: 1 1 200px; }
+.bdet .blk h3 { margin: 0; font-size: var(--t-sub); }
+.bdet .blk p { margin: 2px 0 0; font-size: var(--t-label); line-height: 1.45; color: var(--dim); }
+.bdet .acts { display: flex; flex-wrap: wrap; gap: 4px var(--s3); align-items: center; font-size: var(--t-sub); font-weight: 600; }
+.bdet .acts .main { font: inherit; font-weight: 650; color: var(--ink); background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r-md); padding: 0 10px; min-height: 32px; display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; }
+.bterm { margin-top: var(--s2); }
+.bterm > summary { cursor: pointer; font: 600 var(--t-label) var(--mono); color: var(--dim); padding: var(--s1) 0; }
+.bterm .ds-screen { height: 220px; min-height: 0; }
+
+.bout { border-top: 1px solid var(--line); }
+.bout > summary { cursor: pointer; padding: var(--s3); font-weight: 650; color: var(--dim); }
+
+.pflow { margin-top: var(--s4); }
+.pflow .bgh { padding-left: 0; }
+.pflow-grid { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); margin-bottom: var(--s4); }
+@media (min-width: 1100px) { .pflow-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+
+/* Queue and review */
+.qh { display: flex; align-items: baseline; gap: var(--s2); margin: var(--s4) 0 var(--s2); font-size: var(--t-sub); text-transform: uppercase; letter-spacing: .05em; }
+.qh .n { font-size: var(--t-body); font-weight: 700; color: var(--dim); font-variant-numeric: tabular-nums; }
+.qh .sub { font: 400 var(--t-sub) var(--sans); color: var(--faint); text-transform: none; letter-spacing: 0; }
+.qh .note { margin-left: auto; font: 400 var(--t-sub) var(--sans); color: var(--faint); text-transform: none; letter-spacing: 0; }
+.headline { display: flex; align-items: baseline; gap: var(--s3); margin: 0 0 var(--s3); }
+.headline .big { font-family: var(--head); font-size: var(--t-huge); font-weight: 700; line-height: 1; color: var(--warn); }
+.item { padding: var(--s2) 0; }
+.item + .item { border-top: 1px solid var(--line); }
+.qi { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--s3); }
+.qi > :not(.psrc) { grid-column: 2; }
+.line1 { display: grid; grid-template-columns: 82px minmax(0, 1fr) 152px; align-items: baseline; gap: var(--s3); }
+.line1 > :last-child { justify-self: start; }
+.line1 .key { font-weight: 700; }
+.line1 .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.line2 { color: var(--dim); font-size: var(--t-sub); margin-top: 2px; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.line2.reason { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qi .age { font-variant-numeric: tabular-nums; }
+.qi .age.old { color: var(--bad); font-weight: 650; }
+#s-queue details { margin-top: var(--s3); }
+#s-queue details > summary { cursor: pointer; font-weight: 650; color: var(--dim); }
+#s-queue .unknown { color: var(--warn); font-weight: 600; }
+.ppass { vertical-align: middle; margin-left: var(--s2); }
+.pwait { display: grid; gap: var(--s4); grid-template-columns: minmax(0, 1fr); margin-top: var(--s4); }
+@media (min-width: 1100px) { .pwait { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); } }
+.qbar { display: flex; height: 14px; border-radius: var(--r-pill); overflow: hidden; gap: 2px; }
+.qlegend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s3); list-style: none; margin: var(--s2) 0 0; padding: 0; font-size: var(--t-sub); color: var(--dim); }
+.qlegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: var(--s1); }
+#s-queue { margin-top: var(--s4); }
+
+/* Done */
+.tscroll { overflow-x: auto; }
+.dtab { width: 100%; border-collapse: collapse; font-size: var(--t-sub); }
+.dtab th, .dtab td { text-align: left; padding: var(--s1) var(--s2); border-bottom: 1px solid var(--line); vertical-align: top; }
+.dtab th .linkbtn { color: var(--dim); font-weight: 650; text-decoration: none; }
+.dtab th[aria-sort] .linkbtn { color: var(--ink); text-decoration: underline; }
+.dtab td:nth-child(n+3) { white-space: nowrap; color: var(--dim); }
+.dtab .key { font-weight: 700; }
+.dtab a.key, .line1 a.key, .line2 a.key { color: var(--link); }
+
+@media (max-width: 720px) {
+  .bstops { display: none; }
+  .belt .stn { display: inline; }
+  .brow { grid-template-columns: minmax(0, 1fr); grid-template-areas: "tk" "trk" "st"; row-gap: var(--s2); }
+  .bsub .hint { display: none; }
+  .belt .tk { grid-area: tk; } .belt .trk { grid-area: trk; }
+  .belt .st { grid-area: st; flex-direction: row; align-items: center; justify-content: space-between; }
+}
+@media (max-width: 600px) {
+  .line1 { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+  .line1 > .key { grid-column: 1 / -1; }
+}

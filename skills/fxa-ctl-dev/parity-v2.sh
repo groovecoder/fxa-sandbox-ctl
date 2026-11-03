@@ -63,6 +63,30 @@ for (const v of ["overview", "pipeline", "sessions", "errors", "runners", "teams
   out.badges[v] = b?.textContent.trim() ?? "";
   out.tones[v] = (b?.className ?? "").replace(/\bn\b/, "").trim();
 }
+// Pipeline: the tiles, stop counts, phases, sub-groups, belt keys, outside list, queue heads and the Done line of each tab.
+const wait = async (sel) => { for (let i = 0; i < 15 && !document.querySelector(sel); i++) await sleep(100); };
+const own = (e) => [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
+const tiles = (id) => Object.fromEntries([...document.querySelectorAll(`#${id} .stat, #${id} [data-stat]`)].map((t) =>
+  [t.dataset.stat ?? t.querySelector(".lbl")?.textContent.trim(), (t.querySelector(".big, .text-kpi")?.textContent ?? "").trim()]));
+const all = (sel, f) => [...document.querySelectorAll(sel)].map(f).join(" | ");
+out.pipe = {};
+for (const [tab, id] of [["belts", "s-lanes"], ["queue", "s-review"], ["done", "s-done"]]) {
+  location.hash = "#pipeline/" + tab; await sleep(400); await wait(`#${id} .stat, #${id} [data-stat], #${id} .emptybox`);
+  out.pipe[tab] = { tiles: tiles(id) };
+}
+location.hash = "#pipeline/belts"; await sleep(400); await wait("#s-lanes .stat, #s-lanes [data-stat], #s-lanes .emptybox");
+Object.assign(out.pipe.belts, {
+  stops: all("#s-lanes .bstops .cols span", (e) => e.textContent.trim()),
+  phases: all("#s-lanes .bgh[id^=bp-]", (e) => `${own(e)} ${e.querySelector(".cnt")?.textContent}`),
+  subs: all("#s-lanes .bsub", (e) => `${e.querySelector(".who")?.textContent} ${own(e)} ${e.querySelector(".cnt")?.textContent}`),
+  keys: all("#s-lanes [data-belt]", (e) => e.dataset.belt),
+  outside: document.querySelector("#s-lanes details.bout > summary")?.textContent.trim() ?? "",
+});
+location.hash = "#pipeline/queue"; await sleep(400); await wait("#s-review [data-stat], #s-review .stat");
+out.pipe.queue.heads = all("#s-review h2 .n, #s-queue h2 .n", (e) => e.textContent.trim());
+location.hash = "#pipeline/done"; await sleep(400); await wait("#s-done [data-stat], #s-done .stat, #s-done .emptybox, #s-done [class*=dashed]");
+out.pipe.done.line = document.querySelector("#s-done .bwhere")?.textContent.trim() ?? document.querySelector("#s-done")?.textContent.trim() ?? "";
+out.pipe.done.rows = document.querySelectorAll("#s-done .dtab tbody tr").length;
 out.title = document.title;
 return JSON.stringify(out);'
 
@@ -76,8 +100,8 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  # The probe waits up to 9 s of page time: the default virtual time budget is 6 s.
-  r="$(PAGE_BUDGET=15000 bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  # The probe visits each route and tab with a wait: past Chrome's default virtual time budget of 6 s.
+  r="$(PAGE_BUDGET="${PAGE_BUDGET:-15000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
