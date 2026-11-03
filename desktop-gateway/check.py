@@ -111,10 +111,24 @@ async def record_check():
 
 
 async def dashboard_check():
-    seen = {}
+    seen, go = {}, asyncio.Event()
     async def dash(request):
         seen.update(host=request.headers.get("Host"), origin=request.headers.get("Origin"), method=request.method, query=request.query.get("thread"),
-                    user=request.headers.get("X-Fxa-User"), ts=request.headers.get("X-Fxa-Time"), sig=request.headers.get("X-Fxa-Sig"), path=request.path)
+                    user=request.headers.get("X-Fxa-User"), ts=request.headers.get("X-Fxa-Time"), sig=request.headers.get("X-Fxa-Sig"), path=request.path,
+                    last_id=request.headers.get("Last-Event-ID"), since=request.query.get("since"), site=request.headers.get("Sec-Fetch-Site"))
+        if request.path == "/api/live":
+            s = web.StreamResponse(headers={"Content-Type": "text/event-stream", "Cache-Control": "no-cache"})
+            await s.prepare(request)
+            await s.write(b'event: hello\ndata: {"v": 1}\n\n')
+            # The second frame waits until the client has the first; a gateway that buffers never gives it.
+            try:
+                await asyncio.wait_for(go.wait(), 3)
+                await s.write(b'id: e1-2\nevent: ping\ndata: {}\n\n')
+            except asyncio.TimeoutError:
+                await s.write(b"event: buffered\n\n")
+            return s
+        if request.path == "/app.js":
+            return web.Response(text="export default 1;\n" * 200, content_type="text/javascript")
         if request.path == "/api/errors":
             if request.headers.get("If-None-Match") == '"e1"':
                 return web.Response(status=304, headers={"ETag": '"e1"'})
@@ -159,6 +173,19 @@ async def dashboard_check():
         async with c.get(f"{base}/api/teams/people/pat%20doe") as x:
             check("the gateway signs the path as the dashboard gets it, still encoded, so a query with a space verifies",
                   main.sign_user(b"k1", "owner@example.com", seen["ts"], "GET", "/api/teams/people/pat%20doe"), seen["sig"])
+        async with c.get(f"{base}/api/live?since=e1-1", headers={"Last-Event-ID": "e1-5", "Sec-Fetch-Site": "same-origin", "Origin": "https://evil.test", "Accept-Encoding": "gzip"}) as x:
+            check("a live stream gives its first frame", b'event: hello\ndata: {"v": 1}\n\n', await x.content.readuntil(b"\n\n"))
+            go.set()
+            check("the first frame came before the dashboard sent more, so the gateway does not buffer",
+                  b'id: e1-2\nevent: ping\ndata: {}\n\n', await x.content.read())
+            check("a live stream is not cached, buffered or gzipped", ("text/event-stream", "no-store", "no", None),
+                  (x.headers.get("Content-Type"), x.headers.get("Cache-Control"), x.headers.get("X-Accel-Buffering"), x.headers.get("Content-Encoding")))
+        check("the live stream gets Last-Event-ID, the since query, Sec-Fetch-Site and a cross-site Origin",
+              ("e1-5", "e1-1", "same-origin", "https://evil.test"), (seen["last_id"], seen["since"], seen["site"], seen["origin"]))
+        check("the gateway signs GET|/api/live, with no query in the signature",
+              ("owner@example.com", main.sign_user(b"k1", "owner@example.com", seen["ts"], "GET", "/api/live")), (seen["user"], seen["sig"]))
+        async with c.get(f"{base}/app.js", headers={"Accept-Encoding": "gzip"}) as x:
+            check("the v2 scripts are gzipped", "gzip", x.headers.get("Content-Encoding"))
         main.DASHBOARD_HMAC = b""
         async with c.get(f"{base}/desktop/agent-abcd12", allow_redirects=False) as x:
             check("the dashboard's desktop link goes to /d/", "/d/agent-abcd12", x.headers.get("Location"))
