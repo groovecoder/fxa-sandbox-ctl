@@ -16,7 +16,7 @@ export function Done() {
   const s = useApp((x) => x), snap = SNAP(s), tickets = (s.feeds.stats?.data as J)?.tickets;
   const [sort, setSort] = useState<{ col: Col; up: boolean }>({ col: 'merged', up: false });
   const prs = snap?.merged_prs, rows = doneRows(snap), lbl = snap?.team?.pr_label, cap = snap?.limits?.merged_prs ?? prs?.length ?? 0;
-  if (!snap) return <EmptyBox>Loading the pipeline…</EmptyBox>;
+  if (!snap) return <div id="s-done"><EmptyBox>Loading the pipeline…</EmptyBox></div>;
   if (prs == null) return <div id="s-done"><EmptyBox>Could not read merged PRs from GitHub.</EmptyBox></div>;
   if (!rows.length) return <div id="s-done"><EmptyBox>No merged ticket yet.</EmptyBox></div>;
   const wk = rows.filter((r) => (days(r.merged) ?? 99) < 7).length, med = median(rows.map((r) => r.took));
