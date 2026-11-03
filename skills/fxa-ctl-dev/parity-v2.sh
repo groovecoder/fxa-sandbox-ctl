@@ -53,7 +53,28 @@ for (const v of ["overview", "pipeline", "sessions", "errors", "runners", "teams
 }
 out.title = document.title;
 return JSON.stringify(out);'
-
+# The Sandboxes probe: per tab the list rows, the fix heading, the commands and the free line; the cards on All;
+# Recently completed (keys, results, or its text); and the panel of the first row. Text is compared without spaces.
+# The "Agents read" line is left out: serve.py's feeds have their own age and interval.
+PROBE="${PROBE%return JSON.stringify(out);}"'
+const sq = (e) => (e?.textContent ?? "").replace(/\s+/g, "");
+out.sb = {};
+for (const t of ["all", "pipeline", "slack", "routines"]) {
+  location.hash = "#runners/" + t; await sleep(700);
+  const L = document.getElementById("sb-list"), q = (s) => [...(L?.querySelectorAll(s) ?? [])];
+  const rows = q("[data-sbsel]"), D = document.getElementById("sb-done"), done = [...(D?.querySelectorAll("[data-sbdone]") ?? [])];
+  out.sb[t] = { rows: rows.map((b) => b.textContent.trim()).join(","), cells: q("tbody tr").map((tr) => [...tr.children].map(sq).join("|")).join(";"),
+    heads: q("h3.sbh").map(sq).join("|"), codes: q("code").map((c) => c.textContent).join(";"), free: sq(L?.querySelector(".sbfree")),
+    stale: !!L?.querySelector(".sbstale"), text: rows.length ? "" : sq(L).replace(/Agentsread.*$/, ""),
+    done: done.length ? done.map((r) => `${r.dataset.sbdone}:${sq(r.lastElementChild)}`).join(",") : sq(D) };
+  if (t === "all") {
+    out.sb.cards = sq(document.getElementById("sb-cards"));
+    rows[0]?.click(); await sleep(400);
+    const R = document.getElementById("right");
+    out.sb.panel = rows[0] ? { head: sq(R?.querySelector("h2")), body: sq(R?.querySelector(".sb-panel")), links: [...(R?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href")).join(" ") } : null;
+  }
+}
+return JSON.stringify(out);'
 [ $# -gt 0 ] || set -- "$here"/page-fixture*.json
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"; pid=""
 trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
@@ -64,7 +85,7 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  r="$(bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  r="$(PAGE_BUDGET=20000 bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
