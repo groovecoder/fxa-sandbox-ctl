@@ -1,0 +1,442 @@
+// The shell: rail, header and tabs, side list, main, details panel, status bar, and the keys.
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
+import { firstSessTab, format, parse, TEAM_RE, TEAM_TABS, viewHash } from '../router';
+import type { Route, ViewId } from '../router/types';
+import type { Prefs, Store, Theme } from '../store/types';
+import { agentsOf, docTitle, pipeTeams, railBadges, sessionList, tabCount } from './derive';
+import { Help, Palette } from './Dialogs';
+import { Boundary, ICON, VIEW_ICON } from './parts';
+import { Alerts, StatusBar, useTabTitle } from './Status';
+import { safe, savePref, useSel, useStore, useStoreState, type SideGroup } from './store';
+import { VIEWS, viewOf } from './views';
+import './shell.css';
+
+const useMedia = (q: string) => {
+  const [m, setM] = useState(() => matchMedia(q).matches);
+  useEffect(() => {
+    const l = matchMedia(q), on = () => setM(l.matches);
+    l.addEventListener('change', on);
+    return () => l.removeEventListener('change', on);
+  }, [q]);
+  return m;
+};
+
+const THEMES: Theme[] = ['system', 'light', 'dark'];
+export function applyTheme(t: Theme) {
+  savePref('theme', t === 'system' ? null : t);
+  document.documentElement.dataset.theme = t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
+}
+
+// The details panel body per view; the views add theirs in wave 2. null shows the empty text.
+export const RIGHT: Partial<Record<ViewId, (s: Store) => ReactNode | null>> = {};
+// The main content per view; the views add theirs in wave 2.
+export const MAIN: Partial<Record<ViewId, () => ReactNode>> = {};
+
+const PANES = { side: { v: '--side', min: 220, max: 640, def: 300, dir: 1 }, right: { v: '--right', min: 260, max: 720, def: 340, dir: -1 } } as const;
+
+export function Shell({ poll }: { poll?: () => Promise<void> }) {
+  const st = useStore();
+  const s = useStoreState();
+  const sel = useSel();
+  const { route, prefs } = s;
+  const def = viewOf(route.view);
+  const narrowSide = useMedia('(max-width:900px)');
+  const narrowRight = useMedia('(max-width:1280px)');
+  const [q, setQ] = useState('');
+  const [showside, setShowside] = useState(false);
+  const [showright, setShowright] = useState(false);
+  const [tlistClosed, setTlistClosed] = useState(false);
+  const [help, setHelp] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const cur = useRef(-1);
+  const mainRef = useRef<HTMLElement>(null);
+  const autoSess = useRef(false);
+
+  const setPrefs = useCallback((p: Partial<Prefs>) => st.setState((x) => ({ prefs: { ...x.prefs, ...p } })), [st]);
+
+  // The router: the hash writes the route; a rewrite or a chosen tab goes back with replace.
+  useEffect(() => {
+    const go = (r: Route) => {
+      const prev = st.getState().route;
+      if (r.view !== prev.view) {
+        setQ('');
+        cur.current = -1;
+      }
+      st.setState({ route: r });
+      // Opening or closing a belt inside one tab keeps the place; a new view or tab starts at the top.
+      if (!(r.view === 'pipeline' && prev.view === r.view && prev.tab === r.tab) && mainRef.current) mainRef.current.scrollTop = 0;
+    };
+    const on = () => {
+      const hash = location.hash, prev = st.getState().route;
+      const r = parse(hash, prev);
+      autoSess.current = r.view === 'sessions' && !hash.replace(/^#/, '').split(/[/?]/)[1] && prev.view !== 'sessions';
+      if (autoSess.current && agentsOf(st.getState())) {
+        r.tab = firstSessTab(sessionList(st.getState()).map((x) => x.state));
+        autoSess.current = false;
+      }
+      const h = format(r);
+      if (h !== hash) history.replaceState(null, '', h);
+      go(r);
+    };
+    on();
+    addEventListener('hashchange', on);
+    // #sessions with no tab picks its tab after the first agents feed, not in a render.
+    const unsub = st.subscribe(() => {
+      const x = st.getState();
+      if (!autoSess.current || x.route.view !== 'sessions' || !agentsOf(x)) return;
+      autoSess.current = false;
+      const r = { ...x.route, tab: firstSessTab(sessionList(x).map((y) => y.state)) };
+      history.replaceState(null, '', format(r));
+      go(r);
+    });
+    return () => {
+      removeEventListener('hashchange', on);
+      unsub();
+    };
+  }, [st]);
+
+  const alerts = useMemo(() => safe(() => sel.alerts(s)) ?? [], [s, sel]);
+  const needs = useMemo(() => safe(() => sel.ovNeeds(s)), [s, sel]);
+  const health = useMemo(() => safe(() => sel.health(s)), [s, sel]);
+  const badges = useMemo(() => railBadges(s, sel, alerts), [s, sel, alerts]);
+  useTabTitle(docTitle(needs, alerts), s.conn.mode === 'offline' ? '' : (health?.level ?? ''));
+
+  const bare = def.bareTabs.includes(route.tab);
+  const rightBody = RIGHT[route.view]?.(s) ?? null;
+  const noitem = !rightBody && (route.view === 'sessions' || route.view === 'runners');
+  const sideOn = def.side && !bare, rightOn = def.right && !bare && !noitem;
+  const sideShown = sideOn && (route.view === 'teams' && narrowSide ? !tlistClosed : narrowSide ? showside : !prefs.noside);
+  const rightShown = rightOn && (narrowRight ? showright : !prefs.noright);
+
+  const toggle = useCallback((which: 'side' | 'right') => {
+    const narrow = which === 'side' ? narrowSide : narrowRight;
+    if (narrow) {
+      if (which === 'side') setShowside((o) => !o);
+      else setShowright((o) => !o);
+    } else {
+      const k = which === 'side' ? 'noside' : 'noright';
+      const v = !st.getState().prefs[k];
+      savePref(k, v ? '1' : '0');
+      setPrefs({ [k]: v });
+    }
+  }, [narrowSide, narrowRight, setPrefs, st, setShowside, setShowright]);
+
+  // A drawer that opens takes the focus: the list on its search box, the details on their close button.
+  useEffect(() => {
+    if (showside && narrowSide) document.getElementById('q')?.focus();
+  }, [showside, narrowSide]);
+  useEffect(() => {
+    if (showright && narrowRight) document.getElementById('rclose')?.focus();
+  }, [showright, narrowRight]);
+
+  const cycleTheme = useCallback(() => {
+    const t = THEMES[(THEMES.indexOf(st.getState().prefs.theme) + 1) % THEMES.length]!;
+    applyTheme(t);
+    setPrefs({ theme: t });
+  }, [setPrefs, st]);
+
+  const setKeys = useCallback((on: boolean) => {
+    savePref('keys', on ? '1' : '0');
+    setPrefs({ keys: on });
+  }, [setPrefs]);
+
+  const refresh = useCallback(async () => {
+    try {
+      await fetch('/api/refresh', { method: 'POST' });
+    } catch {
+      // The next feed read shows the failure.
+    }
+    // Live mode waits for the feed frames; the fallback polls while the feeds rebuild.
+    if (!poll || st.getState().conn.mode === 'live') return;
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, i ? 2000 : 1500));
+      await poll();
+      if (!st.getState().feeds.full?.refreshing) break;
+    }
+  }, [poll, st]);
+
+  const select = (id: string) => {
+    if (route.view === 'teams') {
+      location.hash = id === '__all' ? '#teams' : `#teams/${id}`;
+      if (narrowSide) setTlistClosed(true);
+      return;
+    }
+    location.hash = format({ ...route, sel: id, rid: '' });
+    if (narrowSide) setShowside(false);
+    if (narrowRight) setShowright(true);
+  };
+
+  // The keys: Ctrl or Cmd+K and Esc always; the single keys only when turned on.
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      // The hash, not the store: a key pressed before the last hashchange event still steps from the new place.
+      const x = st.getState(), r = parse(location.hash, x.route);
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPalette(true);
+        return;
+      }
+      if (document.querySelector('dialog[open]')) return;
+      const t = e.target as HTMLElement;
+      if (e.key === 'Escape') {
+        if (r.view === 'pipeline' && r.tab === 'belts' && r.sel) {
+          location.replace('#pipeline/belts');
+          return;
+        }
+        // A drawer that closes gives the focus back to the button that opens it.
+        const b = showside ? 'tside' : showright ? 'tright' : '';
+        setShowside(false);
+        setShowright(false);
+        if (t.id === 'q') t.blur();
+        if (b) document.getElementById(b)?.focus();
+        return;
+      }
+      if (!x.prefs.keys || e.metaKey || e.ctrlKey || e.altKey || t.closest?.('input, select, textarea, [contenteditable]')) return;
+      const d = viewOf(r.view);
+      if (/^[1-9]$/.test(e.key) && VIEWS[+e.key - 1]) location.hash = '#' + VIEWS[+e.key - 1]!.id;
+      else if (e.key === '/') {
+        e.preventDefault();
+        if (narrowSide) setShowside(true);
+        else document.getElementById('q')?.focus();
+      } else if (e.key === 'j' || e.key === 'k') {
+        const items = [...document.querySelectorAll<HTMLElement>('.si')];
+        if (!items.length) return;
+        cur.current = Math.max(0, Math.min(items.length - 1, cur.current + (e.key === 'j' ? 1 : -1)));
+        items.forEach((it, i) => it.classList.toggle('cur', i === cur.current));
+        items[cur.current]!.focus();
+      } else if (e.key === 'h' || e.key === 'l') {
+        const step = (n: number, i: number) => (i + (e.key === 'l' ? 1 : n - 1)) % n;
+        if (r.view === 'teams' && TEAM_RE.test(r.sel)) {
+          const nt = TEAM_TABS[step(TEAM_TABS.length, TEAM_TABS.indexOf(r.tab as (typeof TEAM_TABS)[number]))]!;
+          location.hash = `#teams/${r.sel}${nt === 'overview' ? '' : '/' + nt}`;
+        } else if (d.tabs.length) location.hash = viewHash(r.view, d.tabs[step(d.tabs.length, d.tabs.findIndex((x2) => x2.id === r.tab))]!.id);
+      } else if (e.key === '[') toggle('side');
+      else if (e.key === ']') toggle('right');
+      else if (e.key === 'r') void refresh();
+      else if (e.key === '?') setHelp(true);
+    };
+    document.addEventListener('keydown', on);
+    return () => document.removeEventListener('keydown', on);
+  }, [st, showside, showright, narrowSide, toggle, refresh]);
+
+  const paneStyle = {} as Record<string, string>;
+  for (const p of Object.values(PANES)) {
+    const w = prefs.panelW[p.v];
+    if (w != null) paneStyle[p.v] = `${w}px`;
+  }
+  const shellCls = [
+    'shell', `v-${route.view}`,
+    !sideOn && 'hideside', !rightOn && 'hideright',
+    !narrowSide && prefs.noside && 'noside', !narrowRight && prefs.noright && 'noright',
+    showside && 'showside', showright && 'showright', tlistClosed && 'tlist-closed',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={shellCls} style={paneStyle as CSSProperties}>
+      <Boundary>
+        <Rail route={route} badges={badges} theme={prefs.theme} onTheme={cycleTheme} onHelp={() => setHelp(true)} onPalette={() => setPalette(true)} />
+      </Boundary>
+      <aside className="side" id="side" aria-label="List">
+        <Boundary key={route.view}>
+          {route.view === 'stats' ? (
+            <><div className="sh"><h2>Filters</h2></div><p className="empty sgroup">loading…</p></>
+          ) : sideOn ? (
+            <SideList title={def.title} groups={safe(() => sel.side(s))} q={q} setQ={setQ} keys={prefs.keys} route={route} onSelect={select} />
+          ) : null}
+        </Boundary>
+      </aside>
+      <main className="main" id="main" ref={mainRef}>
+        <Boundary>
+          <Header route={route} s={s} sideShown={sideShown} rightShown={rightShown} tlistClosed={tlistClosed}
+            onToggle={toggle} onTlist={() => setTlistClosed((o) => !o)} />
+        </Boundary>
+        <div className="mc">
+          {route.view === 'overview' && <Boundary><Alerts alerts={alerts} /></Boundary>}
+          {route.view === 'pipeline' && <Boundary><PipeTeam s={s} onPick={(t) => { savePref('pipeTeam', t); setPrefs({ pipeTeam: t }); }} /></Boundary>}
+          <Boundary key={`${route.view}/${route.tab}`}>
+            {MAIN[route.view]?.() ?? <p className="empty">This view is not built yet.</p>}
+          </Boundary>
+        </div>
+      </main>
+      <aside className="right" id="right" aria-label="Details">
+        <Boundary key={route.view}>
+          <button type="button" className="drawer-close" id="rclose" onClick={() => { setShowright(false); document.getElementById('tright')?.focus(); }}>Close</button>
+          {rightBody ?? <div className="emptybox">Select an item in the list to see its details.</div>}
+        </Boundary>
+      </aside>
+      {(['side', 'right'] as const).map((k) => (
+        <Resize key={k} which={k} width={prefs.panelW[PANES[k].v]} onWidth={(w) => {
+          const panelW = { ...st.getState().prefs.panelW, [PANES[k].v]: w };
+          if (w == null) delete panelW[PANES[k].v];
+          savePref('panelW', JSON.stringify(panelW));
+          setPrefs({ panelW });
+        }} />
+      ))}
+      <Boundary>
+        <StatusBar s={s} sel={sel} health={health} onRefresh={refresh} />
+      </Boundary>
+      <Help open={help} onClose={() => setHelp(false)} keys={prefs.keys} onKeys={setKeys} />
+      <Palette open={palette} onClose={() => setPalette(false)} s={s}
+        actions={{ refresh, theme: cycleTheme, side: () => toggle('side'), right: () => toggle('right'), keys: () => setKeys(!prefs.keys), help: () => setHelp(true) }} />
+    </div>
+  );
+}
+
+function Rail(p: { route: Route; badges: ReturnType<typeof railBadges>; theme: Theme; onTheme: () => void; onHelp: () => void; onPalette: () => void }) {
+  const m = p.theme[0]!.toUpperCase() + p.theme.slice(1);
+  return (
+    <nav className="rail" aria-label="Views">
+      <img className="logo" src="/icon.png" alt="FxA Agent" />
+      {VIEWS.map((v) => {
+        const b = p.badges[v.id];
+        return (
+          <a key={v.id} href={`#${v.id}`} data-nav={v.id} aria-current={p.route.view === v.id ? 'page' : undefined}>
+            {VIEW_ICON[v.id]}{v.title}
+            <span className={`n ${b.tone}`.trim()} id={`n-${v.id}`} aria-label={b.n && b.label ? b.label : undefined} title={b.n ? b.label : undefined}>{b.n}</span>
+          </a>
+        );
+      })}
+      <span className="grow" />
+      <button className="rb" id="find" type="button" title="Go to a view, a ticket or a session (Ctrl K)" onClick={p.onPalette}>{ICON.find}Go to</button>
+      <button className="rb" id="theme" type="button" aria-label={`Theme: ${m}`} title={`Theme: ${m}. Click for the next one.`} onClick={p.onTheme}>{ICON.theme}<span id="themelbl">Theme</span></button>
+      <button className="rb" id="helpbtn" type="button" title="Keyboard shortcuts" onClick={p.onHelp}>{ICON.keys}Shortcuts</button>
+    </nav>
+  );
+}
+
+function Header(p: { route: Route; s: Store; sideShown: boolean; rightShown: boolean; tlistClosed: boolean; onToggle: (w: 'side' | 'right') => void; onTlist: () => void }) {
+  const sel = useSel();
+  const { view, tab } = p.route;
+  const def = viewOf(view), bare = def.bareTabs.includes(tab);
+  const sideLbl = view === 'stats' ? 'Filters' : 'List';
+  const showSideBtn = def.side && !bare && view !== 'teams';
+  const showRightBtn = def.right && !bare;
+  return (
+    <div className="mh">
+      <div className="row">
+        <h1 id="vtitle">{def.title}</h1>
+        <span className="vsub" id="vsub">{def.sub}</span>
+        <span className="acts" id="vacts">
+          {view === 'teams' && (
+            <button type="button" className="iconbtn lbl tlist-btn" id="tlist" aria-expanded={!p.tlistClosed} aria-controls="side" onClick={p.onTlist}>{ICON.side}List</button>
+          )}
+          {showSideBtn && (
+            <button type="button" className={`iconbtn${view === 'stats' ? ' lbl' : ''}`} id="tside" aria-label={sideLbl} title={sideLbl} aria-pressed={p.sideShown} onClick={() => p.onToggle('side')}>
+              {ICON.side}{view === 'stats' ? 'Filters' : ''}
+            </button>
+          )}
+          {showRightBtn && (
+            <button type="button" className="iconbtn" id="tright" aria-label="Details" title="Details" aria-pressed={p.rightShown} onClick={() => p.onToggle('right')}>{ICON.right}</button>
+          )}
+        </span>
+      </div>
+      <nav className="tabs" id="vtabs" aria-label={`${def.title} tabs`} hidden={!def.tabs.length}>
+        {def.tabs.map((t) => {
+          const n = tabCount(p.s, sel, t.id);
+          return (
+            <a key={t.id} href={`#${view}/${t.id}`} aria-current={tab === t.id ? 'page' : undefined}>
+              {t.label}
+              {n !== '' && <span className="n">{n}{n === '?' && <span className="vh">, unknown: a feed failed</span>}</span>}
+            </a>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+function SideList(p: { title: string; groups: SideGroup[] | null; q: string; setQ: (q: string) => void; keys: boolean; route: Route; onSelect: (id: string) => void }) {
+  const ql = p.q.trim().toLowerCase();
+  const hit = (it: SideGroup['items'][number]) =>
+    ql ? !it.id.startsWith('__') && (it.find ?? `${it.t} ${it.m.join(' ')}`).toLowerCase().includes(ql) : true;
+  const groups = (p.groups ?? []).map((g) => ({ ...g, items: g.items.filter(hit) })).filter((g) => g.items.length);
+  const total = groups.reduce((n, g) => n + g.items.filter((i) => !i.id.startsWith('__')).length, 0);
+  const first = groups[0]?.items[0]?.id ?? '';
+  const sel = p.route.view === 'teams' ? p.route.sel || '__all' : p.route.sel || (p.route.view === 'sessions' || p.route.view === 'errors' ? first : '');
+  return (
+    <>
+      <div className="sh">
+        <h2>{p.title} <span className="n">{total}</span></h2>
+        <div className="search">
+          {ICON.search}
+          <input id="q" type="search" placeholder="Search" value={p.q} aria-label="Search the list" onChange={(e) => p.setQ(e.target.value)} />
+          {p.keys && <kbd>/</kbd>}
+        </div>
+      </div>
+      <div className="slist2">
+        {groups.length ? groups.map((g, gi) => (
+          <div key={g.group ?? gi}>
+            {g.group && <h3 className="sgroup">{g.group}</h3>}
+            <ul>
+              {g.items.map((it) => (
+                <li key={it.id}>
+                  <button type="button" className="si" data-id={it.id} aria-current={it.id === sel ? 'true' : undefined} title={it.tip} onClick={() => p.onSelect(it.id)}>
+                    <span className={`dot ${it.d === 'live' ? 'info live' : it.d === 'fix' ? 'bad' : it.d}`} aria-hidden="true" />
+                    <span className="t">{it.t}</span>
+                    <span className="m">{it.m.filter(Boolean).join(' · ')}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )) : <p className="empty">{p.q ? 'Nothing matches.' : p.groups ? 'Nothing here.' : 'loading…'}</p>}
+      </div>
+    </>
+  );
+}
+
+function Resize({ which, width, onWidth }: { which: 'side' | 'right'; width?: number; onWidth: (w?: number) => void }) {
+  const p = PANES[which];
+  const now = width ?? p.def;
+  const clamp = (w: number) => Math.round(Math.min(p.max, Math.max(p.min, w)));
+  const label = which === 'side' ? 'Resize the list' : 'Resize the details';
+  const key = (e: RKey) => {
+    const d = e.key === 'ArrowRight' ? 16 : e.key === 'ArrowLeft' ? -16 : 0;
+    if (!d) return;
+    e.preventDefault();
+    onWidth(clamp(now + p.dir * d));
+  };
+  return (
+    <div className={`rsz rsz-${which}`} role="separator" tabIndex={0} aria-orientation="vertical" aria-label={label}
+      aria-valuenow={now} aria-valuemin={p.min} aria-valuemax={p.max} title="Drag to resize; double-click to reset"
+      onKeyDown={key} onDoubleClick={() => onWidth(undefined)}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        const h = e.currentTarget, x0 = e.clientX;
+        h.setPointerCapture(e.pointerId);
+        h.classList.add('on');
+        const move = (m: PointerEvent) => onWidth(clamp(now + p.dir * (m.clientX - x0)));
+        const up = () => {
+          h.classList.remove('on');
+          h.removeEventListener('pointermove', move);
+        };
+        h.addEventListener('pointermove', move);
+        h.addEventListener('pointerup', up, { once: true });
+        h.addEventListener('pointercancel', up, { once: true });
+      }} />
+  );
+}
+
+function PipeTeam({ s, onPick }: { s: Store; onPick: (t: string) => void }) {
+  const ts = pipeTeams(s);
+  if (ts.length < 2) return null;
+  const pick = s.prefs.pipeTeam, cur = ts.find((t) => t.key === pick);
+  const name = (t: (typeof ts)[number]) => String((t.snap?.team as Record<string, unknown> | undefined)?.name || t.key);
+  const red = (t: (typeof ts)[number]) => !!t.snap?.redacted;
+  const counts = (cur?.snap?.counts ?? {}) as Record<string, number>;
+  const why = !pick || !cur
+    ? `${ts.filter((t) => t.snap && !red(t)).length} teams joined`
+    : red(cur) ? `A private team: details for team admins. ${counts.review} in review, ${counts.inflight} in flight, ${counts.ready} ready.`
+      : !cur.snap ? `Unknown: ${cur.error || "the team's snapshot has not loaded"}` : '';
+  return (
+    <div className="row pteam">
+      <label className="hint">Team{' '}
+        <select data-pteam aria-label="Pipeline team" value={cur ? pick : ''} onChange={(e) => onPick(e.target.value)}>
+          <option value="">All teams</option>
+          {ts.map((t) => <option key={t.key} value={t.key}>{name(t)}{red(t) ? ' (private)' : ''}</option>)}
+        </select>
+      </label>
+      <span className="hint">{why}</span>
+    </div>
+  );
+}
