@@ -1,0 +1,153 @@
+/* Scan only the app code, so a class in a test or the e2e never reaches the build. */
+@import "tailwindcss" source("..");
+@source not "../**/*.test.ts";
+
+/* Remove the default palette, scales and fonts, so only the project tokens make classes. */
+@theme {
+  --color-*: initial;
+  --spacing-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --font-*: initial;
+}
+
+/* inline: a class reads the var at run time. reference: emit no vars, as --shadow-pop would refer to itself. */
+@theme inline reference {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-sunk: var(--sunk);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-card-border: var(--card-border);
+  --color-ink: var(--ink);
+  --color-dim: var(--dim);
+  --color-faint: var(--faint);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-purple: var(--purple);
+  --color-purpletxt: var(--purpletxt);
+  --color-okbg: var(--okbg);
+  --color-warnbg: var(--warnbg);
+  --color-badbg: var(--badbg);
+  --color-infobg: var(--infobg);
+  --color-purplebg: var(--purplebg);
+  --color-amber: var(--amber);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-on-strong: var(--on-strong);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-muted: var(--chart-muted);
+  --color-tty-bg: var(--tty-bg);
+  --color-tty-bar: var(--tty-bar);
+  --color-tty-line: var(--tty-line);
+  --color-tty-ink: var(--tty-ink);
+  --color-tty-dim: var(--tty-dim);
+  --color-tty-muted: var(--tty-muted);
+  --color-tty-prompt: var(--tty-prompt);
+  --color-tty-tool: var(--tty-tool);
+  --color-tty-bad: var(--tty-bad);
+  --color-tty-opt: var(--tty-opt);
+  --color-tty-dot-1: var(--tty-dot-1);
+  --color-tty-dot-2: var(--tty-dot-2);
+  --color-tty-dot-3: var(--tty-dot-3);
+
+  --spacing-s1: var(--s1);
+  --spacing-s2: var(--s2);
+  --spacing-s3: var(--s3);
+  --spacing-s4: var(--s4);
+  --spacing-s6: var(--s6);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-pill: var(--r-pill);
+
+  --text-tiny: var(--t-tiny);
+  --text-label: var(--t-label);
+  --text-sub: var(--t-sub);
+  --text-body: var(--t-body);
+  --text-heading: var(--t-heading);
+  --text-head: var(--t-head);
+  --text-page: var(--t-page);
+  --text-kpi: var(--t-kpi);
+  --text-huge: var(--t-huge);
+
+  --shadow-card: var(--shadow);
+  --shadow-hover: var(--shadow-hover);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-drawer: var(--shadow-drawer);
+  --shadow-dialog: var(--shadow-dialog);
+
+  --font-sans: var(--sans);
+  --font-head: var(--head);
+  --font-mono: var(--mono);
+}
+
+/* The v1 tokens, same names and values. theme.test.ts compares them with dashboard/index.html. */
+:root {
+  color-scheme: light;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s6:24px;
+  --r-sm:4px; --r-md:8px; --r-lg:14px; --r-pill:999px;
+  --t-tiny:11px; --t-label:12px; --t-sub:13px; --t-body:14px; --t-heading:16px; --t-head:18px; --t-page:22px; --t-kpi:28px; --t-huge:32px;
+
+  --bg:#f6f8fa; --panel:#ffffff; --sunk:#eef1f4; --line:#d8dee4; --line2:#8c959f; --hover:#eef1f4;
+  --ink:#1f2328; --dim:#4b535d; --faint:#59636e;
+  --ok:#187a34; --warn:#9a5b00; --bad:#cf222e; --info:#0969da; --purple:#8250df; --link:#0b7380; --link-hover:#075861;
+  --okbg:#dafbe1; --warnbg:#fff4d6; --badbg:#ffebe9; --infobg:#ddf4ff;
+  --amber:#bf8700;
+  --chart-1:#5683c8; --chart-2:#d27552; --chart-3:#2e9f7c; --chart-4:#b0802a; --chart-5:#a35d9e; --chart-muted:#8c959f;
+  --card-border:#d8dee4; --shadow:0 1px 2px rgb(31 35 40 / .06);
+  --shadow-hover:0 2px 14px rgb(58 57 68 / .2); --shadow-pop:0 10px 30px rgb(0 0 0 / .25);
+  --shadow-drawer:0 0 30px rgb(0 0 0 / .18); --shadow-dialog:0 20px 60px rgb(0 0 0 / .3);
+  /* The terminal is dark in both themes. */
+  --tty-bg:#0C0C0D; --tty-bar:#1F1E25; --tty-line:#32313C; --tty-ink:#E7E7E7; --tty-dim:#9E9E9E; --tty-muted:#6D6D6E;
+  --tty-prompt:#3FE1B0; --tty-tool:#00B3F4; --tty-bad:#FF848B; --tty-opt:#FFD567;
+  --tty-dot-1:#FF5F57; --tty-dot-2:#FEBC2E; --tty-dot-3:#28C840;
+  --sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
+  --head:var(--sans);
+  --purpletxt:#6639ba; --purplebg:#f3ebff; --on-strong:#ffffff;
+  --rail:72px; --side:300px; --right:340px;
+  --mono:Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+}
+
+/* The theme script always sets data-theme, so this is the one dark block in use. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg:#1b1f24; --panel:#22272e; --sunk:#2a3038; --line:#333b45; --line2:#6b7682; --hover:#2c333c;
+  --ink:#e6edf3; --dim:#b8c2cc; --faint:#959fab;
+  --ok:#5fc98f; --warn:#e3b341; --bad:#f07178; --info:#6cb6ff; --purple:#b392f0; --link:#4fc3c7; --link-hover:#7fd8db;
+  --okbg:#1c3226; --warnbg:#33290f; --badbg:#3a1f23; --infobg:#1d2f45;
+  --amber:#e3b341;
+  --chart-1:#5d89cf; --chart-2:#c46d4b; --chart-3:#2f977a; --chart-4:#b48632; --chart-5:#b46eaf; --chart-muted:#6b7682;
+  --card-border:#333b45; --shadow:none; --purpletxt:#c4a8f5; --purplebg:#2e2645; --on-strong:#1b1f24;
+}
+
+/* Fallback for a page where the theme script did not run. theme.test.ts keeps it equal to the block above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg:#1b1f24; --panel:#22272e; --sunk:#2a3038; --line:#333b45; --line2:#6b7682; --hover:#2c333c;
+    --ink:#e6edf3; --dim:#b8c2cc; --faint:#959fab;
+    --ok:#5fc98f; --warn:#e3b341; --bad:#f07178; --info:#6cb6ff; --purple:#b392f0; --link:#4fc3c7; --link-hover:#7fd8db;
+    --okbg:#1c3226; --warnbg:#33290f; --badbg:#3a1f23; --infobg:#1d2f45;
+    --amber:#e3b341;
+    --chart-1:#5d89cf; --chart-2:#c46d4b; --chart-3:#2f977a; --chart-4:#b48632; --chart-5:#b46eaf; --chart-muted:#6b7682;
+    --card-border:#333b45; --shadow:none; --purpletxt:#c4a8f5; --purplebg:#2e2645; --on-strong:#1b1f24;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: var(--t-body)/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
