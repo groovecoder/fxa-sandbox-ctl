@@ -59,8 +59,9 @@ export function useTween(target: number | null, ms = 300) {
       return () => cancelAnimationFrame(raf);
     }
     const t0 = performance.now();
-    const step = (t: number) => {
-      const k = Math.min(1, (t - t0) / ms);
+    // performance.now(), not the frame time: the two can have other origins.
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / ms);
       const v = k < 1 ? from + (target - from) * k : target;
       on.current = Number.isInteger(target) ? Math.round(v) : v;
       setShown(on.current);

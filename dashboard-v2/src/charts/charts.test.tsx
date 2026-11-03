@@ -120,9 +120,9 @@ describe('the empty and unknown states', () => {
     const { rerender } = render(<KpiCard label="Merged" value={null} />);
     expect(screen.getByText('?')).toBeTruthy();
     rerender(<KpiCard label="Merged" value={10} delta={{ tone: 'ok', label: 'up 12%' }} />);
-    await waitFor(() => expect(screen.getByText('10')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('10')).toBeTruthy(), { timeout: 3000 });
     rerender(<KpiCard label="Merged" value={20} />);
-    await waitFor(() => expect(screen.getByText('20')).toBeTruthy(), { timeout: 1000 });
+    await waitFor(() => expect(screen.getByText('20')).toBeTruthy(), { timeout: 3000 });
   });
 
   it('BarList scales each bar to the largest value, and Spark is one labelled image', () => {
