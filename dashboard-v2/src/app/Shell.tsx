@@ -1,5 +1,5 @@
 // The shell: rail, header and tabs, side list, main, details panel, status bar, and the keys.
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
 import { firstSessTab, format, parse, TEAM_RE, TEAM_TABS, viewHash } from '../router';
 import type { Route, ViewId } from '../router/types';
 import type { Prefs, Store, Theme } from '../store/types';
@@ -31,6 +31,7 @@ export function applyTheme(t: Theme) {
 export const RIGHT: Partial<Record<ViewId, (s: Store) => ReactNode | null>> = {};
 // The main content per view; the views add theirs in wave 2.
 export const MAIN: Partial<Record<ViewId, () => ReactNode>> = {};
+const TOOLS: Partial<Record<ViewId, ComponentType>> = {};
 
 const PANES = { side: { v: '--side', min: 220, max: 640, def: 300, dir: 1 }, right: { v: '--right', min: 260, max: 720, def: 340, dir: -1 } } as const;
 
@@ -63,6 +64,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       MAIN[id] = () => <c.Main />;
       if (c.right) RIGHT[id] = c.right;
       if (c.side) SIDE[id] = c.side;
+      if (c.sideTools) TOOLS[id] = c.sideTools;
     }, () => {
       MAIN[id] = () => <p className="empty">This view did not load. Reload the page.</p>;
     }).finally(() => setLoaded((n) => n + 1));
@@ -255,7 +257,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
           {route.view === 'stats' ? (
             <><div className="sh"><h2>Filters</h2></div><p className="empty sgroup">loading…</p></>
           ) : sideOn ? (
-            <SideList title={def.title} groups={safe(() => sel.side(s))} q={q} setQ={setQ} keys={prefs.keys} route={route} onSelect={select} />
+            <SideList title={def.title} groups={safe(() => sel.side(s))} q={q} setQ={setQ} keys={prefs.keys} route={route} onSelect={select} Tools={TOOLS[route.view]} />
           ) : null}
         </Boundary>
       </aside>
@@ -359,7 +361,7 @@ function Header(p: { route: Route; s: Store; sideShown: boolean; rightShown: boo
   );
 }
 
-function SideList(p: { title: string; groups: SideGroup[] | null; q: string; setQ: (q: string) => void; keys: boolean; route: Route; onSelect: (id: string) => void }) {
+function SideList(p: { title: string; groups: SideGroup[] | null; q: string; setQ: (q: string) => void; keys: boolean; route: Route; onSelect: (id: string) => void; Tools?: ComponentType }) {
   const ql = p.q.trim().toLowerCase();
   const hit = (it: SideGroup['items'][number]) =>
     ql ? !it.id.startsWith('__') && (it.find ?? `${it.t} ${it.m.join(' ')}`).toLowerCase().includes(ql) : true;
@@ -376,6 +378,7 @@ function SideList(p: { title: string; groups: SideGroup[] | null; q: string; set
           <input id="q" type="search" placeholder="Search" value={p.q} aria-label="Search the list" onChange={(e) => p.setQ(e.target.value)} />
           {p.keys && <kbd>/</kbd>}
         </div>
+        {p.Tools && <p.Tools />}
       </div>
       <div className="slist2">
         {groups.length ? groups.map((g, gi) => (

@@ -22,6 +22,8 @@ export function setPref<K extends keyof Prefs>(k: K, v: Prefs[K]) {
 let live: Live | null = null;
 // Opens the stream once per tab; showTails names the terminals on screen.
 export const connect = (): Live => (live ??= startLive({ dispatch, getState: store.getState }));
+// The terminals on screen; a no-op when no stream runs (the e2e fixture store).
+export const showTails = (keys: string[]) => live?.showTails(keys);
 
 // The reads that a view starts when it shows an item. Only the last answer per key counts.
 const enc = encodeURIComponent;

@@ -7,7 +7,7 @@ export const BELT_KEY_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
 export const SESSION_RE = /^agent-[a-z0-9]{4,12}$/;
 export const TEAM_RE = /^[a-z][a-z0-9-]{1,30}$/;
 export const TEAM_TABS = ['overview', 'routines', 'memory', 'settings'] as const;
-const QUERY_KEYS: QueryKey[] = ['range', 'metric', 'src'];
+const QUERY_KEYS: QueryKey[] = ['range', 'metric', 'src', 'team'];
 
 const dec = (s: string | undefined) => {
   try {

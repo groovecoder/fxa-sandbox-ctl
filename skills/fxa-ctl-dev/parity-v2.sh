@@ -88,6 +88,26 @@ location.hash = "#pipeline/done"; await sleep(400); await wait("#s-done [data-st
 out.pipe.done.line = document.querySelector("#s-done .bwhere")?.textContent.trim() ?? document.querySelector("#s-done")?.textContent.trim() ?? "";
 out.pipe.done.rows = document.querySelectorAll("#s-done .dtab tbody tr").length;
 out.title = document.title;
+// Sessions: the list, the bar, the conversation and the details of the shown session on each tab, without white space.
+// The countdowns, the start time and the thread load move with the clock, so they stay out.
+const flat = (e) => (e?.textContent ?? "").replace(/\s+/g, "");
+const convo = () => { const c = document.querySelector("#s-sess .convo")?.cloneNode(true); c?.querySelector("#sx-thread")?.remove(); return flat(c); };
+out.sessions = {};
+// v2 reads the agents feed over a stream that can come late: wait up to 3 s for the list.
+location.hash = "#sessions/live";
+for (let i = 0; i < 30 && !document.querySelector("#side .si"); i++) await sleep(100);
+for (const t of ["live", "paused", "stopped", "answers"]) {
+  location.hash = "#sessions/" + t; await sleep(500);
+  const kv = {};
+  document.querySelectorAll("#right .kv, #right .kvl > div").forEach((e) => {
+    const k = e.firstElementChild?.textContent.trim() ?? "";
+    if (!/^(Idle pause in|Sandbox ends in|Started)$/.test(k)) kv[k] = flat(e.lastElementChild);
+  });
+  out.sessions[t] = t === "answers"
+    ? { head: flat(document.querySelector("#s-sess .sub, #s-sess .anshead")), rows: document.querySelectorAll("#s-sess table.answers > tbody > tr").length, empty: flat(document.querySelector("#s-sess .emptybox, #s-sess .border-dashed")) }
+    : { side: [...document.querySelectorAll("#side .si")].map((e) => flat(e.querySelector(".t")) + "|" + flat(e.querySelector(".m"))),
+        bar: [...(document.getElementById("sx-bar")?.children ?? [])].map(flat).filter(Boolean), convo: convo(), kv };
+}
 return JSON.stringify(out);'
 
 [ $# -gt 0 ] || set -- "$here"/page-fixture*.json
@@ -100,7 +120,7 @@ port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0))
 bad=0
 for f in "$@"; do
   n="$(basename "$f" .json)"
-  # The probe visits each route and tab with a wait: past Chrome's default virtual time budget of 6 s.
+  # The probe visits 11 routes: Chrome's virtual time must outlast its waits.
   r="$(PAGE_BUDGET="${PAGE_BUDGET:-15000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
   python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!

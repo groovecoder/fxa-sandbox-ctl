@@ -17,5 +17,57 @@
   "v1": "Could not read merged PRs from GitHub.",
   "v2": "Loading the pipeline…",
   "why": "v1 index.html 3830: before the first snapshot, Done said the GitHub fetch failed; v2 says it is loading"
+ },
+ {
+  "key": "sessions.paused.convo",
+  "v1": "Nolivesession.Seestoppedsessions",
+  "v2": "Nopausedsession.Seestoppedsessions",
+  "why": "v1 index.html 4147: with no agents feed, route() skips renderSess, so the frame keeps the first tab's text; v2 renders each tab"
+ },
+ {
+  "key": "sessions.stopped.convo",
+  "v1": "Nolivesession.Seestoppedsessions",
+  "v2": "Nostoppedsession.",
+  "why": "v1 index.html 4147: with no agents feed, route() skips renderSess, so the frame keeps the first tab's text; v2 renders each tab"
+ },
+ {
+  "key": "sessions.answers.empty",
+  "v1": "Nolivesession.Seestoppedsessions",
+  "why": "v1 index.html 4147: with no agents feed, route() skips renderSess, so the frame keeps the first tab's text; v2 renders each tab"
+ },
+ {
+  "key": "sessions.answers.head",
+  "v1": "",
+  "fixture": "page-fixture-feeds",
+  "why": "v1 index.html 4147: with no agents feed, route() skips renderSess, so the frame keeps the first tab's text; v2 renders each tab"
+ },
+ {
+  "key": "sessions.answers.rows",
+  "v1": 0,
+  "v2": 1,
+  "fixture": "page-fixture-feeds",
+  "why": "v1 index.html 4147: with no agents feed, route() skips renderSess, so the frame keeps the first tab's text; v2 renders each tab"
+ },
+ {
+  "key": "sessions.answers.head",
+  "v1": "40quickanswersintheStatsrange:read-only,nosandbox.Upgradedonescontinueasasession.",
+  "v2": "30quickanswersintheStatsrange:read-only,nosandbox.Upgradedonescontinueasasession.",
+  "why": "v1 index.html 1440: answerRows ignores the Stats range that the head names; v2 shows only the answers in it"
+ },
+ {
+  "key": "sessions.answers.rows",
+  "v1": 40,
+  "v2": 30,
+  "why": "v1 index.html 1440: answerRows ignores the Stats range that the head names; v2 shows only the answers in it"
+ },
+ {
+  "key": "sessions.live.side",
+  "fixture": "page-fixture-depfix",
+  "why": "fixture harness: serve.py's server redacts fix_pr for its localhost viewer, who is not an admin, while the fixture's /api/team-admin says admin; page.sh gives v1 the rows unredacted"
+ },
+ {
+  "key": "sessions.stopped.side",
+  "fixture": "page-fixture-depfix",
+  "why": "fixture harness: serve.py's server redacts fix_pr for its localhost viewer, who is not an admin, while the fixture's /api/team-admin says admin; page.sh gives v1 the rows unredacted"
  }
 ]

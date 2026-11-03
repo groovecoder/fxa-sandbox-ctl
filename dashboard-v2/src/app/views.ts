@@ -5,7 +5,8 @@ import type { Store } from '../store/types';
 import type { SideGroup } from './store';
 
 // The default export of a view's lazy chunk: its main content, and its side list and details when it has them.
-export type ViewChunk = { Main: ComponentType; side?: (s: Store) => SideGroup[] | null; right?: (s: Store) => ReactNode | null };
+// sideTools: more filters under the side list's search box.
+export type ViewChunk = { Main: ComponentType; side?: (s: Store) => SideGroup[] | null; right?: (s: Store) => ReactNode | null; sideTools?: ComponentType };
 
 export type ViewDef = {
   id: ViewId;
@@ -32,6 +33,7 @@ export const VIEWS: ViewDef[] = [
   {
     id: 'sessions', title: 'Sessions', sub: 'Slack threads and their sandboxes',
     tabs: tabs(['live', 'Live'], ['paused', 'Paused'], ['stopped', 'Stopped'], ['answers', 'Answers']), side: true, right: true, bareTabs: ['answers'],
+    load: () => import('../views/sessions'),
   },
   {
     id: 'stats', title: 'Stats', sub: 'Spend, time and capacity',
