@@ -46,7 +46,7 @@ export const VIEWS: ViewDef[] = [
   },
   {
     id: 'teams', title: 'Teams', sub: 'Which teams exist, what each gets, who can start one, and how each is doing',
-    tabs: [], side: true, right: false, bareTabs: [],
+    tabs: [], side: true, right: false, bareTabs: [], load: () => import('../views/teams'),
   },
 ];
 
