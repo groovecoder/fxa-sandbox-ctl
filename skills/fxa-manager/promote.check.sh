@@ -82,7 +82,13 @@ check "ci: one still running is running" "running" "$(ci_state "$tmp/w" abc123)"
 RUNS='{"workflow_runs":[]}'
 check "ci: no runs is none" "none" "$(ci_state "$tmp/w" abc123)"
 gh() { return 1; }
-check "ci: gh fails is none (promote then tests as before)" "none" "$(ci_state "$tmp/w" abc123)"
+check "ci: gh fails is unknown" "unknown" "$(ci_state "$tmp/w" abc123)"
+eval "$(sed -n '/^promote_ci() {/,/^}/p;/^promote_ci_wait() {/,/^}/p' "$(dirname "$0")/vm.sh")"
+echo "running unknown green" > "$tmp/seq"
+ci_state() { local s; s="$(head -1 "$tmp/seq" | cut -d' ' -f1)"; [ "$1" = bot ] && { echo green; return; }; sed -i.b '1s/^[^ ]* *//' "$tmp/seq"; echo "${s:-green}"; }
+check "ci wait: a failed read keeps the wait going until CI is green" "green green" "$(FXA_PROMOTE_CI_POLL_S=0 promote_ci_wait ctl a bot b 2>/dev/null)"
+echo "unknown" > "$tmp/seq"
+check "ci wait: unknown at the deadline still falls to the tests" "test" "$(promote_ci $(FXA_PROMOTE_CI_WAIT_S=0 FXA_PROMOTE_CI_POLL_S=0 promote_ci_wait ctl a bot b 2>/dev/null))"
 check "errors: only signatures open after the promote and not before" "c3|d4" "$(promote_new_errors "$(printf 'a1\nb2\n')" "$(printf 'a1\nc3\nd4\n')" | tr '\n' '|' | sed 's/|$//')"
 check "open_sigs: the open signatures of a list" "0|a1|c3" "$(open_sigs <<< '[{"sig":"a1","status":"open"},{"sig":"b2","status":"resolved"},{"sig":"c3"}]' > "$tmp/s"; echo $?)|$(paste -sd'|' "$tmp/s")"
 check "open_sigs: an empty list is a good read" "0|" "$(open_sigs <<< '[]' > "$tmp/s"; echo $?)|$(cat "$tmp/s")"

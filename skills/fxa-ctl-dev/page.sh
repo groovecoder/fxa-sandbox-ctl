@@ -15,6 +15,8 @@ while [ $# -gt 0 ]; do
   case "$1" in --fixture) fixture="$2" ;; --probe) probe="$2" ;; --shot) shot="$2" ;; --width) width="$2" ;; --height) height="$2" ;;
     *) echo "page.sh: unknown option $1" >&2; exit 2 ;; esac; shift 2
 done
+# CHROME=none: the macOS CI job, where Chrome is 3 times slower and the Ubuntu jobs already run these probes.
+[ "${CHROME:-}" = none ] && { echo "skip: no Chrome (CHROME=none)"; exit 3; }
 chrome="${CHROME:-}"
 for c in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" google-chrome chromium chromium-browser; do
   [ -n "$chrome" ] && break; { [ -x "$c" ] || command -v "$c" >/dev/null 2>&1; } && chrome="$c"

@@ -148,6 +148,8 @@ jobs:
           FXA_BOT_REPO: ${{ github.workspace }}/bot
           # Each finished check prints a line, and a hung one fails at 5 min, so the log names it.
           FXA_CHECK_PROGRESS: '1'
+          # The page probes test the page in Chrome, not bash 3.2, and the Ubuntu jobs run them. Here they took 5.5 of the 6.5 min.
+          CHROME: none
           # page.check.sh took 223 to 300 s on the slow macOS runner; a hang still fails at 600 s.
           FXA_CHECK_TIMEOUT: '600'
           FXA_CHECK_VERBOSE: '1'

@@ -122,25 +122,27 @@ promote_ci() {
   case "$1 $2" in *red*) echo red ;; *running*) echo running ;; "green green") echo skip-tests ;; *) echo test ;; esac
 }
 # promote_ci_wait <ctl dir> <ctl sha> <bot dir> <bot sha>   "<ctl state> <bot state>", after waiting up to
-# FXA_PROMOTE_CI_WAIT_S (1200) for runs still going: a promote right after a push need not be run again. CI takes about 16 min.
+# FXA_PROMOTE_CI_WAIT_S (1200) for runs still going: a promote right after a push need not be run again. CI takes about 7 min.
+# A failed read (unknown) waits too: one gh error once ended the wait and sent the promote to the tests.
 promote_ci_wait() {
   local cs bs said="" end=$(( $(date +%s) + ${FXA_PROMOTE_CI_WAIT_S:-1200} ))
   while :; do
     cs="$(ci_state "$1" "$2")" bs="$(ci_state "$3" "$4")"
-    [ "$(promote_ci "$cs" "$bs")" = running ] && [ "$(date +%s)" -lt "$end" ] || break
+    case "$(promote_ci "$cs" "$bs") $cs $bs" in running*|test*unknown*) ;; *) break ;; esac
+    [ "$(date +%s)" -lt "$end" ] || break
     [ -n "$said" ] || { echo "Waiting for CI on main (controller $cs, bot $bs)..." >&2; said=1; }
     sleep "${FXA_PROMOTE_CI_POLL_S:-10}"
   done
   echo "$cs $bs"
 }
-# ci_state <repo dir> <sha>   green, red, running, or none: the CI runs of that commit on main.
+# ci_state <repo dir> <sha>   green, red, running, none, or unknown (gh failed): the CI runs of that commit on main.
 # Only main's runs: after a fast-forward the same commit also has its improve branch's run,
 # and a flaky red there must not block a green main.
 ci_state() {
   local slug; slug="$(git -C "$1" remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
   gh api "repos/$slug/actions/runs?head_sha=$2&branch=main" --jq '[.workflow_runs[] | if .status == "completed" then .conclusion else "running" end]
     | if length == 0 then "none" elif any(. == "running") then "running"
-      elif all(. == "success" or . == "skipped" or . == "neutral") then "green" else "red" end' 2>/dev/null || echo none
+      elif all(. == "success" or . == "skipped" or . == "neutral") then "green" else "red" end' 2>/dev/null || echo unknown
 }
 
 # promote_new_errors <before> <after>   The open error signatures in after and not in before.
