@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { snapshotActions, viewerAction } from '../../live/poll';
 import { type Action, apply } from '../../live/reducers';
+import { beltGroups } from '../../model';
 import { store } from '../../store';
 import { Belts } from './belts';
 import { doneRows, flowGraph, median, mergesPerDay, ageWords } from './data';
@@ -149,6 +150,16 @@ describe('Queue', () => {
     const tile = (l: string) => document.querySelector(`[data-stat="${l}"] .text-kpi`)!.textContent;
     expect([tile('Launchable'), tile('Waits on a person')]).toEqual(['1', '1']);
     expect([...document.querySelectorAll('h2.qh')].map((h) => h.textContent)).toEqual(['Queuelabelled ai-queue21 launchable, plus 1 held']);
+  });
+  it('lists a skipped ticket that has a belt on Belts only, not on Queue', () => {
+    load();
+    const key = (beltGroups(store.getState()) as J).needs[0].t.key as string;
+    const fx = rel(fixture, Date.now() / 1000);
+    fx['/api/snapshot'].snapshot.queue.skipped.push({ key, summary: 'on a belt', reason: 'needs a decision', passes: 1, in_queue: true });
+    load(fx, '#pipeline/queue');
+    render(<Queue />);
+    expect(document.querySelector('[data-stat="Waits on a person"] .text-kpi')!.textContent).toBe('1');
+    expect(document.querySelector('#s-queue')!.textContent).not.toContain(key);
   });
   it('keeps a details element as a person left it across an update', () => {
     load(undefined, '#pipeline/queue');

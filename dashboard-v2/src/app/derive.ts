@@ -70,7 +70,10 @@ export function tabCount(s: Store, sel: Sel, tab: string): string {
     if (tab === 'done') return String(((snap.merged_prs ?? []) as Row[]).filter((p) => p.key).length);
     const q = snap.queue as Row | undefined;
     if (q?.fetch_failed) return '?';
-    const waits = safe(() => sel.queueWaits(s));
+    // A skip with a belt counts on Belts, so the Queue tab counts only the rest, as it lists them.
+    const g = safe(() => sel.beltGroups(s)) as Record<string, { t: Row }[]> | null;
+    const on = new Set(['working', 'needs', 'fixes', 'review'].flatMap((k) => (g?.[k] ?? []).map((r) => r.t.key)));
+    const waits = safe(() => sel.queueWaits(s))?.filter((k) => !on.has(k.key));
     return waits == null ? '?' : String(((q?.ready ?? []) as Row[]).length + waits.length);
   }
   return '';

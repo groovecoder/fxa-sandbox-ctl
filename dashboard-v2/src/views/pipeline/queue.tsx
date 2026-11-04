@@ -4,7 +4,7 @@ import { BarList, ChartFrame, StripPlot } from '../../charts';
 import { jiraHref } from '../../format';
 import { skipGroups, verdictTag } from '../../model';
 import type { J } from '../../model/base';
-import { SNAP, jiraSite } from '../../model/pipeline';
+import { SNAP, jiraSite, queueOnly } from '../../model/pipeline';
 import { MODEL, useParts } from '../../app/store';
 import type { Store } from '../../store/types';
 import { Card, EmptyBox, Tag } from '../../ui';
@@ -43,7 +43,7 @@ export function Queue() {
   if (!snap) return <EmptyBox>Loading the pipeline…</EmptyBox>;
   const q = snap.queue ?? {}, ready: J[] = q.ready ?? [], skipped: J[] = q.skipped ?? [];
   // A hold waits for another ticket to merge; it is not launchable, and not a skip a person must answer.
-  const held = skipped.filter((k) => k.in_queue !== false && k.held_by), live = skipped.filter((k) => k.in_queue !== false && !k.held_by), stale = skipped.filter((k) => k.in_queue === false);
+  const held = skipped.filter((k) => k.in_queue !== false && k.held_by), live: J[] = queueOnly(s), stale = skipped.filter((k) => k.in_queue === false);
   const qv = (x: number) => (q.fetch_failed ? null : x);
   const off = snap.mode?.newtickets === 'off';
   const skipRow = (k: J) => (
