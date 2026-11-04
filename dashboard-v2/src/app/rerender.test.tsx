@@ -72,8 +72,9 @@ test('a delta that only marks a routine or a history row repaints no view', () =
   expect(repaints(at('e5a17c0d-47'))).toEqual([]);
 });
 
-test('a terminal line repaints only the views that show a terminal', () => {
-  expect(repaints(at('e5a17c0d-43'))).toEqual(['pipeline']);
+test('a terminal line repaints only the views that show its terminal', () => {
+  expect(repaints(at('e5a17c0d-43'))).toEqual([]);
+  expect(repaints({ id: 'e5a17c0d-61', event: 'tail', data: { key: 'EX-101', start: 0, lines: ['a line of a live belt'] } } as Frame)).toEqual(['pipeline']);
 });
 
 test('an errors delta repaints Errors, and not the views without errors', () => {
@@ -101,11 +102,16 @@ test('a store change that the view does not read gives no repaint of the view in
   let n = 0;
   errs.load = async () => ({ default: { Main: () => <Profiler id="m" onRender={() => n++}><p>the errors main</p></Profiler> } });
   location.hash = '#errors/open';
-  const { findByText } = render(<App store={store} sel={modelSel} />);
+  let shell = 0;
+  const { findByText } = render(<Profiler id="app" onRender={() => shell++}><App store={store} sel={modelSel} /></Profiler>);
   await act(async () => { await findByText('the errors main'); });
   n = 0;
+  shell = 0;
   act(() => dispatch({ event: 'ping', data: {} } as Frame));
   act(() => dispatch(at('e5a17c0d-43')));
+  act(() => dispatch(at('e5a17c0d-51')));
   expect(n).toBe(0);
+  // The shell shows no terminal line, flow point or event clock.
+  expect(shell).toBe(0);
   errs.load = load;
 });

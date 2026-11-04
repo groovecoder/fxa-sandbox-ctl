@@ -295,9 +295,10 @@ test('alerts: every alert in order with its tone, fix, tooltip and expand contro
   await expect(page.locator('#attn')).toHaveAttribute('tabindex', '-1');
   await expect(page.getByRole('status')).toHaveText('');
   await page.evaluate(() => {
-    const w = window as unknown as { __V2_FIXTURE__: { sel: { alerts: unknown[] } }; __V2_STORE__: { setState: (x: unknown) => void } };
+    const w = window as unknown as { __V2_FIXTURE__: { sel: { alerts: unknown[] } }; __V2_STORE__: { setState: (f: (s: { prefs: object }) => unknown) => void } };
     w.__V2_FIXTURE__.sel.alerts = [...w.__V2_FIXTURE__.sel.alerts, { tone: 'bad', subject: 'disk', what: '10GB free' }];
-    w.__V2_STORE__.setState({});
+    // A new prefs object: the shell repaints only on a store part that it reads.
+    w.__V2_STORE__.setState((s) => ({ prefs: { ...s.prefs } }));
   });
   await expect(page.getByRole('status')).toHaveText('New alert: disk, 10GB free');
   await page.goto('/v2/#pipeline/belts');

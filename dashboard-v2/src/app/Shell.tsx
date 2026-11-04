@@ -7,7 +7,7 @@ import { agentsOf, docTitle, pipeTeams, railBadges, sessionList, tabCount } from
 import { Help, Palette, wrapTab } from './Dialogs';
 import { Boundary, ICON, VIEW_ICON } from './parts';
 import { Alerts, StatusBar, useTabTitle } from './Status';
-import { safe, savePref, SIDE, useSel, useStore, useStoreState, type SideGroup } from './store';
+import { safe, savePref, SIDE, useParts, useSel, useStore, type SideGroup } from './store';
 import { VIEWS, viewOf } from './views';
 import './shell.css';
 
@@ -35,11 +35,14 @@ const TOOLS: Partial<Record<ViewId, ComponentType>> = {};
 // The whole side panel, for a view whose chunk gives a Side in place of a list.
 export const SIDEPANE: Partial<Record<ViewId, () => ReactNode>> = {};
 
+// The store parts the shell reads: not the terminal lines, the flow or the event clock, which change many times a second.
+const SHELL = (x: Store): unknown[] => [...Object.entries(x).filter(([k]) => k !== 'tails' && k !== 'flow' && k !== 'conn').map(([, v]) => v), x.conn.mode, x.conn.error, !x.conn.lastEventAt];
+
 const PANES = { side: { v: '--side', min: 220, max: 640, def: 300, dir: 1 }, right: { v: '--right', min: 260, max: 720, def: 340, dir: -1 } } as const;
 
 export function Shell({ poll }: { poll?: () => Promise<void> }) {
   const st = useStore();
-  const s = useStoreState();
+  const s = useParts(SHELL);
   const sel = useSel();
   const { route, prefs } = s;
   const def = viewOf(route.view);
@@ -67,7 +70,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
     const id = def.id;
     if (!def.load || MAIN[id]) return;
     def.load().then(({ default: c }) => {
-      // memo: the shell repaints on each store change; a view repaints only on the store parts that it reads.
+      // memo: a view repaints only on the store parts that it reads, not on each repaint of the shell.
       const Main = memo(c.Main);
       MAIN[id] = () => <Main />;
       if (c.right) RIGHT[id] = c.right;

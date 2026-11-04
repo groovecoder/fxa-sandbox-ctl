@@ -69,10 +69,6 @@ export const StoreCtx = createContext<StoreApi<Store>>(store);
 export const SelCtx = createContext<Sel>(modelSel);
 
 export const useStore = () => useContext(StoreCtx);
-export const useStoreState = () => {
-  const st = useStore();
-  return useSyncExternalStore(st.subscribe, st.getState);
-};
 export const useSel = () => useContext(SelCtx);
 
 // What the src/model selectors read: not the errors feed, the stream clock, the terminals or the flow.

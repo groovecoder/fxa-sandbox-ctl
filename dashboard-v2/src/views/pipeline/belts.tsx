@@ -55,8 +55,11 @@ function trackCost(agents: J) {
 }
 
 
+// Only the tails of the live belts: a terminal line of another session does not repaint the belts. beltGroups is memoized.
+const liveTails = (x: State): unknown[] => (SNAP(x) ? (beltGroups(x) as J).working.filter((r: J) => r.t.agent_alive).map((r: J) => x.tails[r.t.key]) : []);
+
 export function Belts() {
-  const s = useParts<State>((x) => [...MODEL(x), x.tails, x.flow, x.live.sid]);
+  const s = useParts<State>((x) => [...MODEL(x), ...liveTails(x), x.flow, x.live.sid]);
   const g: J = beltGroups(s), snap = SNAP(s), sel = s.route.sel, bad = useBadLink();
   const [stops, setStops] = useState<[number, number] | null>(null);
   const box = useRef<HTMLDivElement>(null);
