@@ -2,7 +2,9 @@
 # Compare the dashboard shell of v1 and v2 on the v1 page fixtures: rail badges and their tones, tab counts,
 # the health word and the tab title, and per Stats tab its KPI tiles, headings and empty texts.
 # v1 renders in page.sh; v2 is a fresh build served by dashboard-v2/e2e/serve.py.
-#   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json ...]   default: every skills/fxa-ctl-dev/page-fixture*.json and parity-fixture*.json
+#   bash skills/fxa-ctl-dev/parity-v2.sh [fixture.json|live.ndjson ...]
+#     default: every skills/fxa-ctl-dev/page-fixture*.json and parity-fixture*.json, and every dashboard-v2/fixtures/live/*.ndjson
+# On a live fixture, v2 reads it over the stream up to its first snapshot, and v1 reads the same data from serve.py --v1.
 #   bash skills/fxa-ctl-dev/parity-v2.sh --compare v1.json v2.json [name]   only the compare step, on probe outputs
 # A diff that parity-allow.json lists (a known v1 bug that v2 fixes) passes; any other diff fails.
 # The views add their probes to PROBE in wave 2.
@@ -199,7 +201,7 @@ for (const t of ["open", "all"]) {
 return JSON.stringify(out);'
 
 # parity-fixture-*.json are v1 page fixtures for a view's probes only, so v1-golden.sh does not read them.
-[ $# -gt 0 ] || set -- "$here"/page-fixture*.json "$here"/parity-fixture*.json
+[ $# -gt 0 ] || set -- "$here"/page-fixture*.json "$here"/parity-fixture*.json "$v2"/fixtures/live/*.ndjson
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"; pid=""
 trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
 printf '%s' "$PROBE" > "$tmp/probe.js"
@@ -208,13 +210,18 @@ printf '%s' "$PROBE" > "$tmp/probe.js"
 port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
 bad=0
 for f in "$@"; do
-  n="$(basename "$f" .json)"
+  n="$(basename "${f%.*}")" fx="$f" src=(--fixture "$f") now=""
+  if [ "${f%.ndjson}" != "$f" ]; then
+    # A live fixture has fixed times, so both pages get the same clock: an age then reads the same.
+    fx="$tmp/$n.fx.json" src=(--live "$f") now="$(date +%s)"
+    python3 "$v2/e2e/serve.py" --live "$f" --v1 > "$fx" || { echo "FAIL $n: serve.py --v1"; bad=1; continue; }
+  fi
   # The view probes visit many routes: the virtual time must cover every sleep.
-  r="$(PAGE_BUDGET="${PAGE_BUDGET:-45000}" bash "$here/page.sh" '#overview' --fixture "$f" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  r="$(PAGE_NOW="$now" PAGE_BUDGET="${PAGE_BUDGET:-45000}" bash "$here/page.sh" '#overview' --fixture "$fx" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
-  python3 "$v2/e2e/serve.py" --port "$port" --fixture "$f" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
+  python3 "$v2/e2e/serve.py" --port "$port" "${src[@]}" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
-  ( cd "$v2" && node e2e/parity-probe.ts "http://127.0.0.1:$port/v2/#overview" "$tmp/probe.js" ) > "$tmp/$n.v2.json" 2> "$tmp/probe.err" \
+  ( cd "$v2" && PARITY_NOW="$now" node e2e/parity-probe.ts "http://127.0.0.1:$port/v2/#overview" "$tmp/probe.js" ) > "$tmp/$n.v2.json" 2> "$tmp/probe.err" \
     || { echo "FAIL $n: v2: $(tail -2 "$tmp/probe.err" | tr '\n' ' ')"; bad=1; }
   kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; pid=""
   [ -s "$tmp/$n.v2.json" ] || continue

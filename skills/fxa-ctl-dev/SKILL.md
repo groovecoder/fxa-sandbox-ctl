@@ -97,7 +97,12 @@ npm run typecheck && npm run lint && npm test # test.sh changed runs these and t
 npm run build && git status dist              # then commit dist: CI fails when dist is not the build
 npx playwright install chromium && npm run e2e   # the built page and the fixture API through server.Handler (e2e/serve.py)
 bash skills/fxa-ctl-dev/v1-golden.sh          # after a change to a page fixture or to v1 model code: writes test/golden/
+bash skills/fxa-ctl-dev/parity-v2.sh          # v1 and v2 on every page fixture and live fixture (about 10 min; CI runs it)
 ```
+
+A parity diff that v2 fixes on purpose goes in `skills/fxa-ctl-dev/parity-allow.json`, with the v1 line in `why`.
+To compare on live data, record a live fixture from `vm.sh api` (`dashboard/live_record.py` says how) to a temp file,
+and give its path to `parity-v2.sh`. Keep the recording out of the repo.
 
 Pin each npm package to an exact version (`npm view <pkg>@<version> version`), and commit `package-lock.json`.
 

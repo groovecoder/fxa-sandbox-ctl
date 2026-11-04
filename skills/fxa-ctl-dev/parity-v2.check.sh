@@ -24,4 +24,9 @@ for _ in $(seq 50); do curl -sf "http://localhost:$port/api/snapshot" -o "$tmp/s
 kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
 python3 -c 'import json, sys; assert {s["key"]: s.get("fix_pr") for s in json.load(open(sys.argv[1]))["agents"]["sessions"]}["agent-fix001"] == 90001' "$tmp/snap.json" 2>/dev/null \
   && ok "serve.py: an admin fixture's /api/snapshot keeps fix_pr" || no "serve.py: an admin fixture's /api/snapshot lost fix_pr: $(head -c 300 "$tmp/snap.json" "$tmp/serve.log" 2>&1)"
+# A live fixture: serve.py --v1 gives v1 the reads of its first snapshot, before the deltas (basic's delta resolves the open error).
+python3 "$here/../../dashboard-v2/e2e/serve.py" --live "$here/../../dashboard-v2/fixtures/live/basic.ndjson" --v1 > "$tmp/live-v1.json" 2>&1
+python3 -c 'import json, sys; f = json.load(open(sys.argv[1])); assert f["/api/snapshot"]["snapshot"]["repo"] == "example/repo" and f["/api/team-admin"]["admin"] is True
+assert [e["status"] for e in f["/api/errors"]] == ["open", "resolved"] and f["/api/stats"]["rows"]' "$tmp/live-v1.json" 2>/dev/null \
+  && ok "serve.py --live --v1: the v1 page fixture of a live fixture's first snapshot" || no "serve.py --live --v1: $(head -c 300 "$tmp/live-v1.json")"
 exit "$fail"

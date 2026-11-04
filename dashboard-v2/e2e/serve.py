@@ -5,7 +5,9 @@ the hello and the first snapshot of the same file. The name comes from the fixtu
 V2_LIVE environment variable, else basic. The replay stops after a bye; a resume (since) goes on after that id.
 With --fixture (a v1 page fixture, as parity-v2.sh uses): the fixture fills the server's feeds, so /api/snapshot,
 /api/stats and /api/overview are the real Handler answers, /api/live says bye off, so the page polls,
-and every other API path (/api/teams too) answers from the fixture, as page.sh does."""
+and every other API path (/api/teams too) answers from the fixture, as page.sh does.
+With --live f.ndjson (parity-v2.sh on a live fixture): every page replays that file up to its first snapshot;
+--live f.ndjson --v1 prints the v1 page fixture of the same reads."""
 import argparse, datetime, json, os, re, sys, tempfile, time
 from http.cookies import SimpleCookie
 from http.server import ThreadingHTTPServer
@@ -18,6 +20,8 @@ p = argparse.ArgumentParser()
 p.add_argument("--port", type=int, default=4174)
 p.add_argument("--fixture", help="a v1 page fixture; without it the live fixtures answer")
 p.add_argument("--dist", default=str(V2 / "dist"), help="the build to serve (parity-v2.sh builds into a temp folder)")
+p.add_argument("--live", help="a live fixture file that every page replays, up to its first snapshot, so v2 shows the data v1 reads (parity-v2.sh)")
+p.add_argument("--v1", action="store_true", help="with --live: print the v1 page fixture of the same data, and stop")
 a = p.parse_args()
 
 # Before the import: the server must never read the real store, sessions or errors.
@@ -63,7 +67,9 @@ LIVE_STATS = rel(json.load(open(ROOT / "skills/fxa-ctl-dev/page-fixture-stats.js
 
 
 def frames(name):
-    return [json.loads(x) for x in (LIVE_DIR / f"{name}.ndjson").read_text().splitlines() if x.strip()]
+    fs = [json.loads(x) for x in (Path(a.live) if a.live else LIVE_DIR / f"{name}.ndjson").read_text().splitlines() if x.strip()]
+    # v1 reads one copy of the data, so a parity run stops the replay after the first snapshot.
+    return fs[:next(i + 1 for i, f in enumerate(fs) if f["event"] == "snapshot")] if a.live else fs
 
 
 def first(fs, event):
@@ -125,6 +131,8 @@ class Handler(server.Handler):
         return bool((fx.get("/api/team-admin") or {}).get("admin")) if a.fixture else super()._team_admin(path)
 
     def live_name(self, query):
+        if a.live:
+            return "live"
         cookie = SimpleCookie(self.headers.get("Cookie") or "").get("fixture")
         name = (query.get("fixture") or [""])[0] or (cookie.value if cookie else "") or os.environ.get("V2_LIVE") or "basic"
         return name if re.fullmatch(r"[a-z0-9-]+", name) and (LIVE_DIR / f"{name}.ndjson").is_file() else None
@@ -185,5 +193,10 @@ class Handler(server.Handler):
         super().do_POST()
 
 
-print(f"v2 e2e server: http://localhost:{a.port}/v2/ ({a.fixture or 'live fixtures'})", flush=True)
+if a.live and a.v1:
+    fs = frames("live")
+    paths = ("/api/snapshot", "/api/team-admin", "/api/teams", "/api/sessions", "/api/errors", "/api/overview", "/api/routines/summary", "/api/history")
+    print(json.dumps({**{p: live_get(fs, p, {}) for p in paths}, "/api/stats": LIVE_STATS}))
+    sys.exit()
+print(f"v2 e2e server: http://localhost:{a.port}/v2/ ({a.fixture or a.live or 'live fixtures'})", flush=True)
 ThreadingHTTPServer(("127.0.0.1", a.port), Handler).serve_forever()

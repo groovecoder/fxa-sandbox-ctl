@@ -8,6 +8,8 @@ if (!url || !file) throw new Error('usage: node e2e/parity-probe.ts <url> <probe
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // PARITY_NOW (epoch seconds) fixes the page clock, as PAGE_NOW does for v1 in page.sh.
+  if (process.env.PARITY_NOW) await page.clock.setFixedTime(Number(process.env.PARITY_NOW) * 1000);
   await page.goto(url);
   await page.locator('#favicon').waitFor({ state: 'attached' });
   // The probe is the body of an async function, as page.sh --probe takes it.
