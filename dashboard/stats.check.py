@@ -201,6 +201,33 @@ def golden(store):
 golden(True)
 golden(False)
 
+# The recompute time. stats.Live runs it in the hub's thread and holds the GIL, so it must stay short as the store grows.
+RECOMPUTE_MS = 500
+
+
+def recompute_ms(n):
+    """The time of one stats.compute on the fixture store with each run, session and LLM call n times over."""
+    global RUNS, SESSIONS, LLM
+    keep = RUNS, SESSIONS, LLM
+    RUNS = [dict(r, issue=r["issue"] + (str(i) if i else "")) for i in range(n) for r in keep[0]]
+    SESSIONS = [dict(x, key=x["key"] + (f"{i:04d}" if i else "")) for i in range(n) for x in keep[1]]
+    LLM = [x for _ in range(n) for x in keep[2]]
+    root = tempfile.mkdtemp()
+    try:
+        env = fixture(root, True)
+        con, f = sqlite3.connect(env["FXA_DB"]), stats.files("fxa", env)
+        stats.compute(con, f)
+        t = time.perf_counter()
+        stats.compute(con, f)
+        return (time.perf_counter() - t) * 1000
+    finally:
+        RUNS, SESSIONS, LLM = keep
+        shutil.rmtree(root, ignore_errors=True)
+
+
+one, big = recompute_ms(1), recompute_ms(100)
+check(f"recompute: {one:.0f} ms on the fixture store, {big:.0f} ms on it 100 times over (budget {RECOMPUTE_MS} ms)", big < RECOMPUTE_MS)
+
 root = tempfile.mkdtemp()
 env = fixture(root, False)
 os.remove(env["FXA_FIXME_RUNS"])
