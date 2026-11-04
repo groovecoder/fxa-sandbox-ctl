@@ -15,13 +15,14 @@ const sess = (st: State, k: string) => st.sessions.byKey[k] as Record<string, un
 const lastId = (xs: Frame[]) => [...xs].reverse().find((f) => f.id)?.id;
 const sorted = (st: State) => st.sessions.order.every((k, i, a) => i === 0 || ((st.sessions.byKey[a[i - 1]!]?.created ?? 0) >= (st.sessions.byKey[k]?.created ?? 0)));
 
-test('every fixture replays, the seq is the last ring id, and the session list is newest first', () => {
+test('every fixture replays, the seq is the last ring id, and a session delta sorts the list newest first', () => {
   const names = readdirSync(dir).filter((f) => f.endsWith('.ndjson')).map((f) => f.replace(/\.ndjson$/, ''));
   expect(names.length).toBeGreaterThanOrEqual(6);
   for (const n of names) {
     const xs = frames(n), st = run(xs);
     expect(st.conn.seq, n).toBe(lastId(xs));
-    expect(sorted(st), n).toBe(true);
+    // With no newer row, the list keeps the feed order, as v1 does.
+    expect(sorted(st) || !xs.some((f) => f.event === 'delta' && f.data.tbl === 'sessions'), n).toBe(true);
     expect(st.sessions.order.length, n).toBe(Object.keys(st.sessions.byKey).length);
   }
 });
@@ -140,4 +141,13 @@ test('a stats copy with no rows keeps no rows, as v1 does', () => {
   const st = run([{ event: 'stats-base', data: { stats: {}, etag: null } }]);
   expect(st.feeds.stats?.data).toEqual({});
   expect((run([{ event: 'stats-base', data: { stats: { rows: [{ at: '2026-11-03T00:00:00Z' }] }, etag: null } }]).feeds.stats?.data as { rows: { ms: number }[] }).rows[0]?.ms).toBe(Date.parse('2026-11-03T00:00:00Z'));
+});
+
+test('a store row equal to the feed row keeps the feed order; a newer one sorts newest first', () => {
+  const [hello, snap] = frames('basic') as [Frame, Frame & { event: 'snapshot' }];
+  const st = run([hello, snap]);
+  expect(st.sessions.order).toEqual(['agent-ex0001', 'agent-ex0002', 'agent-ex0003', 'agent-ex0004']);
+  const row = { ...snap.data.sessions.find((s) => s.key === 'agent-ex0001')!, last_activity: NOW + 60 };
+  const next = apply(st, { event: 'delta', id: 'e5a17c0d-99', data: { tbl: 'sessions', rows: [row], deleted: [] } } as Frame);
+  expect(next.sessions.order).toEqual(['agent-ex0002', 'agent-ex0001', 'agent-ex0003', 'agent-ex0004']);
 });

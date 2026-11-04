@@ -73,7 +73,8 @@ function withSessions(st: State, fresh: Record<string, Session>): State {
     left[k] = r;
     by.set(k, hasFeed ? { ...x, ...r, agent: x?.agent ?? null, agent_alive: x?.agent_alive ?? false } : { ...x, ...r });
     if (!x) added.unshift(k);
-    changed = true;
+    // v1 sorts only on a newer row (index.html 4542), so a tie keeps the feed order.
+    if (!x || (x.last_activity ?? 0) < (r.last_activity ?? 0)) changed = true;
   }
   let order = [...added, ...[...by.keys()].filter((k) => !added.includes(k))];
   if (changed) order = order.map((k, i) => [k, i] as const).sort(([a, i], [b, j]) => ((by.get(b)?.created ?? 0) - (by.get(a)?.created ?? 0)) || i - j).map(([k]) => k);
