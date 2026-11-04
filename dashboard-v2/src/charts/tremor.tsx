@@ -61,23 +61,22 @@ export function BarList({ label, items, format = String, color = 'chart-1' }: Ba
 // Plain SVG, not the Recharts area chart: Recharts is about 80 KB gzip, too much for a sparkline in the first view.
 export function Spark({ label, values, format = String, color = 'chart-1' }: SparkProps) {
   const max = Math.max(0, ...values.map((v) => v ?? 0)) || 1, n = Math.max(1, values.length - 1);
-  // A null is a gap: each run of numbers is its own line and area. y goes from 23 (zero) up to 2 (the max).
-  const runs: [number, number][][] = [[]];
-  values.forEach((v, i) => (v == null ? runs.push([]) : runs[runs.length - 1]!.push([(i / n) * 100, 23 - (v / max) * 21])));
+  // One line joins the days with a value: with gaps, a day alone between two empty days drew nothing. y goes from 23 (zero) up to 2 (the max).
+  const pts = values.flatMap((v, i) => (v == null ? [] : [[(i / n) * 100, 23 - (v / max) * 21] as const]));
+  const line = pts.map(([x, y]) => `${x},${y}`).join(' ');
   // In place of a "Show as table" disclosure, which does not fit in a table row: the words give every value.
   const said = `${label}. Oldest first: ${values.map((v) => (v == null ? 'no data' : format(v))).join(', ')}`;
   return (
     <div role="img" aria-label={said} className="h-s6 w-full">
       <svg width="100%" height="100%" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
-        {runs.filter((r) => r.length > 1).map((r) => {
-          const line = r.map(([x, y]) => `${x},${y}`).join(' ');
-          return (
-            <g key={r[0]![0]}>
-              <polygon points={`${r[0]![0]},23 ${line} ${r[r.length - 1]![0]},23`} fill={`var(--${color})`} fillOpacity={0.15} />
-              <polyline points={line} fill="none" stroke={`var(--${color})`} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-            </g>
-          );
-        })}
+        {pts.length > 1 && (
+          <>
+            <polygon points={`${pts[0]![0]},23 ${line} ${pts[pts.length - 1]![0]},23`} fill={`var(--${color})`} fillOpacity={0.15} />
+            <polyline points={line} fill="none" stroke={`var(--${color})`} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          </>
+        )}
+        {/* A zero-length line with round caps stays a round dot under preserveAspectRatio="none", where a circle would stretch. */}
+        {pts.length === 1 && <line x1={pts[0]![0]} y1={pts[0]![1]} x2={pts[0]![0]} y2={pts[0]![1]} stroke={`var(--${color})`} strokeWidth={4} strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
       </svg>
     </div>
   );
