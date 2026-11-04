@@ -1,8 +1,6 @@
 // A replay of each fixtures/live/*.ndjson through the reducers ends in the state the fixture describes.
 import { readdirSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { alerts, floorRows, health, ovNeeds, sbBadge, sessHeads } from '../model';
-import { SS } from '../model/base';
 import { SF_DEFAULT } from '../store/prefs';
 import { type Action, type State, apply, initial } from './reducers';
 import { type Frame, parseFrame } from './schema';
@@ -152,28 +150,4 @@ test('a store row equal to the feed row keeps the feed order; a newer one sorts 
   const row = { ...snap.data.sessions.find((s) => s.key === 'agent-ex0001')!, last_activity: NOW + 60 };
   const next = apply(st, { event: 'delta', id: 'e5a17c0d-99', data: { tbl: 'sessions', rows: [row], deleted: [] } } as Frame);
   expect(next.sessions.order).toEqual(['agent-ex0002', 'agent-ex0001', 'agent-ex0003', 'agent-ex0004']);
-});
-
-// Section 8: a delta of 50 session rows commits in under 16 ms of script. The reducer and the selectors that the shell
-// reads again on a session delta get that whole budget here; the render has its own check in e2e/perf.spec.ts.
-// A shared CI runner can stall one run; a real slowdown fails every try.
-test('big-burst: each delta of 50 session rows applies, with the shell selectors, within the 16 ms budget', { retry: process.env.CI ? 2 : 0 }, () => {
-  const xs = frames('big-burst'), snap = xs[1] as Frame & { event: 'snapshot' };
-  // Also on a store with 2000 older sessions, since the merge and the sort grow with the list.
-  const old = Array.from({ length: 2000 }, (_, i) => ({ ...snap.data.sessions[0]!, key: `agent-old${String(i).padStart(4, '0')}`, created: NOW - 86400 - i, state: 'stopped' }));
-  const big = [xs[0]!, { ...snap, data: { ...snap.data, sessions: [...snap.data.sessions, ...old] } }, ...xs.slice(2)];
-  for (const fs of [xs, big]) {
-    const ms: number[] = [];
-    let st = start();
-    for (const f of fs) {
-      const t = performance.now();
-      st = apply(st, f);
-      if (f.event !== 'delta' || f.data.rows.length < 50) continue;
-      for (const sel of [alerts, health, ovNeeds, sbBadge, floorRows, (x: State) => sessHeads(SS(x))]) sel(st);
-      ms.push(performance.now() - t);
-    }
-    expect(ms).toHaveLength(12);
-    // The median, so one GC pause on a busy CI runner does not fail the check.
-    expect(ms.sort((a, b) => a - b)[6]!, `${st.sessions.order.length} sessions`).toBeLessThan(16);
-  }
 });

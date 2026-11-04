@@ -25,5 +25,5 @@ The shell loads the chunk on the first visit to the view. Vite puts the chunk in
   `await page.context().addCookies([{ name: 'fixture', value: 'private-team', url: 'http://localhost:4174' }])`.
   A `?fixture=<name>` query on an API path, or `V2_LIVE=<name>`, also picks it.
 - To test the fallback polls, answer `/api/live` with a `bye` frame: see `e2e/wire.spec.ts`.
-- `window.__V2_FIXTURE__` is for the shell tests only (`e2e/shell.fixture.ts`): a hand-made store and fixed shell selectors, with no stream.
+- `window.__V2_FIXTURE__` takes a hand-made store and fixed shell selectors, with no stream. No e2e test uses it now.
 - Put the view's tests in `e2e/<view>.spec.ts`.

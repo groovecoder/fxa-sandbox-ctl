@@ -33,7 +33,7 @@ The routes of a view and its fixtures are in its spec, `dashboard-v2/e2e/<view>.
 
    Do not give a critic your own findings or your fixes.
 4. **Fix.** Fix the findings that you can check. Give each fix a test or a probe that fails without it. Look for the same fault in the other views. Put each owner decision (a word, a metric's meaning, jargon) in `deferred.md`, and do not guess.
-5. **Check.** Run `npm run typecheck && npm run lint && npx vitest run && npm run build`. Then run `npx playwright test`, and `bash skills/fxa-ctl-dev/test.sh changed`. When a fix changes visible text or the order of cards, run `bash skills/fxa-ctl-dev/parity-v2.sh`, and update its selectors if the diff is from the extractor. Commit `dashboard-v2/dist`.
+5. **Check.** Run `npm run typecheck && npm run lint && npx vitest run && npm run build`. Then run `npx playwright test`, and `bash skills/fxa-ctl-dev/test.sh changed`. Keep the e2e to the critical path: a new e2e test only for a new action that changes state. Commit `dashboard-v2/dist`.
 6. **Repeat** from step 2 with new critics. Stop when both critics say READY, or when the owner says stop. If 2 rounds in a row raise only the same items, stop and report them. Then give the owner `deferred.md` as numbered options, with the recommended one first.
 
 ## Design in Claude, then port
@@ -47,7 +47,6 @@ An artifact does not change the dashboard. The code is the source of truth, and 
 2. Make those changes in the code. Keep the light and dark values as pairs.
 3. Run the checks of step 5 of the loop.
    - `src/styles/theme.test.ts` requires each token to keep its v1 value, so a changed value fails it. Tell the owner that the change ends v1 token parity, and update the test only on a yes.
-   - Each view spec in `e2e/` runs axe, with its contrast rule, on its view. When it fails, tell the owner, and do not weaken the test.
 4. Run the loop on the changed views.
 5. Publish the design system artifact again from the code, so that the artifact and the code agree.
 

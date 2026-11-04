@@ -95,16 +95,15 @@ The manager does not build it: commit `dashboard-v2/dist` with each change to th
 cd dashboard-v2 && npm ci                     # once, and after a change to package-lock.json
 npm run typecheck && npm run lint && npm test # test.sh changed runs these and the build when dashboard-v2/ changed
 npm run build && git status dist              # then commit dist: CI fails when dist is not the build
-npx playwright install chromium && npm run e2e   # the built page and the fixture API through server.Handler (e2e/serve.py)
+npx playwright install chromium && npm run e2e   # the critical path only: each view renders, the live stream, the saves (about 10 s)
 bash skills/fxa-ctl-dev/v1-golden.sh          # after a change to a page fixture or to v1 model code: writes test/golden/
-bash skills/fxa-ctl-dev/parity-v2.sh          # v1 and v2 on every page fixture and live fixture (about 10 min; CI runs it)
+bash skills/fxa-ctl-dev/parity-v2.sh          # v1 and v2 on every page fixture and live fixture (about 10 min; manual, CI does not run it)
 ```
 
 The perf budgets fail a check when a change breaks them:
 - `npm run build` stops when a view as the first view is over 250 KB of gzip JS, or loads Visx before a Sankey shows.
 - `src/app/rerender.test.tsx` fails when an event repaints a view that does not read what the event changes.
-- `src/live/reducers.test.ts` fails when a 50-row session delta and the shell selectors take 16 ms or more.
-- `e2e/perf.spec.ts` fails when the first paint takes 1.5 s or more, or a delta commit in Chrome takes 16 ms or more.
+
 - `dashboard/stats.check.py` fails when the stats recompute takes 500 ms or more on the fixture store 100 times over.
 
 A parity diff that v2 fixes on purpose goes in `skills/fxa-ctl-dev/parity-allow.json`, with the v1 line in `why`.

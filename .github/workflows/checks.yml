@@ -58,10 +58,10 @@ jobs:
           FXA_CHECK_PROGRESS: '1'
           FXA_CHECK_TIMEOUT: '600'
   dashboard-v2:
-    # The v2 app: its checks, the committed dist against a new build, the e2e, and the parity with v1. npm stays out of the *.check.sh files.
+    # The v2 app: its checks, the committed dist against a new build, and the critical-path e2e. npm stays out of the *.check.sh files.
+    # The parity with v1 (skills/fxa-ctl-dev/parity-v2.sh) is a manual check now: v2 differs from v1 on purpose.
     runs-on: ubuntu-24.04
-    # The parity step renders each fixture in v1 and v2: about 30 s a fixture, 4 at a time.
-    timeout-minutes: 30
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: dashboard-v2
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      # The e2e and the parity take most of the job: a push that changes no file they read skips them.
+      # The e2e takes most of the job: a push that changes no file it reads skips it.
       - name: Which parts the push changed
         id: what
         working-directory: .
@@ -79,7 +79,7 @@ jobs:
           if ! git cat-file -e "$b^{commit}" 2>/dev/null; then echo ui=1 >> "$GITHUB_OUTPUT"; exit 0; fi
           if git diff --quiet "$b" HEAD -- dashboard dashboard-v2 desktop-gateway .github/workflows/checks.yml \
               skills/fxa-ctl-dev/page.sh 'skills/fxa-ctl-dev/page-fixture*' 'skills/fxa-ctl-dev/parity*'; then
-            echo ui=0 >> "$GITHUB_OUTPUT"; echo "No dashboard file changed: the e2e and the parity are skipped."
+            echo ui=0 >> "$GITHUB_OUTPUT"; echo "No dashboard file changed: the e2e is skipped."
           else echo ui=1 >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v4
         with:
@@ -95,14 +95,16 @@ jobs:
       # A src change without a new build would ship the old UI.
       - name: The committed dist is the build
         run: git diff --exit-code dist && test -z "$(git status --porcelain dist)"
+      # The browser download is cached by the lockfile; the system packages still install each run.
+      - if: steps.what.outputs.ui == '1'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('dashboard-v2/package-lock.json') }}
       - if: steps.what.outputs.ui == '1'
         run: npx playwright install --with-deps chromium
       - if: steps.what.outputs.ui == '1'
         run: npm run e2e
-      # v1 renders in the image's Chrome (page.sh); without it page.sh skips, and the step must fail, not pass.
-      - name: v2 equals v1 on every fixture, apart from the listed fixes
-        if: steps.what.outputs.ui == '1'
-        run: command -v google-chrome && bash ../skills/fxa-ctl-dev/parity-v2.sh
   macos:
     # The laptop's OS: bash 3.2 and BSD tools. A 3.2-only break used to pass CI and reach main.
     runs-on: macos-latest

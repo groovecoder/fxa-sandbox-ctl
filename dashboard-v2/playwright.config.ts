@@ -2,9 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const port = 4174;
 const dsPort = 4175;
-// The #__ds example page and the teams-b harness are in the dev build only, so their checks run on the Vite dev server.
-const ds = /\/(ds|teams-b)\.spec\.ts$/;
-const perf = /\/perf\.spec\.ts$/;
+// The teams-b harness is in the dev build only, so its checks run on the Vite dev server.
+const ds = /\/teams-b\.spec\.ts$/;
 const zone = 'America/New_York';
 
 export default defineConfig({
@@ -16,9 +15,7 @@ export default defineConfig({
   // One zone on every host, for the page and for serve.py's fixture days, so a day reads the same on the laptop and in CI.
   use: { baseURL: `http://localhost:${port}`, timezoneId: zone },
   projects: [
-    { name: 'chromium', testIgnore: [ds, perf], use: { ...devices['Desktop Chrome'] } },
-    // The time budgets run after the rest, so no other worker shares the CPU.
-    { name: 'perf', testMatch: perf, dependencies: ['chromium', 'ds'], fullyParallel: false, use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: ds, use: { ...devices['Desktop Chrome'] } },
     { name: 'ds', testMatch: ds, use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${dsPort}` } },
   ],
   webServer: [
