@@ -1,6 +1,7 @@
 // The Overview: what needs you, what is running, and the cost, ported from the v1 renderOv* functions.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Boundary } from '../../app/parts';
+import { MODEL, useParts } from '../../app/store';
 import type { ViewChunk } from '../../app/views';
 import { Heatmap, Spark, type ChartColor } from '../../charts';
 import { ago, jiraHref, modelName, plainMd, usd } from '../../format';
@@ -408,7 +409,7 @@ function Hours({ fs, note, now }: P) {
 const ACCESS_TONE = (a: string): Tone => (a === 'everyone' || a === 'open' ? 'ok' : a === 'unknown' ? 'dim' : /user/.test(a) ? 'info' : 'bad');
 
 function Teams({ fs, range, note, now }: P) {
-  const all = useApp((x) => x) as Store, teams = all.feeds.teams, n = rangeName(range);
+  const all = useParts(MODEL), teams = all.feeds.teams, n = rangeName(range);
   const rows0 = useMemo(() => ovTeams(all, range), [all, range]);
   const s = ovStats(fs), spark = useMemo(() => (s ? teamSpark(s.rows ?? [], now) : {}), [s, now]);
   if (!teams) return <Sec id="ov-teams"><h2>Teams, last {n}</h2><EmptyBox>Loading the teams…</EmptyBox></Sec>;

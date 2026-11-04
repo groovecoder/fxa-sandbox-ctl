@@ -4,7 +4,7 @@ import { BarList, StripPlot } from '../../charts';
 import { days, jiraHref, prUrl, usd } from '../../format';
 import type { J } from '../../model/base';
 import { SNAP, jiraSite, laneTitle, teamRepo } from '../../model/pipeline';
-import { useApp } from '../../store';
+import { MODEL, useParts } from '../../app/store';
 import { Card, EmptyBox } from '../../ui';
 import { doneRows, median, weekOf } from './data';
 import { Ext, Tile } from './parts';
@@ -13,7 +13,7 @@ type Col = 'key' | 'title' | 'merged' | 'took' | 'by' | 'cost';
 const COLS: [Col, string][] = [['key', 'Ticket'], ['title', 'Title'], ['merged', 'Merged'], ['took', 'Days to merge'], ['by', 'Merged by'], ['cost', 'Cost']];
 
 export function Done() {
-  const s = useApp((x) => x), snap = SNAP(s), tickets = (s.feeds.stats?.data as J)?.tickets;
+  const s = useParts(MODEL), snap = SNAP(s), tickets = (s.feeds.stats?.data as J)?.tickets;
   const [sort, setSort] = useState<{ col: Col; up: boolean }>({ col: 'merged', up: false });
   const prs = snap?.merged_prs, rows = doneRows(snap), lbl = snap?.team?.pr_label, cap = snap?.limits?.merged_prs ?? prs?.length ?? 0;
   if (!snap) return <div id="s-done"><EmptyBox>Loading the pipeline…</EmptyBox></div>;

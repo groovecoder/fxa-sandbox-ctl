@@ -1,7 +1,7 @@
 // Sandboxes (#runners): the cards, the runner timeline and slot grid, the list, Needs a fix, Recently completed and the details.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Boundary } from '../../app/parts';
-import { useStoreState } from '../../app/store';
+import { MODEL, useParts } from '../../app/store';
 import type { ViewChunk } from '../../app/views';
 import { jiraHref, plainMd, prHref, short, usd } from '../../format';
 import { getJson } from '../../live/api';
@@ -198,7 +198,7 @@ function Done({ s, tab }: { s: Store; tab: Tab }) {
 }
 
 function Main() {
-  const s = useStoreState();
+  const s = useParts(MODEL);
   const tab = tabOf(s.route.tab), sel = s.route.view === 'runners' ? s.route.sel : '';
   const [said, setSaid] = useState('');
   // A selected row that left the tab: clear it, and put the focus in the list when it was in the panel.

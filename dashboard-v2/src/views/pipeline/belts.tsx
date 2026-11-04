@@ -7,7 +7,9 @@ import { beltCount, boardItems, beltGroups } from '../../model';
 import { LANE_ST, type J } from '../../model/base';
 import { SNAP, hasChecks, jiraSite, laneTitle, openPrCounts, teamRepo } from '../../model/pipeline';
 import { badPipeLink, sessTabOf } from '../../router';
-import { connect, useApp } from '../../store';
+import { MODEL, useParts } from '../../app/store';
+import type { State } from '../../live/reducers';
+import { connect } from '../../store';
 import type { Store } from '../../store/types';
 import { Card, CheckBars, EmptyBox, Tag } from '../../ui';
 import { cx } from '../../ui/tone';
@@ -54,7 +56,7 @@ function trackCost(agents: J) {
 
 
 export function Belts() {
-  const s = useApp((x) => x);
+  const s = useParts<State>((x) => [...MODEL(x), x.tails, x.flow, x.live.sid]);
   const g: J = beltGroups(s), snap = SNAP(s), sel = s.route.sel, bad = useBadLink();
   const [stops, setStops] = useState<[number, number] | null>(null);
   const box = useRef<HTMLDivElement>(null);

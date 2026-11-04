@@ -1,0 +1,111 @@
+// @vitest-environment jsdom
+// The jsdom import.meta.url is not a file URL, so the paths start at dashboard-v2, where npm test runs.
+// The render count budget: one event repaints only the views that read what it changes.
+import { readFileSync } from 'node:fs';
+import { act, cleanup, render } from '@testing-library/react';
+import { Profiler, type ComponentType } from 'react';
+import { afterAll, beforeAll, expect, test, vi } from 'vitest';
+import { parseFrame, type Frame } from '../live/schema';
+import { dispatch, store } from '../store';
+import type { ViewId } from '../router/types';
+import { App } from './App';
+import { modelSel } from './store';
+import { VIEWS } from './views';
+
+const NOW = 1793750400;
+const frames = (name: string): Frame[] =>
+  readFileSync(`${process.cwd()}/fixtures/live/${name}.ndjson`, 'utf8').split('\n').filter(Boolean).map(parseFrame);
+const BASIC = frames('basic');
+const at = (id: string) => BASIC.find((f) => f.id === id)!;
+// The page.sh time rule of the v1 stats fixture: "@iso-3600" is an hour before NOW.
+const rel = (v: unknown): unknown => {
+  if (Array.isArray(v)) return v.map(rel);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, rel(x)]));
+  const m = typeof v === 'string' ? /^@(iso|epoch|day)([+-]\d+)$/.exec(v) : null;
+  if (!m) return v;
+  const t = NOW + Number(m[2]);
+  return m[1] === 'epoch' ? t : m[1] === 'day' ? new Date((NOW + Number(m[2]) * 86400) * 1000).toISOString().slice(0, 10) : new Date(t * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
+};
+const STATS = rel(JSON.parse(readFileSync(`${process.cwd()}/../skills/fxa-ctl-dev/page-fixture-stats.json`, 'utf8'))['/api/stats']) as Record<string, unknown>;
+
+const counts: Partial<Record<ViewId, number>> = {};
+const mains: Partial<Record<ViewId, ComponentType>> = {};
+
+beforeAll(async () => {
+  vi.useFakeTimers({ now: NOW * 1000, toFake: ['Date'] });
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  // The reads that a view starts never answer, so only the events below change the store.
+  vi.stubGlobal('fetch', () => new Promise(() => {}));
+  // No hello: a stream id would make Belts open a stream.
+  dispatch({ event: 'viewer', data: { user: 'user@example.com', admin: true, teams: ['example'] } });
+  dispatch(at('e5a17c0d-41'));
+  dispatch({ event: 'stats-base', data: { stats: STATS, etag: '"base"' } });
+  for (const v of VIEWS) mains[v.id] = (await v.load!()).default.Main;
+  render(
+    <>
+      {VIEWS.map((v) => {
+        const Main = mains[v.id]!;
+        return <Profiler key={v.id} id={v.id} onRender={() => (counts[v.id] = (counts[v.id] ?? 0) + 1)}><Main /></Profiler>;
+      })}
+    </>,
+  );
+});
+afterAll(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+// The views that commit for one event.
+function repaints(f: Frame): ViewId[] {
+  for (const v of VIEWS) counts[v.id] = 0;
+  act(() => dispatch(f));
+  return VIEWS.map((v) => v.id).filter((id) => counts[id]);
+}
+
+test('a ping repaints no view', () => {
+  expect(repaints({ event: 'ping', data: {} } as Frame)).toEqual([]);
+});
+
+test('a delta that only marks a routine or a history row repaints no view', () => {
+  expect(repaints(at('e5a17c0d-45'))).toEqual([]);
+  expect(repaints(at('e5a17c0d-47'))).toEqual([]);
+});
+
+test('a terminal line repaints only the views that show a terminal', () => {
+  expect(repaints(at('e5a17c0d-43'))).toEqual(['pipeline']);
+});
+
+test('an errors delta repaints Errors, and not the views without errors', () => {
+  const r = repaints(at('e5a17c0d-46'));
+  expect(r).toContain('errors');
+  for (const v of ['pipeline', 'sessions', 'stats', 'runners'] as const) expect(r).not.toContain(v);
+});
+
+test('a stats frame repaints Stats, and not Errors', () => {
+  const r = repaints({ id: 'e5a17c0d-60', event: 'stats', data: { base: '"base"', etag: '"next"', rows_add: [{ src: 'slack', key: 'agent-ex0009', usd: 1, at: new Date(NOW * 1000).toISOString() }] } } as Frame);
+  expect(r).toContain('stats');
+  expect(r).not.toContain('errors');
+});
+
+test('a flow point repaints only the Pipeline flow', () => {
+  expect(repaints(at('e5a17c0d-51'))).toEqual(['pipeline']);
+});
+
+test('a session delta repaints Sessions', () => {
+  expect(repaints(at('e5a17c0d-52'))).toContain('sessions');
+});
+
+test('a store change that the view does not read gives no repaint of the view in the shell', async () => {
+  const errs = VIEWS.find((v) => v.id === 'errors')!, load = errs.load;
+  let n = 0;
+  errs.load = async () => ({ default: { Main: () => <Profiler id="m" onRender={() => n++}><p>the errors main</p></Profiler> } });
+  location.hash = '#errors/open';
+  const { findByText } = render(<App store={store} sel={modelSel} />);
+  await act(async () => { await findByText('the errors main'); });
+  n = 0;
+  act(() => dispatch({ event: 'ping', data: {} } as Frame));
+  act(() => dispatch(at('e5a17c0d-43')));
+  expect(n).toBe(0);
+  errs.load = load;
+});
