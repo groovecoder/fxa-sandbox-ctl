@@ -78,7 +78,7 @@ cd ~/Desktop/working2/fxa-agent-bot && npm test
 bash skills/fxa-ctl-dev/prove.sh lib/x.check.sh lib/x.sh   # the check fails without your change (PROVE_BASE=<rev> once committed)
 ```
 
-Run `test.sh changed` before each push, and let CI run the full suite. Use `test.sh`, not a loop of your own: it counts a check that
+Run `test.sh changed` before each push, and let CI run the full suite. For the desktop gateway's check, make `desktop-gateway/.venv` once (the skip line gives the command). `test.sh` also finds the main worktree's venv. Use `test.sh`, not a loop of your own: it counts a check that
 fails to start or exits nonzero as a failure. (A hand loop once reported "all pass"
 because macOS has no `timeout`, so no check ran.)
 
@@ -119,6 +119,19 @@ change, then with the named files put back to `HEAD`, and restores them.
 A change to a function with outside calls gets a stubbed test: define the
 outside command as a shell function that fails the first time, then check
 the retry. Put a counter in a file, not a variable: `$(...)` runs in a subshell.
+
+## A large change with parallel agents
+
+For a change that agents build in parallel worktrees, such as a workflow with waves of workstreams. In the dashboard v2 build (11-03), tests took 8.3 of 14 agent-hours, and serial stages put 2.7 h on the critical path.
+
+1. A workstream agent runs `test.sh changed <its branch point>` and only its own specs. Without a base, `test.sh changed` also runs the checks for every file that the whole branch changed since origin/main. Only the merge step runs the checks for the whole branch.
+2. An agent waits on its own background task's output file. Never wait with `pgrep -f 'test.sh changed'`, because that also matches the runs of other agents in other worktrees.
+3. Each workstream agent fixes its own review findings. Do not add a serial fix pass.
+4. Run in parallel each stage that does not need the result of the stage before it. Use a barrier only when a stage needs all the earlier results.
+5. Push the branch to `improve/<topic>` after each merge, after the person chooses that result. CI then runs on Ubuntu, in UTC, while the next wave builds.
+6. Each stage calls `log()` with what it is doing and its expected end, so that a status question gets an answer from `/workflows`.
+
+`test.sh` writes a note to stderr when other runs share the host. Eight runs at once took 10 min each, against 2 to 3 min for one.
 
 ## Steps only the operator can run
 
