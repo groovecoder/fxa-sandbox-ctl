@@ -158,10 +158,10 @@ test('selection: the hash session when in the tab, else the first head; the deta
   await expect(bar(page).locator('.key')).toHaveText('agent-live02');
   await expect(kv(page, 'Owner')).toHaveText('Other Person');
   await expect(side(page).locator('.si[aria-current]')).toHaveAttribute('data-id', 'agent-live02');
-  // agent-old001 is stopped: the live tab shows its first head, the newest.
+  // agent-old001 is stopped: the live tab shows its first head in the feed order, as v1 does.
   await page.goto('/v2/#sessions/live/agent-old001');
-  await expect(bar(page).locator('.key')).toHaveText('agent-fix001');
-  await expect(kv(page, 'Routine')).toHaveText('Dependency fix: #90001 (label by octo-example)');
+  await expect(bar(page).locator('.key')).toHaveText('agent-live01');
+  await expect(kv(page, 'Owner')).toHaveText('Sample Person');
 });
 
 test('empty: "No <tab> session." with "See stopped sessions", and none on stopped; no details panel', async ({ page }) => {
