@@ -1,11 +1,14 @@
 // The pipeline: the snapshot per team, runner cards, the board, belts and the queue, ported from dashboard/index.html.
 import { REPO_RE, days, plainMd, short } from '../format';
-import type { Store } from '../store/types';
+import type { FeedName, Store } from '../store/types';
 import { AGENTS, type J, LANE_ST, PIPE_LISTS, SS, STATE, TEAM_ADMIN, memo } from './base';
 import { chainOf, ownerName, sessHeads, sessRoutine } from './sessions';
 
+// The snapshot feeds: the full one and each team's. Not s.feeds, which changes on each errors delta and stats frame.
+const snapFeeds = (s: Store) => [s.feeds.full, ...Object.keys(s.feeds).filter((n) => n.startsWith('team:')).map((n) => s.feeds[n as FeedName])];
+
 // The picked team's snapshot, or for All teams every team's lists joined, each item tagged with its team.
-export const pipe = memo((s) => [s.feeds, s.prefs.pipeTeam], (s) => {
+export const pipe = memo((s) => [s.prefs.pipeTeam, ...snapFeeds(s)], (s) => {
   const f = s.feeds.full, snaps: Record<string, J> = { fxa: { snapshot: f?.data ?? null, error: f?.error ?? null, age_seconds: f?.ageSeconds ?? null } };
   for (const [n, t] of Object.entries(s.feeds)) if (n.startsWith('team:') && t) snaps[n.slice(5)] = { snapshot: t.data ?? null, error: t.error, age_seconds: t.ageSeconds };
   const keyTeam: Record<string, string> = {}, PIPE_TEAM = s.prefs.pipeTeam;
@@ -168,7 +171,7 @@ export function boardState(s: Store, col: string): string {
   return '';
 }
 
-export const laneRows = memo((s) => [merged(s), pipe(s), s.sessions, s.viewer], (s): J[] => {
+export const laneRows = memo((s) => [merged(s), pipe(s), s.sessions, s.viewer, s.feeds.teams], (s): J[] => {
   const { cards } = merged(s), snap = SNAP(s), med = snap?.telemetry?.median_minutes, rows: J[] = [], seen = new Set<string>();
   cards.forEach((t) => {
     seen.add(t.key);
@@ -243,7 +246,7 @@ export const BELT_GROUPS = [['working', 'Working now', 'an agent runs in a sandb
 // Kinds where something is broken (red), not waiting on a decision (amber).
 export const BROKEN = new Set(['stalled', 'dead_vm', 'attempts', 'rounds', 'infra', 'fault', 'ci_red', 'conflicts', 'relock']);
 // Each key goes to one group, from classify() through boardItems(), so the groups, the tab count and Needs you agree.
-export const beltGroups = memo((s) => [boardItems(s), laneRows(s), s.feeds, s.viewer], (s): J => {
+export const beltGroups = memo((s) => [boardItems(s), laneRows(s), pipe(s), STATE(s), AGENTS(s), s.viewer], (s): J => {
   const snap = SNAP(s), items: J[] = snap ? boardItems(s) : [], byKey = Object.fromEntries(items.map((i) => [i.key, i]));
   const g: J = { working: [], needs: [], fixes: [], review: [], outside: [] }, placed = new Set<string>(), admin = TEAM_ADMIN(s).admin;
   const add = (to: string, r: J) => { placed.add(r.t.key); g[to].push({ ...r, group: to, item: r.item ?? byKey[r.t.key] }); };

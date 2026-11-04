@@ -2,13 +2,13 @@
 import { short } from '../format';
 
 import { AGENTS, type J, KEY_RE, LANE_ST, LIVE_SESSION, SS, STATE, TEAM_ADMIN, memo } from './base';
-import { SNAP, beltGroups, boardState, merged, stopName, strayRun, strays } from './pipeline';
+import { SNAP, beltGroups, boardState, merged, pipe, stopName, strayRun, strays } from './pipeline';
 import { ageOf, convTitle, fixLabel, isFix, ownerName, sessHref, sessTabOf, sessUsd } from './sessions';
 
 const agentsStale = (st: J) => !!(st.agents_age_seconds != null && st.agents_interval && st.agents_age_seconds > 3 * st.agents_interval);
 
 // A row per pool slot and live session; a non-admin sees a routine run only as a scheduled run.
-export const floorRows = memo((s) => [s.feeds, s.sessions, s.viewer, beltGroups(s), merged(s)], (s): J => {
+export const floorRows = memo((s) => [STATE(s), AGENTS(s), pipe(s), s.feeds.stats, s.sessions, s.viewer, beltGroups(s), merged(s)], (s): J => {
   const g = AGENTS(s), st = STATE(s), stale = agentsStale(st), admin = !!TEAM_ADMIN(s).admin;
   if (!g || st.agents_error) return { unknown: true, stale, rows: [], slots: 0, admin };
   const bg = beltGroups(s), rowBy = new Map(['working', 'needs', 'fixes', 'review'].flatMap((k) => bg[k]).map((r: J) => [r.t.key, r]));
@@ -81,7 +81,7 @@ export function fixCmd(row: J, stale: boolean): string | null {
 }
 
 // One list of every sandbox, built on the floor rows. A fix row bills with no run, or holds a slot no run uses.
-export const sbRows = memo((s) => [floorRows(s), s.feeds, s.sessions, strays(s)], (s): J => {
+export const sbRows = memo((s) => [floorRows(s), STATE(s), AGENTS(s), pipe(s), s.feeds.stats, s.sessions, strays(s)], (s): J => {
   const g = AGENTS(s), fr = floorRows(s), stale = fr.stale || fr.unknown, out: J = { live: [], fix: [], free: [], unknown: [], stale, err: null, sessionFree: null };
   const st = STATE(s), snap = SNAP(s);
   if (fr.unknown) { out.err = g ? st.agents_error || 'the agents feed could not be read' : null; return out; }

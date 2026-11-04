@@ -1,9 +1,9 @@
 // The health word and the alerts, ported from renderStatus and renderAlerts in dashboard/index.html.
 import { ago, short } from '../format';
 import { AGENTS, type J, STATE, memo } from './base';
-import { SNAP, merged, queueWaits, stopName, strayRun, strays } from './pipeline';
+import { SNAP, merged, pipe, queueWaits, stopName, strayRun, strays } from './pipeline';
 
-export const health = memo((s) => [s.feeds, s.prefs.pipeTeam, s.conn.mode], (s): { level: '' | 'dead' | 'warn' | 'paused'; word: string; title: string } => {
+export const health = memo((s) => [pipe(s), AGENTS(s), STATE(s), s.conn.mode], (s): { level: '' | 'dead' | 'warn' | 'paused'; word: string; title: string } => {
   const snap = SNAP(s), g = AGENTS(s), st = STATE(s), h = snap?.health ?? {};
   // The server cannot be reached: the health is unknown, not the last state.
   if (s.conn.mode === 'offline') return { level: 'dead', word: 'unknown', title: 'Server unreachable' };
@@ -23,7 +23,7 @@ export const health = memo((s) => [s.feeds, s.prefs.pipeTeam, s.conn.mode], (s):
 
 export type AlertRow = { tone: 'bad' | 'warn'; subject: string; what: string; fix?: string };
 // The faults a person fixes. subject is a feed or a key; fix, when given, is the command that fixes it.
-export const alerts = memo((s) => [s.feeds, s.sessions, s.prefs.pipeTeam], (s): AlertRow[] => {
+export const alerts = memo((s) => [pipe(s), AGENTS(s), STATE(s), merged(s), strays(s)], (s): AlertRow[] => {
   const snap = SNAP(s), g = AGENTS(s), st = STATE(s), out: AlertRow[] = [], h = snap?.health ?? {};
   const add = (tone: 'bad' | 'warn', subject: string, what: string, fix?: string) => out.push(fix ? { tone, subject, what, fix } : { tone, subject, what });
   const staleFeed = (name: string, age: J, every: J) => age != null && every && age > 3 * every &&

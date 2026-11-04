@@ -49,8 +49,12 @@ export function sessHeads(ss: Session[]): Session[] {
   return ss.filter((x) => !older.has(x.key));
 }
 // A head and the sessions behind it, newest first.
+// One key map per list: SS(s) keeps its array until the sessions change, and the floor asks once per live session.
+const BY = new WeakMap<Session[], Map<string, Session>>();
 export function chainOf(x: Session, ss: Session[]): Session[] {
-  const by = new Map(ss.map((y) => [y.key, y])), out: Session[] = [];
+  let by = BY.get(ss);
+  if (!by) BY.set(ss, (by = new Map(ss.map((y) => [y.key, y]))));
+  const out: Session[] = [];
   for (let y: Session | undefined = x; y && out.length < 50; y = by.get(y.resume_from as string)) out.push(y);
   return out;
 }
@@ -72,10 +76,16 @@ export const convTitle = (s: Store, x: J): string => {
   const ch = chainOf(x, SS(s));
   return firstLine(ch[ch.length - 1]?.request);
 };
+// The first recorded name of each Slack user, in list order, as the v1 find gives it.
+const NAMES = memo((s) => [SS(s)], (s) => {
+  const m = new Map<unknown, string>();
+  for (const y of SS(s)) if (y.owner_name && !m.has(y.owner)) m.set(y.owner, y.owner_name as string);
+  return m;
+});
 // A session's owner: its own name, else the name another session of the same Slack user recorded.
 export function ownerName(s: Store, x: J): string {
   if (x.owner_name) return x.owner_name;
-  return (SS(s).find((y) => y.owner === x.owner && y.owner_name)?.owner_name as string) || x.owner || '';
+  return NAMES(s).get(x.owner) || x.owner || '';
 }
 
 export const sessTabOf = (x: J) => (x.state === 'paused' ? 'paused' : LIVE_SESSION.includes(x.state) ? 'live' : 'stopped');
