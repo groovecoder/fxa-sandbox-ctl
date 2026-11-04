@@ -202,29 +202,40 @@ return JSON.stringify(out);'
 
 # parity-fixture-*.json are v1 page fixtures for a view's probes only, so v1-golden.sh does not read them.
 [ $# -gt 0 ] || set -- "$here"/page-fixture*.json "$here"/parity-fixture*.json "$v2"/fixtures/live/*.ndjson
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"; pid=""
-trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true; rm -rf "$tmp"' EXIT
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/parity-v2.XXXXXX")"
+trap 'kill $(jobs -p) 2>/dev/null || true; wait 2>/dev/null; rm -rf "$tmp"' EXIT
 printf '%s' "$PROBE" > "$tmp/probe.js"
 # A fresh build in a temp folder: the committed dist stays as it is.
 ( cd "$v2" && npx vite build --outDir "$tmp/dist" --emptyOutDir --logLevel error ) || { echo "FAIL the v2 build"; exit 1; }
-port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
-bad=0
-for f in "$@"; do
-  n="$(basename "${f%.*}")" fx="$f" src=(--fixture "$f") now=""
+# one <fixture>   Both pages and the compare for one fixture, on its own port; exit 1 on a diff or a failure.
+one() {
+  local f="$1" n fx src now="" r c port pid
+  n="$(basename "${f%.*}")" fx="$f" src=(--fixture "$f")
   if [ "${f%.ndjson}" != "$f" ]; then
     # A live fixture has fixed times, so both pages get the same clock: an age then reads the same.
     fx="$tmp/$n.fx.json" src=(--live "$f") now="$(date +%s)"
-    python3 "$v2/e2e/serve.py" --live "$f" --v1 > "$fx" || { echo "FAIL $n: serve.py --v1"; bad=1; continue; }
+    python3 "$v2/e2e/serve.py" --live "$f" --v1 > "$fx" || { echo "FAIL $n: serve.py --v1"; return 1; }
   fi
   # The view probes visit many routes: the virtual time must cover every sleep.
-  r="$(PAGE_NOW="$now" PAGE_BUDGET="${PAGE_BUDGET:-45000}" bash "$here/page.sh" '#overview' --fixture "$fx" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { echo "$r"; exit 0; }; echo "FAIL $n: v1: $r"; bad=1; continue; }
+  r="$(PAGE_NOW="$now" PAGE_BUDGET="${PAGE_BUDGET:-45000}" bash "$here/page.sh" '#overview' --fixture "$fx" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { printf '%s\n' "$r" > "$tmp/skip"; return 0; }; echo "FAIL $n: v1: $r"; return 1; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
-  python3 "$v2/e2e/serve.py" --port "$port" "${src[@]}" --dist "$tmp/dist" > "$tmp/serve.log" 2>&1 & pid=$!
+  port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+  python3 "$v2/e2e/serve.py" --port "$port" "${src[@]}" --dist "$tmp/dist" > "$tmp/$n.serve.log" 2>&1 & pid=$!
+  trap 'kill "$pid" 2>/dev/null || true' EXIT
   for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
-  ( cd "$v2" && PARITY_NOW="$now" node e2e/parity-probe.ts "http://127.0.0.1:$port/v2/#overview" "$tmp/probe.js" ) > "$tmp/$n.v2.json" 2> "$tmp/probe.err" \
-    || { echo "FAIL $n: v2: $(tail -2 "$tmp/probe.err" | tr '\n' ' ')"; bad=1; }
-  kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; pid=""
-  [ -s "$tmp/$n.v2.json" ] || continue
-  compare "$tmp/$n.v1.json" "$tmp/$n.v2.json" "$n" || bad=1
+  ( cd "$v2" && PARITY_NOW="$now" node e2e/parity-probe.ts "http://127.0.0.1:$port/v2/#overview" "$tmp/probe.js" ) > "$tmp/$n.v2.json" 2> "$tmp/$n.probe.err" \
+    || { echo "FAIL $n: v2: $(tail -2 "$tmp/$n.probe.err" | tr '\n' ' ')"; return 1; }
+  [ -s "$tmp/$n.v2.json" ] || return 0
+  compare "$tmp/$n.v1.json" "$tmp/$n.v2.json" "$n"
+}
+# PARITY_JOBS fixtures at a time: most of a fixture's time is the probes' fixed sleeps, not CPU.
+bad=0 k=0 jobs="${PARITY_JOBS:-4}"
+for f in "$@"; do
+  n="$(basename "${f%.*}")"
+  ( one "$f" > "$tmp/$n.out" 2>&1; echo $? > "$tmp/$n.rc" ) &
+  k=$(( k + 1 )); [ $(( k % jobs )) -ne 0 ] || wait
 done
+wait
+[ ! -f "$tmp/skip" ] || { cat "$tmp/skip"; exit 0; }
+for f in "$@"; do n="$(basename "${f%.*}")"; cat "$tmp/$n.out"; [ "$(cat "$tmp/$n.rc" 2>/dev/null)" = 0 ] || bad=1; done
 [ "$bad" = 0 ] && echo "ok   the v2 shell equals v1 on $# fixtures, apart from the listed fixes" || exit 1
