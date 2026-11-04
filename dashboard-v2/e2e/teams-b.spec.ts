@@ -4,8 +4,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-// The harness runs on the Vite dev server (playwright.config.ts starts it for the ds project too).
-const HARNESS = 'http://localhost:4175/v2/e2e/teams-b.html';
+// The harness is in the dev build only: playwright.config.ts runs this spec in the ds project, on the Vite dev server.
+const HARNESS = '/v2/e2e/teams-b.html';
 type Fx = Record<string, unknown>;
 type Post = { url: string; body: Record<string, unknown> };
 type Answer = (p: Post) => { status?: number; body: unknown } | Promise<{ status?: number; body: unknown }>;

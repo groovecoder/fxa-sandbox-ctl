@@ -2,7 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 const port = 4174;
 const dsPort = 4175;
-const ds = /\/ds\.spec\.ts$/;
+// The #__ds example page and the teams-b harness are in the dev build only, so their checks run on the Vite dev server.
+const ds = /\/(ds|teams-b)\.spec\.ts$/;
 const zone = 'America/New_York';
 
 export default defineConfig({
@@ -12,7 +13,6 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${port}`, timezoneId: zone },
   projects: [
     { name: 'chromium', testIgnore: ds, use: { ...devices['Desktop Chrome'] } },
-    // The #__ds example page is in the dev build only, so its check runs on the Vite dev server.
     { name: 'ds', testMatch: ds, use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${dsPort}` } },
   ],
   webServer: [
