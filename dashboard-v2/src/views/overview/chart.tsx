@@ -58,8 +58,8 @@ export function OvChart({ title, summary, table, data: all, series, fmt, stacked
             {series.map((s) => {
               const c = `var(--${s.color})`;
               if (s.mark === 'bar') return <Bar key={s.key} dataKey={s.key} name={s.name} fill={c} stackId={stacked ? 'a' : undefined} isAnimationActive={false} radius={2} />;
-              if (s.mark === 'line') return <Line key={s.key} dataKey={s.key} name={s.name} stroke={c} strokeWidth={2} strokeDasharray={s.dash ? '4 3' : undefined} dot={false} connectNulls={false} isAnimationActive={false} />;
-              if (s.mark === 'band') return <Area key={s.key} dataKey={s.key} name={s.name} stroke="none" fill={c} fillOpacity={0.18} connectNulls={false} isAnimationActive={false} />;
+              if (s.mark === 'line') return <Line key={s.key} dataKey={s.key} name={s.name} stroke={c} strokeWidth={2} strokeDasharray={s.dash ? '4 3' : undefined} dot={false} connectNulls isAnimationActive={false} />;
+              if (s.mark === 'band') return <Area key={s.key} dataKey={s.key} name={s.name} stroke="none" fill={c} fillOpacity={0.18} connectNulls isAnimationActive={false} />;
               return <Area key={s.key} dataKey={s.key} name={s.name} stroke={c} fill={c} fillOpacity={0.35} stackId={stacked ? 'a' : undefined} type="linear" connectNulls={false} isAnimationActive={false} />;
             })}
             {refs.map((r) => <ReferenceLine key={r.label} y={r.y} stroke="var(--ink)" strokeDasharray="4 3" label={{ value: r.label, position: 'insideBottomRight', offset: 6, className: 'ovref' }} />)}
