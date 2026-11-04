@@ -3081,7 +3081,7 @@ cmd_session() {
   done
   set -- ${a[@]+"${a[@]}"}
   if [ -n "$repo" ]; then
-    case "${1:-}" in pr-status|copilot-comments|review-comments|pr-ready|create-jira) ;; *) echo "ERROR: --repo is not for session ${1:-}" >&2; return 2 ;; esac
+    case "${1:-}" in pr-status|ci-rerun|copilot-comments|review-comments|pr-ready|create-jira) ;; *) echo "ERROR: --repo is not for session ${1:-}" >&2; return 2 ;; esac
     _session_key "${2:-}" || return 1
     local idx; idx="$(trees_idx "$2" "$repo")" || { echo "ERROR: ${repo} is not a repo of ${2}" >&2; return 1; }
     ( _tree_enter "$2" "$idx" && cmd_session "$@" ); return
@@ -3101,6 +3101,7 @@ cmd_session() {
         | sort_by(-(.created // 0)) | first | if . then {key, state, profile: (.profile // ""), thread: (.thread // null), owner}
           + {live: (.state | IN("starting", "active", "wrapping"))} else null end' ;;
     pr-status) _session_key "${2:-}" && session_pr_status "$2" ;;
+    ci-rerun) _session_key "${2:-}" && session_ci_rerun "$2" ;;
     copilot-comments) _session_key "${2:-}" && session_copilot_comments "$2" ;;
     review-comments) _session_key "${2:-}" && session_review_comments "$2" "${3:-}" ;;
     pr-ready) _session_key "${2:-}" && session_pr_ready "$2" ;;

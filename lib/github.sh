@@ -117,15 +117,22 @@ _GH_RERUN_RE='internal server error|502 bad gateway|503 service unavailable|504 
 gh_red_rerun() {
   pipeline_require || return 1
   local key="${1:-}"; [ -n "$key" ] || return 1
-  [ "${PIPE_RERUN_INFRA:-1}" != 0 ] && [ "${PIPE_PR_OPEN:-1}" != 0 ] && github_app_enabled 2>/dev/null || return 1
-  local br json num sha mark
+  [ "${PIPE_PR_OPEN:-1}" != 0 ] || return 1
+  local br json
   br="$(worktree_branch_for "$key")" || return 1
   json="$(gh pr list --repo "$PIPE_REPO_SLUG" --state open --head "$br" \
     --json number,headRefOid,statusCheckRollup,isCrossRepository 2>/dev/null \
     | jq -c '[.[] | select(.isCrossRepository | not)][0] // empty' 2>/dev/null)" || return 1
   [ -n "$json" ] || return 1
+  gh_rerun_pr "$json" "${PIPE_STATE_DIR}/${key}.reran"
+}
+
+# gh_rerun_pr <pr json> <mark file>   gh_red_rerun's work for one PR of PIPE_REPO_SLUG.
+#   The json has number, headRefOid and statusCheckRollup; the mark file holds the sha it last reran.
+gh_rerun_pr() {
+  local json="$1" mark="$2" num sha
+  [ "${PIPE_RERUN_INFRA:-1}" != 0 ] && github_app_enabled 2>/dev/null || return 1
   num="$(jq -r .number <<< "$json")"; sha="$(jq -r .headRefOid <<< "$json")"
-  mark="${PIPE_STATE_DIR}/${key}.reran"
   [ "$(head -1 "$mark" 2>/dev/null)" != "$sha" ] || return 1
   local name url run job path ct="" wf line runs="" wfs="" why="" list=""
   while IFS=$'\t' read -r name url; do

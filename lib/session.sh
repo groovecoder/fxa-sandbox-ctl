@@ -13,7 +13,7 @@
 #   upkeep       session_boots session_idle_sweep session_backup session_prune
 #   watch        _session_activity _session_watch _session_view _session_parse _session_fold
 #   boot         _session_cap _session_boot_label _session_boot_step _session_boot_times
-#   PRs, finish  session_media _session_changes _session_wrap_step session_pr_status session_pr_ready
+#   PRs, finish  session_media _session_changes _session_wrap_step session_pr_status session_ci_rerun session_pr_ready
 #                session_copilot_comments session_review_comments session_create_jira session_review_ack
 #   end, cost    _session_end_facts _session_proxy_cost _session_cost _session_summary_json
 #   pause, stop  sessions_pause sessions_resume session_pause session_stop _session_save
@@ -1216,7 +1216,7 @@ session_pr_status() {
   [ -n "$url" ] || { echo null; return 0; }
   gh pr view "$url" --json state,reviewDecision,statusCheckRollup,latestReviews,isDraft,mergeable,title,body,headRefName,headRefOid,reviewRequests 2>/dev/null \
     | jq -c --arg url "$url" --arg infra "${PIPE_INFRA_CHECKS:-extract=Bad credentials}" '
-      ($infra | split(" ") | map(split("=")[0])) as $inf
+      ($infra | split(",") | map(split("=")[0])) as $inf
       | [.statusCheckRollup[]? | {name: (.name // .context),
           done: (if .status then .status == "COMPLETED" else ((.state // "") | IN("PENDING", "EXPECTED") | not) end),
           bad: ((.conclusion // .state // "") | IN("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")),
@@ -1230,6 +1230,16 @@ session_pr_status() {
          running: any($c[]; .done | not),
          # A thread reply of the App (session_review_ack) is a review by the App: never feedback.
          reviews: [.latestReviews[]? | select(.author.login != "fxa-agent") | {login: .author.login, state, at: .submittedAt}]}' || echo null
+}
+
+# session_ci_rerun <key>   For the session's PR, gh_red_rerun's one rerun of CI that failed outside the change.
+#   Prints why on a rerun; exit 1 otherwise (then the bot's CI round runs as before).
+session_ci_rerun() {
+  local p json; p="$(_session_pr_parts "$1")" || return 1
+  local PIPE_REPO_SLUG="${p%%$'\t'*}"
+  json="$(gh pr view "${p##*$'\t'}" --repo "$PIPE_REPO_SLUG" --json number,state,headRefOid,statusCheckRollup 2>/dev/null)" || return 1
+  [ "$(jq -r .state <<< "$json")" = OPEN ] || return 1
+  gh_rerun_pr "$json" "${SESSION_DIR}/${1}.${PIPE_REPO_SLUG//\//_}.reran"
 }
 
 # _session_pr_parts <key>   "owner/repo<TAB>number" of the session's PR, or nothing.

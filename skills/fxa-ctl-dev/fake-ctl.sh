@@ -21,6 +21,8 @@
 #   FAKE_DIFF_LINE one more added line in the one-repo diff (a token, to test the upload mask)
 #   FAKE_COPILOT_AT  seconds after a PR opens at which Copilot reviews it ("5 60"): pr-status shows
 #                  the latest review so far, and copilot-comments one comment
+#   FAKE_CI_FAIL   CI fails once it is done; ci-rerun prints this text as the reason the first time for
+#                  each session, then refuses. Each rerun gives the failed job a new link, as real CI does
 #   FAKE_ANSWER_S  seconds the quick look takes, so a test can talk during it
 #   FAKE_ANSWER    the quick look's answer text; unset, the quick look says busy (exit 3) and a session starts
 #   FAKE_ANSWER_JIRA  one @@jira-draft JSON per line: the nth quick look returns line n (the last one after that)
@@ -143,9 +145,11 @@ prstatus() {
   local st=OPEN; [ -n "${FAKE_MERGE_S:-}" ] && [ "$(now)" -ge $(( f + 12 + FAKE_MERGE_S )) ] && st=MERGED
   local o rv=""; for o in ${FAKE_COPILOT_AT:-}; do [ "$(now)" -ge $(( f + 12 + o )) ] && rv="$(( f + 12 + o ))"; done  # the latest only, like latestReviews
   jq -n --arg u "$u" --arg st "$st" --argjson ci "$(( $(now) - f - 12 < CI_S ? 0 : 1 ))" --arg rv "$rv" \
-    '{state: $st, draft: ($st == "OPEN"), url: $u, ci: (if $ci == 1 then "pass" else "running" end), running: ($ci == 0),
+    --arg fail "${FAKE_CI_FAIL:-}" --arg n "$( [ -e "$DIR/$1/reran" ] && echo 2 || echo 1)" \
+    '{state: $st, draft: ($st == "OPEN"), url: $u, ci: (if $ci == 0 then "running" elif $fail != "" then "fail" else "pass" end), running: ($ci == 0),
       reviews: [$rv | splits(" ") | select(. != "") | {login: "copilot-pull-request-reviewer", state: "COMMENTED", at: (tonumber | todate)}],
-      mergeable: "MERGEABLE", failing: [], infra: [], links: [], jira: null}'
+      mergeable: "MERGEABLE", jira: null, infra: []}
+    + (if $ci == 1 and $fail != "" then {failing: ["unit"], links: ["https://ci.example.com/job/\($n)"]} else {failing: [], links: []} end)'
 }
 
 opt() { local want="$1"; shift; while [ $# -gt 0 ]; do [ "$1" = "$want" ] && { echo "${2:-}"; return; }; shift; done; }
@@ -251,6 +255,8 @@ case "$cmd" in
           jq -nc --arg k "$k" --arg o "$(get "$k" owner)" --arg over "$(get "$k" over)" --arg p "${FAKE_FIND_PR_PROFILE:-}" \
             '{key: $k, state: (if $over == "" then "active" else $over end), profile: $p, thread: null, owner: $o, live: ($over == "")}'; } ;;
       pause) echo paused > "$DIR/$1/over" ;;
+      ci-rerun) [ -n "${FAKE_CI_FAIL:-}" ] && [ ! -e "$DIR/$1/reran" ] || exit 1
+        touch "$DIR/$1/reran"; echo "$FAKE_CI_FAIL" ;;
       copilot-comments) [ -n "${FAKE_COPILOT_AT:-}" ] || { echo '[]'; exit 0; }
         jq -nc '[{path: "packages/fxa-settings/src/index.tsx", line: 1, body: "Fake Copilot: this line needs a null check."}]' ;;
       history|review-comments) echo '[]' ;;

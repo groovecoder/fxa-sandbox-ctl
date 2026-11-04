@@ -212,6 +212,15 @@ gh() { printf '%s' '{"state":"OPEN","statusCheckRollup":[{"name":"unit","status"
 check "pr status: running" "running" "$(session_pr_status agent-t2 | jq -r .ci)"
 gh() { printf '%s' '{"state":"OPEN","statusCheckRollup":[{"name":"extract","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://x/1"},{"name":"unit","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://circleci.com/gh/mozilla/fxa/9"}]}'; }
 check "pr status: the links of real failures, not infra" "https://circleci.com/gh/mozilla/fxa/9" "$(session_pr_status agent-t2 | jq -r '.links | join(",")')"
+check "pr status: two team rules, which the record joins with a comma, both count as infra" "extract,unit" \
+  "$(PIPE_INFRA_CHECKS='unit=ECONNRESET,extract=Bad credentials' session_pr_status agent-t2 | jq -r '.infra | join(",")')"
+# A session PR's CI rerun: the shared gh_rerun_pr, for the PR's repo, with a mark for each session and repo.
+gh_rerun_pr() { echo "$PIPE_REPO_SLUG|$(jq -r .number <<< "$1")|${2##*/}"; }
+gh() { printf '%s' '{"number":1,"state":"OPEN","headRefOid":"abc","statusCheckRollup":[]}'; }
+check "ci rerun: the PR's repo and number, a mark in the sessions folder" "mozilla/fxa|1|agent-t2.mozilla_fxa.reran" "$(session_ci_rerun agent-t2)"
+gh() { printf '%s' '{"number":1,"state":"MERGED","statusCheckRollup":[]}'; }
+check "ci rerun: a PR that is not open is not rerun" "1" "$(session_ci_rerun agent-t2 >/dev/null; echo $?)"
+unset -f gh_rerun_pr
 gh() { printf '%s' '{"state":"OPEN","isDraft":true,"mergeable":"CONFLICTING","title":"fix(auth): x","headRefName":"agent-ab12","body":"Closes: FXA-123 and FXA-9","statusCheckRollup":[]}'; }
 check "pr status: draft, mergeable, the first ticket" "true|CONFLICTING|FXA-123" "$(session_pr_status agent-t2 | jq -r '"\(.draft)|\(.mergeable)|\(.jira)"')"
 gh() { printf '%s' '{"state":"OPEN","headRefOid":"abc","reviewRequests":[{"login":"rev1"},{"name":"fxa-team"}],"statusCheckRollup":[]}'; }

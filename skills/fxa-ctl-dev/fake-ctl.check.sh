@@ -39,6 +39,8 @@ check "FAKE_COPILOT_AT: no review yet, then only the latest Copilot review (like
   "$(cop 1030 | grep -c copilot)|$(cop 1060 | grep -o copilot | wc -l | tr -d ' ')|$(cop 1200 | grep -o copilot | wc -l | tr -d ' ')|$([ "$(cop 1060)" != "$(cop 1200)" ] && echo yes)"
 check "FAKE_COPILOT_AT: copilot-comments has one comment; without it, none" "1|0" \
   "$(FAKE_COPILOT_AT=5 f session copilot-comments agent-aa1 | jq length)|$(f session copilot-comments agent-aa1 | jq length)"
+check "FAKE_CI_FAIL: ci-rerun gives the reason once, then refuses; without it, refuses" "1|503 x|1" \
+  "$(f session ci-rerun agent-aa1 >/dev/null; echo $?)|$(FAKE_CI_FAIL='503 x' f session ci-rerun agent-aa1)|$(FAKE_CI_FAIL='503 x' f session ci-rerun agent-aa1 >/dev/null; echo $?)"
 echo 1030 > "$FAKE_NOW_FILE"
 
 f --pipeline pyfxa-team task --id agent-bb2 --owner UA --repos mozilla/PyFxA,mozilla/fxa --prompt-file "$tmp/p.md" >/dev/null
