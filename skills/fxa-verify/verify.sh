@@ -313,7 +313,9 @@ if [ "$FAILED" = 1 ]; then
 fi
 
 echo "Plan (${#files[@]} changed file(s)):"
-for i in "${!plan[@]}"; do IFS='|' read -r label dir cmd <<<"${plan[$i]}"; printf '  %-40s %s\n' "$label" "(cd $dir && $cmd)"; done
+# A run names the rows only; each row's log starts with the command it ran.
+for i in "${!plan[@]}"; do IFS='|' read -r label dir cmd <<<"${plan[$i]}"
+  if [ "$RUN" = 1 ]; then printf '  %s\n' "$label"; else printf '  %-40s %s\n' "$label" "(cd $dir && $cmd)"; fi; done
 [ "$RUN" = 1 ] || { echo; echo "Run it with: bash $0 --run${PLAN:+ --plan $PLAN}"; exit 0; }
 
 logs="${TMPDIR:-/tmp}/fxa-verify-$(id -u)"; rm -rf "$logs"; mkdir -p "$logs"
@@ -329,7 +331,7 @@ for i in "${!plan[@]}"; do
   # would exit 1 on "No tests found". Say so as NOREL, not as a failure.
   case "$cmd" in *--findRelatedTests*) cmd="$cmd --passWithNoTests" ;; esac
   start=$(date +%s)
-  if (cd "$dir" && eval "$cmd") > "$logs/$i.log" 2>&1 9>&-; then v=PASS; else v=FAIL; fail=1; fi
+  if (cd "$dir" && printf '$ %s\n' "$cmd" && eval "$cmd") > "$logs/$i.log" 2>&1 9>&-; then v=PASS; else v=FAIL; fail=1; fi
   # Jest can exit 0 having run nothing; that proves nothing, so say so.
   case "$label" in *tests|*unit|*integration|*scripts|*oauth-api)
     [ "$v" = PASS ] && ! grep -qE 'Tests: +([0-9]+ [a-z]+, )*[0-9]+ passed|[0-9]+ passing' "$logs/$i.log" && v=NONE
