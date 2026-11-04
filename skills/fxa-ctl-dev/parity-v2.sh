@@ -209,7 +209,9 @@ printf '%s' "$PROBE" > "$tmp/probe.js"
 ( cd "$v2" && npx vite build --outDir "$tmp/dist" --emptyOutDir --logLevel error ) || { echo "FAIL the v2 build"; exit 1; }
 # one <fixture>   Both pages and the compare for one fixture, on its own port; exit 1 on a diff or a failure.
 one() {
-  local f="$1" n fx src now="" r c port pid
+  local f="$1" n="" fx="" src=() now="" r="" c=0 port=""
+  # Not local: the subshell's EXIT trap reads it after this function returns.
+  pid=""
   n="$(basename "${f%.*}")" fx="$f" src=(--fixture "$f")
   if [ "${f%.ndjson}" != "$f" ]; then
     # A live fixture has fixed times, so both pages get the same clock: an age then reads the same.
@@ -221,8 +223,9 @@ one() {
   printf '%s' "$r" > "$tmp/$n.v1.json"
   # Port 0: serve.py binds a free port and prints it once it listens, so the parallel fixtures never share one.
   python3 "$v2/e2e/serve.py" --port 0 "${src[@]}" --dist "$tmp/dist" > "$tmp/$n.serve.log" 2>&1 & pid=$!
-  trap 'kill "$pid" 2>/dev/null || true' EXIT
-  for _ in $(seq 100); do port="$(sed -n 's/.*localhost:\([0-9]*\)\/.*/\1/p' "$tmp/$n.serve.log" | head -1)"; [ -n "$port" ] && break; sleep 0.1; done
+  trap 'kill "${pid:-}" 2>/dev/null || true' EXIT
+  # The log can be missing for a moment: the background shell opens it after this loop starts.
+  for _ in $(seq 100); do port="$(sed -n 's/.*localhost:\([0-9]*\)\/.*/\1/p' "$tmp/$n.serve.log" 2>/dev/null | head -1 || true)"; [ -n "$port" ] && break; sleep 0.1; done
   [ -n "$port" ] || { echo "FAIL $n: serve.py did not start: $(tail -2 "$tmp/$n.serve.log" | tr '\n' ' ')"; return 1; }
   ( cd "$v2" && PARITY_NOW="$now" node e2e/parity-probe.ts "http://127.0.0.1:$port/v2/#overview" "$tmp/probe.js" ) > "$tmp/$n.v2.json" 2> "$tmp/$n.probe.err" \
     || { echo "FAIL $n: v2: $(tail -2 "$tmp/$n.probe.err" | tr '\n' ' ')"; return 1; }
@@ -233,10 +236,15 @@ one() {
 bad=0 k=0 jobs="${PARITY_JOBS:-4}"
 for f in "$@"; do
   n="$(basename "${f%.*}")"
-  ( one "$f" > "$tmp/$n.out" 2>&1; echo $? > "$tmp/$n.rc" ) &
+  # The exit code goes to a file whatever one does: a set -e exit in the subshell would leave no code.
+  ( rc=0; one "$f" > "$tmp/$n.out" 2>&1 || rc=$?; echo "$rc" > "$tmp/$n.rc" ) &
   k=$(( k + 1 )); [ $(( k % jobs )) -ne 0 ] || wait
 done
 wait
 [ ! -f "$tmp/skip" ] || { cat "$tmp/skip"; exit 0; }
-for f in "$@"; do n="$(basename "${f%.*}")"; cat "$tmp/$n.out"; [ "$(cat "$tmp/$n.rc" 2>/dev/null)" = 0 ] || bad=1; done
+for f in "$@"; do
+  n="$(basename "${f%.*}")" rc="$(cat "$tmp/$n.rc" 2>/dev/null || echo none)"; cat "$tmp/$n.out"
+  [ "$rc" = 0 ] && continue
+  bad=1; grep -q "^FAIL $n" "$tmp/$n.out" || echo "FAIL $n: the fixture's job exited with $rc"
+done
 [ "$bad" = 0 ] && echo "ok   the v2 shell equals v1 on $# fixtures, apart from the listed fixes" || exit 1
