@@ -58,9 +58,10 @@ jobs:
           FXA_CHECK_PROGRESS: '1'
           FXA_CHECK_TIMEOUT: '600'
   dashboard-v2:
-    # The v2 app: its checks, the committed dist against a new build, and the e2e. npm stays out of the *.check.sh files.
+    # The v2 app: its checks, the committed dist against a new build, the e2e, and the parity with v1. npm stays out of the *.check.sh files.
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # The parity step renders each fixture in v1 and v2: about 30 s a fixture.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: dashboard-v2
@@ -82,6 +83,9 @@ jobs:
         run: git diff --exit-code dist && test -z "$(git status --porcelain dist)"
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
+      # v1 renders in the image's Chrome (page.sh); without it page.sh skips, and the step must fail, not pass.
+      - name: v2 equals v1 on every fixture, apart from the listed fixes
+        run: command -v google-chrome && bash ../skills/fxa-ctl-dev/parity-v2.sh
   macos:
     # The laptop's OS: bash 3.2 and BSD tools. A 3.2-only break used to pass CI and reach main.
     runs-on: macos-latest
