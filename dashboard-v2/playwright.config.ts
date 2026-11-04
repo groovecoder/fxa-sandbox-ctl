@@ -10,7 +10,7 @@ const zone = 'America/New_York';
 export default defineConfig({
   testDir: 'e2e',
   forbidOnly: !!process.env.CI,
-  // Tests in one file run on many workers too: a11y.spec.ts alone took 5.4 min in one worker.
+  // Tests in one file run on many workers too, so a long file does not hold one worker.
   fullyParallel: true,
   workers: process.env.CI ? 4 : undefined,
   // One zone on every host, for the page and for serve.py's fixture days, so a day reads the same on the laptop and in CI.

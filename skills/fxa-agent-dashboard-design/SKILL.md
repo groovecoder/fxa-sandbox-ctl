@@ -47,7 +47,7 @@ An artifact does not change the dashboard. The code is the source of truth, and 
 2. Make those changes in the code. Keep the light and dark values as pairs.
 3. Run the checks of step 5 of the loop.
    - `src/styles/theme.test.ts` requires each token to keep its v1 value, so a changed value fails it. Tell the owner that the change ends v1 token parity, and update the test only on a yes.
-   - `e2e/a11y.spec.ts` runs axe, with its contrast rule, on the views. When it fails, tell the owner, and do not weaken the test.
+   - Each view spec in `e2e/` runs axe, with its contrast rule, on its view. When it fails, tell the owner, and do not weaken the test.
 4. Run the loop on the changed views.
 5. Publish the design system artifact again from the code, so that the artifact and the code agree.
 
