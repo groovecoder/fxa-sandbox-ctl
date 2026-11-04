@@ -164,7 +164,7 @@ test('Teams: the columns, the access tag, the spend and its sparkline, and the n
   const row = t.locator('tr[data-team="example"]');
   await expect(row.getByRole('link', { name: 'Example' })).toHaveAttribute('href', '#teams/example');
   await expect(row.locator('td.bud b')).toHaveText(/^\$\d+\.\d\d$/);
-  await expect(row.getByRole('img', { name: 'Example spend per day, last 30 days' })).toBeVisible();
+  await expect(row.getByRole('img', { name: /^Example spend per day, last 30 days: the top day \$/ })).toBeVisible();
   await expect(t.locator('tr[data-team="fxa"]')).toContainText('everyone');
 });
 

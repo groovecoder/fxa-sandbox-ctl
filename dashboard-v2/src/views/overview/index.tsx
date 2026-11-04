@@ -438,7 +438,7 @@ function Teams({ fs, range, note, now }: P) {
                       <b>{st ? usd(u.usd) : '—'}</b>
                       <span className="hint">{t.budget_error ? 'budget unknown' : cap ? `${usd(b.month_usd)} of ${usd(cap)} this month` : 'no cap'}</span>
                       {cap ? <Meter pct={(100 * b.month_usd) / cap} tone={b.month_usd >= cap ? 'bad' : b.month_usd >= 0.9 * cap ? 'warn' : undefined} label={`${teamName(t)}: ${Math.round((100 * b.month_usd) / cap)}% of this month's cap`} /> : null}
-                      {st && spark[t.profile] && <span className="tspark"><Spark label={`${teamName(t)} spend per day, last 30 days`} values={spark[t.profile]!} /></span>}
+                      {st && spark[t.profile] && <span className="tspark"><Spark label={`${teamName(t)} spend per day, last 30 days: the top day ${usd(spark[t.profile]!.reduce((a, b) => Math.max(a, b), 0))}`} values={spark[t.profile]!} /></span>}
                     </td>
                   </tr>
                 );

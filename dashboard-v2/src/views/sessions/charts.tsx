@@ -1,7 +1,7 @@
 // The Sessions view's pictures: the session timeline, the countdown rings, usage by model, and the Answers columns.
 import { Gantt } from '../../charts';
 import type { GanttMark, GanttRow } from '../../charts';
-import { Frame, NoData, useChartKeys, useWidth } from '../../charts/frame';
+import { ChartFrame, Frame, NoData, useChartKeys, useWidth } from '../../charts/frame';
 import { short, stamp, tokn } from '../../format';
 import type { J } from '../../model/base';
 import { sessTabOf } from '../../model/sessions';
@@ -59,7 +59,7 @@ export function UseBars({ rows }: { rows: J[] }) {
   const table = { head: ['Model', ...PARTS.map((p) => p[1])], rows: rows.map((r) => [String(r.model ?? 'unknown'), ...PARTS.map(([k]) => tokn(r[k]))]) };
   const top = rows.reduce((a: J, r: J) => (sum(r) > sum(a ?? {}) ? r : a), null);
   return (
-    <Frame title="Tokens by kind" summary={`Tokens of ${rows.length} model${rows.length === 1 ? '' : 's'}. Most: ${top?.model ?? 'none'}, ${tokn(top ? sum(top) : 0)}.`} table={table}>
+    <ChartFrame title="Tokens by kind" summary={`Tokens of ${rows.length} model${rows.length === 1 ? '' : 's'}. Most: ${top?.model ?? 'none'}, ${tokn(top ? sum(top) : 0)}.`} table={table}>
       {rows.map((r, i) => (
         <div key={i} className="mb-s1">
           <div className="text-tiny text-dim">{String(r.model ?? 'unknown')}</div>
@@ -69,7 +69,7 @@ export function UseBars({ rows }: { rows: J[] }) {
         </div>
       ))}
       <div className="uselegend" aria-hidden>{PARTS.map(([k, l, c]) => <span key={k}><i className={c} />{l}</span>)}</div>
-    </Frame>
+    </ChartFrame>
   );
 }
 

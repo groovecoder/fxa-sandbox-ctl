@@ -1,5 +1,5 @@
 // The Belts tab (v1 beltsHtml, beltRow, beltDetails): tiles, the 9-stop belts by phase, the outside list, and the flow.
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { Belt, Spark, Terminal, type TerminalState } from '../../charts';
 import { ago, days, jiraHref, plainMd, prUrl, usd } from '../../format';
@@ -199,8 +199,10 @@ function BeltRow({ r, s, open, ageMax }: { r: J; s: Store; open: boolean; ageMax
   const jh = jiraHref(t.key, jiraSite(s, t.key)), ph = prUrl(t.pr, teamRepo(s, t.key)), tone = beltTone(r);
   const age = ageWords(r), secs = ageSecs(r), cost = live ? COST[t.key] ?? [] : [];
   const href = open ? '#pipeline/belts' : `#pipeline/belts/${encodeURIComponent(t.key)}`;
+  // Under MotionConfig "user" a moved row still got a layout transform, so reduced motion turns layout off.
+  const still = useReducedMotion();
   return (
-    <motion.li layout="position" layoutId={`belt-${t.key}`} transition={{ duration: 0.3 }} className={cx('belt', open && 'sel')} data-belt={t.key}>
+    <motion.li layout={still ? false : 'position'} layoutId={still ? undefined : `belt-${t.key}`} transition={{ duration: 0.3 }} className={cx('belt', open && 'sel')} data-belt={t.key}>
       <div className="bgrid brow">
         <span className="tk">
           <SrcBadge kind={t.slack ? 'slack' : t.pr ? 'github' : 'jira'} />

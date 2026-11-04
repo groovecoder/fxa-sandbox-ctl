@@ -7,6 +7,18 @@ import { VIEWS } from './views';
 
 type Row = Record<string, unknown>;
 
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+// Tab wraps inside box, so the focus never leaves it.
+export function wrapTab(e: { key: string; shiftKey: boolean; preventDefault: () => void }, box: HTMLElement) {
+  if (e.key !== 'Tab') return;
+  const f = [...box.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.checkVisibility());
+  const end = e.shiftKey ? f[0] : f[f.length - 1];
+  if (document.activeElement === end || !box.contains(document.activeElement)) {
+    e.preventDefault();
+    (e.shiftKey ? f[f.length - 1] : f[0])?.focus();
+  }
+}
+
 // showModal and close follow open; the opener gets the focus back when the dialog closes.
 function useModal(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -26,19 +38,14 @@ function useModal(open: boolean, onClose: () => void) {
       onClose();
       back.current?.focus?.();
     };
-    // Tab wraps inside the dialog, so the focus never leaves it for the browser frame.
-    const tab = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const f = [...d.querySelectorAll<HTMLElement>('a[href], button, input, [tabindex]:not([tabindex="-1"])')];
-      const end = e.shiftKey ? f[0] : f[f.length - 1];
-      if (document.activeElement === end) {
-        e.preventDefault();
-        (e.shiftKey ? f[f.length - 1] : f[0])?.focus();
-      }
-    };
+    // The focus never leaves the dialog for the browser frame.
+    const tab = (e: KeyboardEvent) => wrapTab(e, d);
+    // Esc: the close event comes a task later, so a fast Enter on the opener would find the state still open.
+    d.addEventListener('cancel', on);
     d.addEventListener('close', on);
     d.addEventListener('keydown', tab);
     return () => {
+      d.removeEventListener('cancel', on);
       d.removeEventListener('close', on);
       d.removeEventListener('keydown', tab);
     };

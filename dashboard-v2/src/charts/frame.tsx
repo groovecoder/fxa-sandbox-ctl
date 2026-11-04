@@ -140,8 +140,13 @@ export function Frame({ title, summary, table, children, note, keys, tip = null 
   );
 }
 
+/** A chart with no point model of its own: the keys step through the rows of its table. */
 export function ChartFrame(props: ChartFrameProps) {
-  return <Frame {...props} />;
+  const { head, rows } = props.table;
+  const k = useChartKeys(rows.length);
+  const r = k.active == null ? null : rows[k.active];
+  const tip = r ? (r.length > 1 ? `${r[0]}: ${r.slice(1).map((c, i) => `${head[i + 1]} ${c}`).join(', ')}` : String(r[0])) : null;
+  return <Frame {...props} keys={k.keys} tip={tip} />;
 }
 
 /** An empty chart says so in words. */
