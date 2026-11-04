@@ -36,6 +36,23 @@ The routes of a view and its fixtures are in its spec, `dashboard-v2/e2e/<view>.
 5. **Check.** Run `npm run typecheck && npm run lint && npx vitest run && npm run build`. Then run `npx playwright test`, and `bash skills/fxa-ctl-dev/test.sh changed`. When a fix changes visible text or the order of cards, run `bash skills/fxa-ctl-dev/parity-v2.sh`, and update its selectors if the diff is from the extractor. Commit `dashboard-v2/dist`.
 6. **Repeat** from step 2 with new critics. Stop when both critics say READY, or when the owner says stop. If 2 rounds in a row raise only the same items, stop and report them. Then give the owner `deferred.md` as numbered options, with the recommended one first.
 
+## Design in Claude, then port
+
+The owner can try token values or a layout in Claude before any code changes:
+- The design system is a Design System artifact: https://claude.ai/artifact/2MUvrz1RqSsJH1KW5cmChn. Read it with the Artifact tool.
+- A new layout is a Design artifact made from that design system. For a new view, make 2 or 3 mockups before you write code.
+
+An artifact does not change the dashboard. The code is the source of truth, and only the code has the checks. When the owner says "port it":
+1. Read the artifact, and list each token or layout change it makes against `dashboard-v2/src/styles/theme.css` and the view's CSS and TSX.
+2. Make those changes in the code. Keep the light and dark values as pairs.
+3. Run the checks of step 5 of the loop.
+   - `src/styles/theme.test.ts` requires each token to keep its v1 value, so a changed value fails it. Tell the owner that the change ends v1 token parity, and update the test only on a yes.
+   - `e2e/a11y.spec.ts` runs axe, with its contrast rule, on the views. When it fails, tell the owner, and do not weaken the test.
+4. Run the loop on the changed views.
+5. Publish the design system artifact again from the code, so that the artifact and the code agree.
+
+Do not use `/design-sync` for this. It is for the standalone claude.ai/design, which closes on December 14, 2026.
+
 ## Traps that cost a round
 
 | Symptom | Cause | Fix |
