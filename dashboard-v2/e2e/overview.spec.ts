@@ -53,7 +53,7 @@ test('the metric tabs: values, the change words, the chart and its table, and th
   await expect(page.locator('#ov-main .ovkinds a').first()).toContainText(/\d+% of spend/);
   // Each metric has its trend line under the value.
   await expect(page.locator('[data-ovmetric="spend"] .msp polyline')).toHaveCount(1);
-  await expect(page.locator('[data-ovmetric="spend"]')).toHaveAccessibleName(/^Spend ?: \$[\d,.]+$/);
+  await expect(page.locator('[data-ovmetric="spend"]')).toHaveAccessibleName(/^Spend ?: \$[\d,.]+( No full 30 days before to compare)?$/);
   await expect(page.locator('[data-ovmetric="spend"]')).not.toHaveAccessibleName(/by day/);
   await expect(page.locator('#ov-main p.vh')).toContainText('Spend in the last 30 days:');
   const chart = page.locator('#ov-main [role="img"][tabindex]');
@@ -92,6 +92,16 @@ test('Activity: the summary, the row fields, a PR link, and a session link to it
   // agent-ex0001 is live in the basic fixture: its link goes to the Live tab, not to Stopped.
   await expect(a.locator('.ovrun[data-run="agent-ex0001"] a.key')).toHaveAttribute('href', '#sessions/live/agent-ex0001');
   await expect(a.locator('.ovrun[data-run="EX-298"]')).toContainText('PR #301 merged');
+});
+
+test('the spacing review: one-line runs when wide, the median legend, the month day, and why a tile has no change', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await open(page, '#overview?metric=median');
+  expect((await page.locator('#ov-runs .ovrun').first().boundingBox())!.height).toBeLessThan(56);
+  await expect(page.locator('#ov-main .ovhead')).toContainText('Shaded: the middle half of the runs');
+  await expect(page.locator('#ov-main .ovhead')).toContainText(/Median \d+ min per pipeline run/);
+  await expect(page.locator('#ov-budget')).toContainText(/Day \d+ of (28|29|30|31)\./);
+  await expect(page.locator('#ov-budget figcaption')).toHaveCSS('position', 'absolute');
 });
 
 test('Activity shows a run whose title is its key once', async ({ page }) => {

@@ -30,7 +30,7 @@ export type CardProps = ToneOption<'warn' | 'bad'> & {
 };
 
 /** A label and value row; na marks a missing value. */
-export type KvProps = { label: string; value: ReactNode; na?: boolean };
+export type KvProps = { label: ReactNode; value: ReactNode; na?: boolean };
 
 export type EmptyBoxProps = { children: ReactNode };
 

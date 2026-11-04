@@ -208,7 +208,10 @@ function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }
         summary={`${title}. ${data.filter((d) => d.v != null).length} days with a run.`}
         table={{ head: ['Day', name, ...(isR ? [] : ['25th to 75th percentile'])], rows: data.map((d) => [d.lbl, d.v == null ? 'none' : f(Number(d.v)), ...(isR ? [] : [d.band ? (d.band as number[]).map(f).join(' to ') : 'none'])]) }} />
     );
-    head = <span className="sub">{isR ? `${k.rate.n} pipeline run${k.rate.n === 1 ? '' : 's'} in the last ${n}` : `Per pipeline run, last ${n}`}</span>;
+    const had = data.filter((d) => d.v != null), lo = had.reduce<Point | null>((a, d) => (!a || Number(d.v) < Number(a.v) ? d : a), null), hi = had.reduce<Point | null>((a, d) => (!a || Number(d.v) > Number(a.v) ? d : a), null);
+    head = <span className="sub">{isR ? `${k.rate.n} pipeline run${k.rate.n === 1 ? '' : 's'} in the last ${n}`
+      : `Median ${mins(k.med.v)} per pipeline run${lo && hi && had.length > 1 ? ` · Fastest day ${lo.lbl}, ${f(Number(lo.v))} · Slowest day ${hi.lbl}, ${f(Number(hi.v))}` : ''}`}</span>;
+    if (!isR) head = <>{head}<div className="ovleg"><span><i className="bg-chart-1" />Line: the median run of the day</span><span><i className="bg-chart-1 op" />Shaded: the middle half of the runs</span></div></>;
   }
   const pk = sp.peak, pkText = m === 'spend' && pk ? `Peak ${shortDay(pk.t)}: ${usd(pk.usd)}${why ? '' : `, ${pk.merged} PR${pk.merged === 1 ? '' : 's'} merged that day`}` : '';
   return (
@@ -222,7 +225,7 @@ function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }
               <span className="ml">{lbl}<span className="vh">: </span></span><span className="mv">{v}</span>
               {/* A trend under the value; hidden from a screen reader, since the button name is the metric and the chart below has the days. */}
               <span className="msp" aria-hidden="true">{!(key === 'merged' && why) && <Spark label={`${lbl} by day, last ${key === 'merged' ? '7 days' : n}`} values={(key === 'merged' ? sp.days.slice(-7) : sp.days).map(SPARK[key])} format={SPARK_FMT[key]} />}</span>
-              <span className="mdelta">{c.t ? <><span className={`chg ${c.c}`.trim()}>{c.t}{c.c && ` ${c.c === 'good' ? 'better' : 'worse'}`}</span> vs the {key === 'merged' ? '7 days' : n} before</> : key === 'merged' && why ? why : ''}</span>
+              <span className="mdelta">{c.t ? <><span className={`chg ${c.c}`.trim()}>{c.t}{c.c && ` ${c.c === 'good' ? 'better' : 'worse'}`}</span> vs the {key === 'merged' ? '7 days' : n} before</> : key === 'merged' && why ? why : v === '—' ? '' : `No full ${key === 'merged' ? '7 days' : n} before to compare`}</span>
             </button>
           );
         })}
@@ -252,7 +255,7 @@ function Budget({ fs, note, now, team }: P) {
         <><div className="ovknote">{note}</div><div className="sub">{who}. The month-end figure is unknown until the stats load again.</div></>
       ) : (
         <>
-          <div className="sub">{who}. At this rate the month ends near <b>${Math.round(b.end).toLocaleString('en-US')}</b>.</div>
+          <div className="sub">{who}. Day {new Date(now).getDate()} of {b.days.length}. At this rate the month ends near <b>${Math.round(b.end).toLocaleString('en-US')}</b>.</div>
           <div className="ovleg"><span><i className="bg-chart-1" />Spent</span><span><i className="bg-chart-muted" />Projected</span></div>
           <OvChart title={`${b.name} spend of ${team ? teamLabel(store.getState(), team) : 'every team'}, so far and projected`} data={data} height={170} fmt={money}
             series={[{ key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}
@@ -355,8 +358,9 @@ function Llm({ fs, note, now, team }: P) {
           summary={`LLM spend by UTC day, last 14 days. Total ${usd(tot)}.`}
           table={{ head: ['UTC day', ...series.map((x) => x.name)], rows: data.map((d) => [String(d.day), ...series.map((x) => usd(Number(d[x.key] ?? 0)))]) }} />
       ) : <EmptyBox>{typeof l.hr === 'number' && l.hr > 0 ? `Daily LLM spend unknown: the proxy logged ${usd(l.hr)} in the last hour, but no day total yet.` : 'No LLM call in the last 14 UTC days.'}</EmptyBox>}
-      {l.top.slice(0, 3).map(([m, v]) => <Kv key={m} label={modelName(m)} value={usd(v)} />)}
-      {l.rest > 0 && <Kv label="Other models" value={usd(l.rest)} />}
+      {/* The swatch ties each model to its colour in the chart; top3 and top share one order. */}
+      {l.top.slice(0, 3).map(([m, v], i) => <Kv key={m} label={<>{l.perDay && <i className={cx('ovsw', ['bg-chart-1', 'bg-chart-2', 'bg-chart-3'][i])} />}{modelName(m)}</>} value={usd(v)} />)}
+      {l.rest > 0 && <Kv label={<>{l.perDay && <i className="ovsw bg-chart-muted" />}Other models</>} value={usd(l.rest)} />}
     </Sec>
   );
 }
