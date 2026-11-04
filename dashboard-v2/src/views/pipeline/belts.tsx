@@ -145,7 +145,7 @@ export function Belts() {
           sub={<>{anyLive && <><span aria-hidden="true" className="ds-live ds-run inline-flex text-info" /> live · </>}{n == null ? '?' : n} belt{n === 1 ? '' : 's'} in all</>} />
         <Tile label="Open PRs" value={pc ? pc.total : '—'} sub={pc ? pc.parts : 'GitHub did not answer'} href={pc ? prHref || undefined : undefined} />
         <Tile label="Merged, 7 days" value={merged ?? '—'}
-          sub={merged == null ? 'GitHub did not answer' : <>pipeline tickets<Spark label={`Merges per day, last 14 days: ${mergesPerDay(done).join(', ')}`} values={mergesPerDay(done)} color="chart-3" /></>} />
+          sub={merged == null ? 'GitHub did not answer' : <>pipeline tickets<Spark label="Merges per day, last 14 days" values={mergesPerDay(done)} color="chart-3" /></>} />
       </div>
       <Where g={g} s={s} sel={sel} bad={bad} done={done} />
       {stops && (
@@ -231,7 +231,7 @@ function BeltRow({ r, s, open, ageMax }: { r: J; s: Store; open: boolean; ageMax
               {secs != null && <i className="agebar" aria-hidden="true" style={{ width: `${(Math.log1p(secs) / Math.log1p(ageMax)) * 100}%` }} />}
             </span>
           )}
-          {cost.length > 1 && <span className="bcost"><Spark label={`Cost so far: ${usd(cost[cost.length - 1])}`} values={cost} /></span>}
+          {cost.length > 1 && <span className="bcost"><Spark label={`Cost so far: ${usd(cost[cost.length - 1])}`} values={cost} format={usd} /></span>}
         </span>
       </div>
       {open && <BeltDetails r={r} s={s} jh={jh} ph={ph} />}

@@ -28,8 +28,8 @@ export type BarListItem = { name: string; value: number; href?: string };
 /** label is the screen reader summary of the list. */
 export type BarListProps = { label: string; items: BarListItem[]; format?: (n: number) => string; color?: ChartColor };
 
-/** A sparkline; a null value is a gap, not 0. */
-export type SparkProps = { label: string; values: (number | null)[]; color?: ChartColor };
+/** A sparkline; a null value is a gap, not 0. The screen reader text is label, then every value in format. */
+export type SparkProps = { label: string; values: (number | null)[]; format?: (n: number) => string; color?: ChartColor };
 
 /** One block per run, oldest first; each block has its word in the tooltip. */
 export type TrackerProps = { label: string; items: (Toned & { tone: Tone; href?: string })[] };

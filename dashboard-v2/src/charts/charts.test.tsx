@@ -131,7 +131,7 @@ describe('the empty and unknown states', () => {
     expect([...container.querySelectorAll<HTMLElement>('li > span > span:first-child')].map((s) => s.style.width)).toEqual(['100%', '50%']);
     expect(screen.getByRole('link', { name: 'other' }).getAttribute('href')).toBe('#teams/other');
     render(<Spark label="Runs per day" values={[1, null, 3]} />);
-    expect(screen.getByRole('img', { name: 'Runs per day' }).querySelectorAll('[tabindex]')).toHaveLength(0);
+    expect(screen.getByRole('img', { name: 'Runs per day. Oldest first: 1, no data, 3' }).querySelectorAll('[tabindex]')).toHaveLength(0);
   });
 });
 

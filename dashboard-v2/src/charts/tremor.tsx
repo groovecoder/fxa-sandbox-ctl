@@ -59,13 +59,15 @@ export function BarList({ label, items, format = String, color = 'chart-1' }: Ba
 }
 
 // Plain SVG, not the Recharts area chart: Recharts is about 80 KB gzip, too much for a sparkline in the first view.
-export function Spark({ label, values, color = 'chart-1' }: SparkProps) {
+export function Spark({ label, values, format = String, color = 'chart-1' }: SparkProps) {
   const max = Math.max(0, ...values.map((v) => v ?? 0)) || 1, n = Math.max(1, values.length - 1);
   // A null is a gap: each run of numbers is its own line and area. y goes from 23 (zero) up to 2 (the max).
   const runs: [number, number][][] = [[]];
   values.forEach((v, i) => (v == null ? runs.push([]) : runs[runs.length - 1]!.push([(i / n) * 100, 23 - (v / max) * 21])));
+  // In place of a "Show as table" disclosure, which does not fit in a table row: the words give every value.
+  const said = `${label}. Oldest first: ${values.map((v) => (v == null ? 'no data' : format(v))).join(', ')}`;
   return (
-    <div role="img" aria-label={label} className="h-s6 w-full">
+    <div role="img" aria-label={said} className="h-s6 w-full">
       <svg width="100%" height="100%" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
         {runs.filter((r) => r.length > 1).map((r) => {
           const line = r.map(([x, y]) => `${x},${y}`).join(' ');
