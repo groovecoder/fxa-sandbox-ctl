@@ -248,7 +248,7 @@ test('palette: Ctrl+K takes the focus, keeps Tab inside, Esc gives it back, and 
   await open(page, '#overview', 'Overview');
   await page.locator('#find').focus();
   await page.keyboard.press('Control+k');
-  const input = page.getByRole('combobox');
+  const input = page.locator('dialog.palette').getByRole('combobox');
   await expect(input).toBeFocused();
   for (let i = 0; i < 4; i++) {
     await page.keyboard.press('Tab');
@@ -260,7 +260,7 @@ test('palette: Ctrl+K takes the focus, keeps Tab inside, Esc gives it back, and 
   await page.keyboard.press('Enter');
   await expect(input).toBeFocused();
   await input.fill('Stats: PRs');
-  await expect(page.getByRole('option', { selected: true })).toContainText('Stats: PRs');
+  await expect(page.locator('dialog.palette').getByRole('option', { selected: true })).toContainText('Stats: PRs');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');

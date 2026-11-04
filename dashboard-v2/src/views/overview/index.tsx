@@ -1,4 +1,4 @@
-// The Overview: what needs you, what is running, and the cost, ported from the v1 renderOv* functions.
+// The Overview: what runs, what it costs, and how the teams do; two columns on a wide screen.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Boundary } from '../../app/parts';
 import { MODEL, useParts } from '../../app/store';
@@ -6,13 +6,11 @@ import type { ViewChunk } from '../../app/views';
 import { Heatmap, Spark, type ChartColor } from '../../charts';
 import { ago, jiraHref, modelName, plainMd, usd } from '../../format';
 import { latest } from '../../live/api';
-import { beltGroups, costPerMerged, ovFloor, ovNeeds, pipeSnap } from '../../model';
-import { slotList } from '../../model/floor';
-import { KIND_LABEL } from '../../model/pipeline';
+import { costPerMerged, ovFloor, pipeSnap } from '../../model';
 import type { J } from '../../model/base';
 import { sessHref, sessTabOf } from '../../model/sessions';
 import { kpiChange, ovKpis, ovSpend, ovStats, ovTeams, statsBounds } from '../../model/stats';
-import { teamAccess, teamName } from '../../model/teams';
+import { teamAccess, teamLabel, teamName } from '../../model/teams';
 import { format } from '../../router';
 import type { Route } from '../../router/types';
 import { dispatch, setRoute, store, useApp } from '../../store';
@@ -21,8 +19,8 @@ import { EmptyBox, Kv, Meter, Tag, type Tone } from '../../ui';
 import { cx } from '../../ui/tone';
 import { OvChart, type Point, type Series } from './chart';
 import {
-  OV_METRICS, OV_RANGES, OV_SRC, RUN_KIND, SRC_NAME, WEEKDAYS, capOf, headOf, median, metricOf, ovBudget, ovHours, ovLlm, ovWeek,
-  overviewOf, prsWhy, quart, rangeName, rangeOf, rowMs, teamSpark, tileOf, type Metric, type Range, type Tile,
+  OV_METRICS, OV_RANGES, OV_SRC, RUN_KIND, SRC_NAME, WEEKDAYS, byTeam, capOf, headOf, median, metricOf, ovBudget, ovHours, ovLlm, ovWeek,
+  overviewOf, prsWhy, quart, rangeName, rangeOf, rowMs, teamSpark, type Metric, type Range,
 } from './model';
 import { runBadge, statsNote } from '../shared/stats';
 import './overview.css';
@@ -30,7 +28,6 @@ import './overview.css';
 const SWATCH: Record<ChartColor, string> = { 'chart-1': 'bg-chart-1', 'chart-2': 'bg-chart-2', 'chart-3': 'bg-chart-3', 'chart-4': 'bg-chart-4', 'chart-5': 'bg-chart-5', 'chart-muted': 'bg-chart-muted' };
 const shortDay = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 const money = (v: number) => (v === 0 || Math.abs(v) >= 1 ? `$${Math.round(v)}` : usd(v));
-const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // The figures move with the clock: a new minute computes them again.
@@ -71,111 +68,62 @@ const Go = () => <span aria-hidden="true"> ›</span>;
 
 function Main() {
   const route = useApp((s) => s.route);
-  const range = rangeOf(route.query.range), metric = metricOf(route.query.metric);
+  const range = rangeOf(route.query.range), metric = metricOf(route.query.metric), team = route.query.team ?? '';
   const now = useNow();
   useOverviewFeed();
   const stats = useApp((s) => s.feeds.stats), slim = useApp((s) => s.feeds.overview);
-  // The stats-only store that the stats functions read, so a session delta computes nothing again.
-  const fs = useMemo(() => ({ feeds: { stats, overview: slim } }) as unknown as Store, [stats, slim]);
+  // The stats-only store that the stats functions read, so a session delta computes nothing again; a team keeps its own rows.
+  const fs = useMemo(() => ({ feeds: {
+    stats: stats && { ...stats, data: byTeam(stats.data as J, team) }, overview: slim && { ...slim, data: byTeam(slim.data as J, team) },
+  } }) as unknown as Store, [stats, slim, team]);
   // Old stats still show, with one notice at the top; a card says unknown only when there is no stats at all.
   const full = statsNote(stats, now), has = !!ovStats(fs), note = has ? '' : full;
-  const p = { fs, range, note, now };
+  const p = { fs, range, note, now, team };
   return (
     <div className="ov">
       <Boundary><Head {...p} /></Boundary>
 
       <div className="ovgrid">
-        <div className="ovrail">
-          <Boundary><Needs /></Boundary>
-          <Boundary><Budget {...p} /></Boundary>
-        </div>
         <div className="ovcol">
-          <Boundary><Floor /></Boundary>
           <Boundary><MainCard {...p} metric={metric} /></Boundary>
+          <Boundary><Activity {...p} /></Boundary>
+          <Boundary><Teams {...p} /></Boundary>
+        </div>
+        <div className="ovrail">
+          <Boundary><Budget {...p} /></Boundary>
+          <Boundary><Llm {...p} /></Boundary>
+          <Boundary><Hours {...p} /></Boundary>
         </div>
       </div>
-      <div className="ov3">
-        <Boundary><Activity {...p} /></Boundary>
-        <Boundary><Llm {...p} /></Boundary>
-        <Boundary><Hours {...p} /></Boundary>
-      </div>
-      <Boundary><Teams {...p} /></Boundary>
     </div>
   );
 }
 
-type P = { fs: Store; range: Range; note: string; now: number };
+type P = { fs: Store; range: Range; note: string; now: number; team: string };
 
-function Head({ fs, range, note }: P) {
-  const f = useApp(ovFloor) as J;
+function Head({ fs, range, note, team }: P) {
+  const f = useApp(ovFloor) as J, list = useApp((s) => s.feeds.teams?.data);
   const st = ovStats(fs), hr = st?.llm?.hour_usd, h = headOf(f);
+  const teams = (Array.isArray(list) ? list : []).filter((t: J) => t.profile && !t.load_error) as J[];
   return (
     <section id="ov-head">
       <Tag label={h.tag} tone={f.atWork ? 'info' : 'dim'} run live={!!f.atWork} />
       {h.who && <span className="ovwho">{h.who}</span>}
       <span className="ovkpi">LLM, last hour <b>{note ? 'unknown' : !st ? 'loading' : typeof hr === 'number' ? usd(hr) : 'unknown'}</b></span>
-      <div className="seg" role="group" aria-label="Range">
-        {OV_RANGES.map(([k, l]) => <button key={k} type="button" data-ovrange={k} aria-pressed={range === k} onClick={() => setQuery({ range: k })}>{l}</button>)}
+      <div className="ovfilters">
+        {teams.length > 1 && (
+          <label className="ovteam"><span className="vh">Team</span>
+            <select data-ovteam value={team} onChange={(e) => setQuery({ team: e.target.value || undefined })}>
+              <option value="">All teams</option>
+              {teams.map((t) => <option key={t.profile} value={t.profile}>{teamName(t)}</option>)}
+            </select>
+          </label>
+        )}
+        <div className="seg" role="group" aria-label="Range">
+          {OV_RANGES.map(([k, l]) => <button key={k} type="button" data-ovrange={k} aria-pressed={range === k} onClick={() => setQuery({ range: k })}>{l}</button>)}
+        </div>
       </div>
     </section>
-  );
-}
-
-// A tile that changes state shows it once; the first paint and reduced motion do not.
-function FloorTile({ t }: { t: Tile }) {
-  const ref = useRef<HTMLElement & HTMLAnchorElement & HTMLDivElement>(null), first = useRef(true);
-  useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    if (!reduced()) ref.current?.animate?.([{ transform: 'scale(.96)', opacity: 0.5 }, { transform: 'none', opacity: 1 }], { duration: 300 });
-  }, [t.tone, t.word]);
-  const meta = [t.stage, t.idle, t.time, t.cost].filter(Boolean).join(' · ');
-  const body = (
-    <>
-      <span className="hd"><Tag label={t.word} tone={t.tone ?? 'dim'} sq /><span className="nm">{t.name}</span></span>
-      <span className="m">{t.kind}{t.team ? ` · ${t.team}` : ''}</span>
-      {t.title && <span className="ti" title={t.title}>{plainMd(t.title)}</span>}
-      {meta && <span className="m">{meta}</span>}
-      {t.out && <span className="out" title={t.out}>{t.out}</span>}
-    </>
-  );
-  const cls = cx('ovtile', t.tone ? `t-${t.tone}` : 't-unknown');
-  return t.href ? <a ref={ref} className={cls} href={t.href}>{body}</a> : <div ref={ref} className={cls}>{body}</div>;
-}
-
-function Floor() {
-  const f = useApp(ovFloor) as J, loading = useApp((s) => !s.feeds.agents);
-  const tiles = useMemo(() => (f.tiles ?? []).map(tileOf), [f]);
-  const n = (w: string) => tiles.filter((t: Tile) => t.word === w).length;
-  // The free slots fold into one tile: they all say the same thing.
-  const free = tiles.filter((t: Tile) => t.word === 'free'), shown = tiles.filter((t: Tile) => t.word !== 'free');
-  if (free.length) shown.push({ ...free[0]!, id: 'free', name: free.length === 1 ? free[0]!.name : `${free.length} slots`, title: slotList(free.map((t: Tile) => t.name)), href: undefined });
-  const held = n('held');
-  return (
-    <Sec id="ov-floor" sm>
-      <Hd t="Live floor"><span className="note">{loading ? '' : f.unknown ? 'unknown' : `${n('running') + n('working')} at work, ${free.length} free${held ? `, ${held} held` : ''}`}</span></Hd>
-      {loading ? <EmptyBox>Loading the agents…</EmptyBox>
-        : f.unknown ? <EmptyBox>{f.stale ? 'The floor is unknown: the agents feed is stale.' : 'The floor is unknown: the agents feed did not load.'}</EmptyBox>
-          : !tiles.length ? <EmptyBox>Nothing on the floor: no pool slot and no live session.</EmptyBox>
-            : <ul className="ovfloor" aria-label="Pool slots and live sessions">{shown.map((t: Tile) => <li key={t.id}><FloorTile t={t} /></li>)}</ul>}
-    </Sec>
-  );
-}
-
-function Needs() {
-  const n = useApp(ovNeeds), rows = useApp((s) => beltGroups(s).needs) as J[];
-  const calm = !n.unknown && !n.total;
-  const parts: ReactNode[] = Object.entries(n.by).map(([p, k]) => <a key={p} href="#pipeline/belts">{k} for {p}</a>);
-  if (n.sandbox) parts.push(<a key="sb" href="#overview" onClick={(e) => { e.preventDefault(); document.getElementById('attn')?.focus(); }}>{n.sandbox} sandbox alert{n.sandbox === 1 ? '' : 's'}</a>);
-  return (
-    <Sec id="ov-needs" sm className={cx('needs', (calm || n.unknown) && 'calm')}>
-      <Hd t="Needs you"><span className="big">{n.unknown ? '?' : n.total}</span><a className="note" href="#pipeline/belts">Open the list<Go /></a></Hd>
-      <div className="sub">{n.unknown ? cap(String(n.unknown)) : calm ? 'Nothing needs you.' : parts.flatMap((x, i) => (i ? [' · ', x] : [x]))}</div>
-      {!n.unknown && rows.slice(0, 4).map((r) => (
-        <a key={r.t.key} className="nrow" href={`#pipeline/belts/${encodeURIComponent(r.t.key)}`}>
-          <Tag label={r.l1} tone={r.tone === 'k-bad' ? 'bad' : 'warn'} /><span className="key">{r.t.key}</span><span className="why" title={r.l2 || r.item?.next}>{cap(r.l2 || r.item?.next || (r.item?.kind && KIND_LABEL[r.item.kind]) || '')}</span>
-        </a>
-      ))}
-    </Sec>
   );
 }
 
@@ -187,7 +135,14 @@ const dayHref = (t: number, range: Range, now: number) => {
   return format({ view: 'stats', tab: 'spend', sel: '', rid: '', query: { range: d === 0 ? 'today' : d === 1 ? 'yesterday' : range } });
 };
 
-function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
+// Each metric by day, oldest first, for the small trend line under its value; a day with no pipeline run has no rate or median.
+const SPARK: Record<Metric, (d: J) => number | null> = {
+  spend: (d) => d.usd, runs: (d) => Object.values(d.n as Record<string, number>).reduce((a, b) => a + b, 0), merged: (d) => d.merged,
+  rate: (d) => (d.pipe ? (d.pr / d.pipe) * 100 : null), median: (d) => median(d.mins),
+};
+const SPARK_FMT: Record<Metric, (v: number) => string> = { spend: usd, runs: (v) => String(v), merged: (v) => String(v), rate: (v) => `${Math.round(v)}%`, median: (v) => `${Math.round(v)} min` };
+
+function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }) {
   const s = ovStats(fs), n = rangeName(range);
   const k = useMemo(() => (s ? ovKpis(fs, range, now) : null), [s, fs, range, now]);
   const sp = useMemo(() => (s ? ovSpend(fs, range) : null), [s, fs, range]);
@@ -211,12 +166,21 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
     ) : <EmptyBox>{isS ? `$0.00 · no runs in the last ${n}` : `No run in the last ${n}.`}</EmptyBox>;
     head = <a className="ovopen" href={`#stats/spend?range=${range}`}><span className="go">{isS ? 'Spend' : 'Runs'} in Stats<Go /></span></a>;
     // A stale or failed feed may lack a source's newest runs, so a source figure says unknown, never a value or 0.
+    // The share says what part of the total a source is; the bar it replaced did not say it.
+    const share = (src: string) => { const v = isS ? sp.by[src] ?? 0 : sp.nby[src] ?? 0; return tot ? `${Math.round((100 * v) / tot)}% of ${isS ? 'spend' : 'runs'}` : ''; };
     leg = (
-      <div className="ovleg">
-        {OV_SRC.filter(([src]) => !isS || note || (sp.nby[src] ?? 0) > 0).map(([src, col]) => isS ? (
-          <a key={src} href={`#stats/spend?range=${range}&src=${src}`}><i className={SWATCH[col]} />{SRC_NAME[src]} <b>{note ? 'unknown' : usd(sp.by[src] ?? 0)}</b>{!note && <span className="hint">· {(sp.nby[src] ?? 0).toLocaleString()} runs</span>}</a>
-        ) : <span key={src}><i className={SWATCH[col]} />{SRC_NAME[src]} <b>{note ? 'unknown' : (sp.nby[src] ?? 0).toLocaleString()}</b></span>)}
-      </div>
+      <ul className="ovkinds" aria-label={`${isS ? 'Spend' : 'Runs'} by source`}>
+        {OV_SRC.filter(([src]) => note || (sp.nby[src] ?? 0) > 0).map(([src, col]) => {
+          const body = (
+            <>
+              <span className="kn"><i className={SWATCH[col]} />{SRC_NAME[src]}</span>
+              <b>{note ? 'unknown' : isS ? usd(sp.by[src] ?? 0) : (sp.nby[src] ?? 0).toLocaleString()}{!note && isS && <span className="hint"> · {(sp.nby[src] ?? 0).toLocaleString()} runs</span>}</b>
+              {!note && <span className="hint">{share(src)}</span>}
+            </>
+          );
+          return <li key={src}>{isS ? <a href={`#stats/spend?range=${range}&src=${src}${team ? `&team=${team}` : ''}`}>{body}</a> : <span>{body}</span>}</li>;
+        })}
+      </ul>
     );
   } else if (m === 'merged') {
     const data: Point[] = sp.days.map((d: J) => ({ lbl: shortDay(d.t), merged: d.merged })), tot = data.reduce((a, d) => a + Number(d.merged), 0);
@@ -248,13 +212,15 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
   const pk = sp.peak, pkText = m === 'spend' && pk ? `Peak ${shortDay(pk.t)}: ${usd(pk.usd)}${why ? '' : `, ${pk.merged} PR${pk.merged === 1 ? '' : 's'} merged that day`}` : '';
   return (
     <Sec id="ov-main">
-      <h2 className="vh">Last {n}</h2>
+      <h2 className="vh">Last {n}{team ? `, ${teamLabel(store.getState(), team)}` : ''}</h2>
       <div className="mtabs" role="group" aria-label="Metric">
         {OV_METRICS.map(([key, lbl]) => {
           const [v, c] = tabs[key];
           return (
             <button key={key} type="button" className="mt" data-ovmetric={key} aria-pressed={m === key} onClick={() => setQuery({ metric: key })}>
               <span className="ml">{lbl}<span className="vh">: </span></span><span className="mv">{v}</span>
+              {/* A trend under the value; hidden from a screen reader, since the button name is the metric and the chart below has the days. */}
+              <span className="msp" aria-hidden="true">{!(key === 'merged' && why) && <Spark label={`${lbl} by day, last ${key === 'merged' ? '7 days' : n}`} values={(key === 'merged' ? sp.days.slice(-7) : sp.days).map(SPARK[key])} format={SPARK_FMT[key]} />}</span>
               <span className="mdelta">{c.t ? <><span className={`chg ${c.c}`.trim()}>{c.t}{c.c && ` ${c.c === 'good' ? 'better' : 'worse'}`}</span> vs the {key === 'merged' ? '7 days' : n} before</> : key === 'merged' && why ? why : ''}</span>
             </button>
           );
@@ -268,7 +234,8 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
   );
 }
 
-function Budget({ fs, note, now }: P) {
+function Budget({ fs, note, now, team }: P) {
+  const who = team ? `${teamLabel(store.getState(), team)} only` : 'Every team';
   const s = ovStats(fs), teams = useApp((x) => x.feeds.teams);
   const b = useMemo(() => (s ? ovBudget(s.rows ?? [], now) : null), [s, now]);
   const name = new Date(now).toLocaleDateString(undefined, { month: 'long' });
@@ -281,10 +248,10 @@ function Budget({ fs, note, now }: P) {
     <Sec id="ov-budget" sm>
       <Hd t={`${b.name} spend`}><span className="note mono">{note ? 'unknown' : usd(b.mtd)}</span></Hd>
       {note ? (
-        <><div className="ovknote">{note}</div><div className="sub">Every team. The month-end figure is unknown until the stats load again.</div></>
+        <><div className="ovknote">{note}</div><div className="sub">{who}. The month-end figure is unknown until the stats load again.</div></>
       ) : (
         <>
-          <div className="sub">Every team. At this rate the month ends near <b>{usd(b.end)}</b>.</div>
+          <div className="sub">{who}. At this rate the month ends near <b>{usd(b.end)}</b>.</div>
           <div className="ovleg"><span><i className="bg-chart-1" />Spent</span><span><i className="bg-chart-muted" />Projected</span></div>
           <OvChart title={`${b.name} spend of every team, so far and projected`} data={data} height={170} fmt={money}
             series={[{ key: 'band', name: 'Forecast band', color: 'chart-muted', mark: 'band' }, { key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}
@@ -293,7 +260,7 @@ function Budget({ fs, note, now }: P) {
             table={{ head: ['Day', 'Spent', 'Projected'], rows: data.map((d) => [d.lbl, d.spent == null ? '' : usd(Number(d.spent)), d.proj == null ? '' : usd(Number(d.proj))]) }} />
         </>
       )}
-      {caps.slice(0, 3).map((t) => {
+      {caps.filter((t) => !team || t.profile === team).slice(0, 3).map((t) => {
         const c = capOf(t, b.el, b.days), bu = t.budget;
         return (
           <div className="capr" key={t.profile}>
@@ -338,22 +305,23 @@ function RunRow({ r, site, sessions, fresh }: { r: J; site: unknown; sessions: S
   );
 }
 
-function Activity({ range, note }: P) {
+function Activity({ range, note, team }: P) {
   const [runs, setRuns] = useState<{ runs: J[] | null; err: string | null }>({ runs: null, err: null });
   const tick = useApp((s) => s.feeds.full?.fetchedAt ?? 0), sessions = useApp((s) => s.sessions.byKey), site = useApp((s) => (pipeSnap(s) as J)?.team?.jira_site);
   const last = useRef(''), fresh = useRef(false);
   // A range change reads at once; a new snapshot reads again after 5 s, so a burst of frames gives one read.
   useEffect(() => {
-    const d = { '7d': 7, '30d': 30, '90d': 90 }[range], wait = last.current === range ? 5000 : 0;
+    const d = { '7d': 7, '30d': 30, '90d': 90 }[range], at = `${range}:${team}`, wait = last.current === at ? 5000 : 0;
     const id = setTimeout(async () => {
-      last.current = range;
-      const g = await latest<J>('ov-runs', `/api/runs/recent?limit=4&days=${d}`);
+      last.current = at;
+      // The API has no team filter: one team reads more runs and keeps its own 4.
+      const g = await latest<J>('ov-runs', `/api/runs/recent?limit=${team ? 40 : 4}&days=${d}`);
       if (!g) return;
       const j = 'data' in g ? g.data : null, err = !('data' in g) ? g.error : !j || !Array.isArray(j.runs) ? 'the answer has no runs' : j.error || null;
-      setRuns(err ? { runs: null, err } : { runs: j.runs, err: null });
+      setRuns(err ? { runs: null, err } : { runs: team ? j.runs.filter((r: J) => r.team === team).slice(0, 4) : j.runs, err: null });
     }, wait);
     return () => clearTimeout(id);
-  }, [range, tick]);
+  }, [range, team, tick]);
   useEffect(() => { if (runs.runs) fresh.current = true; }, [runs.runs]);
   if (runs.err) return <Sec id="ov-runs" sm><Hd t="Activity" /><EmptyBox>Recent runs unavailable: {runs.err}. The next poll tries again.</EmptyBox></Sec>;
   if (!runs.runs) return <Sec id="ov-runs" sm><Hd t="Activity" /><EmptyBox>Loading the recent runs…</EmptyBox></Sec>;
@@ -366,7 +334,7 @@ function Activity({ range, note }: P) {
   );
 }
 
-function Llm({ fs, note, now }: P) {
+function Llm({ fs, note, now, team }: P) {
   const s = ovStats(fs);
   const l = useMemo(() => (s ? ovLlm(s.llm ?? {}, now) : null), [s, now]);
   if (!s || !l) return <Sec id="ov-llm" sm><Hd t="LLM spend" /><EmptyBox>{note ? `LLM spend unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
@@ -379,7 +347,7 @@ function Llm({ fs, note, now }: P) {
     <Sec id="ov-llm" sm>
       <Hd t="LLM spend, 14 days"><span className="note mono">{note || (!data.length && typeof l.hr === 'number' && l.hr > 0) ? 'unknown' : usd(tot)}</span></Hd>
       {note && <div className="ovknote">{note}</div>}
-      <div className="sub">By UTC date for the last 14 days, as the LLM proxy logs it.</div>
+      <div className="sub">By UTC date for the last 14 days, as the LLM proxy logs it.{team && ' Every team: the proxy does not log the team.'}</div>
       {data.length ? (
         <OvChart title="LLM spend by model and UTC day, last 14 days" data={data} series={series} stacked fmt={money} height={200}
           summary={`LLM spend by UTC day, last 14 days. Total ${usd(tot)}.`}
@@ -420,10 +388,11 @@ function Hours({ fs, note, now }: P) {
 
 const ACCESS_TONE = (a: string): Tone => (a === 'everyone' || a === 'open' ? 'ok' : a === 'unknown' ? 'dim' : /user/.test(a) ? 'info' : 'bad');
 
-function Teams({ fs, range, note, now }: P) {
+function Teams({ range, note, now, team }: P) {
   const all = useParts(MODEL), teams = all.feeds.teams, n = rangeName(range);
   const rows0 = useMemo(() => ovTeams(all, range), [all, range]);
-  const s = ovStats(fs), spark = useMemo(() => (s ? teamSpark(s.rows ?? [], now) : {}), [s, now]);
+  // The table shows every team, so it reads every team's rows, not the picked team's.
+  const s = ovStats(all as Store), spark = useMemo(() => (s ? teamSpark(s.rows ?? [], now) : {}), [s, now]);
   if (!teams) return <Sec id="ov-teams"><Hd t={`Teams, last ${n}`} /><EmptyBox>Loading the teams…</EmptyBox></Sec>;
   // A failed or stale stats feed: the runs, PRs and spend say unknown, and the rows go by name.
   const st = !!s && !note, rows = st ? rows0 : [...rows0].sort((a, b) => teamName(a.t).localeCompare(teamName(b.t)));
@@ -444,7 +413,7 @@ function Teams({ fs, range, note, now }: P) {
               {rows.map(({ t, u, now: on }: J) => {
                 const [a, title] = teamAccess(t), b = t.budget, cap = b?.month_cap;
                 return (
-                  <tr key={t.profile} data-team={t.profile}>
+                  <tr key={t.profile} data-team={t.profile} className={team ? (t.profile === team ? 'sel' : 'dimrow') : undefined} aria-current={t.profile === team || undefined}>
                     <td>{link(t)} <Tag label={a} tone={ACCESS_TONE(a)} title={title} /></td>
                     <td className="num">{on ?? '?'}</td>
                     <td className="num">{st ? u.runs.toLocaleString() : '—'}</td>

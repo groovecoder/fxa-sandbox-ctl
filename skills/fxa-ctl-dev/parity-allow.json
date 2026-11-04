@@ -88,5 +88,10 @@
   "v1": "No open errors.",
   "v2": "No errors recorded.",
   "why": "v1 index.html 1707: the All tab with no row said \"No open errors.\"; v2 says \"No errors recorded.\""
+ },
+ {
+  "key": "ov.needs",
+  "v2": "",
+  "why": "v1 index.html renderOvNeeds: the Overview had a Needs you card; v2 drops it on purpose (the owner does not use it; the rail badge and Pipeline keep the count)"
  }
 ]

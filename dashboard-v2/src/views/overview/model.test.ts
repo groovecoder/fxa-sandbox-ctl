@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capOf, headOf, metricOf, ovBudget, ovHours, ovLlm, ovWeek, overviewOf, prsWhy, quart, rangeOf, teamSpark, tileOf } from './model';
+import { byTeam, capOf, headOf, metricOf, ovBudget, ovHours, ovLlm, ovWeek, overviewOf, prsWhy, quart, rangeOf, teamSpark, tileOf } from './model';
 import { runBadge, statsNote } from '../shared/stats';
 
 const NOW = new Date(2026, 10, 18, 14, 30).getTime();
@@ -108,5 +108,13 @@ describe('the Overview model', () => {
     expect(overviewOf({ cols: ['at', 'usd'], rows: [['2026-11-01T00:00:00Z', 1]], merged: ['2026-11-01T00:00:00Z'], llm: {} }))
       .toEqual({ rows: [{ at: '2026-11-01T00:00:00Z', usd: 1 }], prs: [{ merged: '2026-11-01T00:00:00Z' }], prs_at: undefined, llm: {}, slim: true });
     expect(overviewOf({ error: 'stats unavailable' })).toBeNull();
+  });
+  it('keeps one team: its rows, the PRs of its tickets, and no PR list from the slim slice', () => {
+    const st = { rows: [{ key: 'A-1', profile: 'sync' }, { key: 'B-1' }, { key: 'B-2', profile: 'fxa' }], prs: [{ key: 'A-1', merged: 'x' }, { key: 'B-1', merged: 'y' }], llm: { hour_usd: 1 } };
+    expect(byTeam(st, '')).toBe(st);
+    expect(byTeam(st, 'fxa')).toEqual({ ...st, rows: [{ key: 'B-1' }, { key: 'B-2', profile: 'fxa' }], prs: [{ key: 'B-1', merged: 'y' }] });
+    expect(byTeam(st, 'sync').rows).toEqual([{ key: 'A-1', profile: 'sync' }]);
+    expect(byTeam({ ...st, prs: [{ merged: 'x' }] }, 'fxa').prs).toBeNull();
+    expect(byTeam(null, 'fxa')).toBeNull();
   });
 });

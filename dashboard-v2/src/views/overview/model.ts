@@ -24,6 +24,14 @@ export const overviewOf = (j: J): J => (j && Array.isArray(j.cols) && Array.isAr
   ? { rows: j.rows.map((a: J[]) => Object.fromEntries(j.cols.map((k: string, i: number) => [k, a[i]]))), prs: j.merged == null ? null : j.merged.map((merged: string) => ({ merged })), prs_at: j.prs_at, llm: j.llm ?? {}, slim: true }
   : null);
 
+// One team's stats: its rows, and the merged PRs of its tickets. The slim slice has no PR keys, so its PR list is unknown.
+export function byTeam(st: J, team: string): J {
+  if (!st || !team) return st;
+  const rows = (st.rows ?? []).filter((r: J) => (r.profile || 'fxa') === team), keys = new Set(rows.map((r: J) => r.key));
+  const prs = Array.isArray(st.prs) && st.prs.every((p: J) => p.key != null) ? st.prs.filter((p: J) => keys.has(p.key)) : null;
+  return { ...st, rows, prs };
+}
+
 export function prsWhy(st: J, now = Date.now()): string {
   const at = st?.prs_at;
   return !st ? 'Loading the stats…' : st.prs == null ? 'the PR list is not read yet' : at && now / 1000 - at > 1800 ? `the PR list is ${ago(Math.round(now / 1000 - at)).replace(' ago', '')} old` : '';
