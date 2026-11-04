@@ -165,7 +165,7 @@ function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }
         summary={`${isS ? 'Spend' : 'Runs'} by day and source, last ${n}. Total ${isS ? usd(tot) : tot.toLocaleString()}.${pk ? ` Peak ${shortDay(pk.t)}, ${f(pk.v)}.` : ''}`}
         table={{ head: ['Day', ...series.map((x) => x.name), 'Total'], rows: data.map((d) => [d.lbl, ...series.map((x) => f(Number(d[x.key]))), f(series.reduce((a, x) => a + Number(d[x.key]), 0))]) }} />
     ) : <EmptyBox>{isS ? `$0.00 · no runs in the last ${n}` : `No run in the last ${n}.`}</EmptyBox>;
-    head = <a className="ovopen" href={`#stats/spend?range=${range}`}><span className="go">{isS ? 'Spend' : 'Runs'} in Stats<Go /></span></a>;
+    head = <a className="ovopen" href={`#stats/spend?range=${range}`}><span className="go">Open in Stats<Go /></span></a>;
     // A stale or failed feed may lack a source's newest runs, so a source figure says unknown, never a value or 0.
     // The share says what part of the total a source is; the bar it replaced did not say it.
     const share = (src: string) => { const v = isS ? sp.by[src] ?? 0 : sp.nby[src] ?? 0; return tot ? `${Math.round((100 * v) / tot)}% of ${isS ? 'spend' : 'runs'}` : ''; };
@@ -252,7 +252,7 @@ function Budget({ fs, note, now, team }: P) {
         <><div className="ovknote">{note}</div><div className="sub">{who}. The month-end figure is unknown until the stats load again.</div></>
       ) : (
         <>
-          <div className="sub">{who}. At this rate the month ends near <b>{usd(b.end)}</b>.</div>
+          <div className="sub">{who}. At this rate the month ends near <b>${Math.round(b.end).toLocaleString('en-US')}</b>.</div>
           <div className="ovleg"><span><i className="bg-chart-1" />Spent</span><span><i className="bg-chart-muted" />Projected</span></div>
           <OvChart title={`${b.name} spend of ${team ? teamLabel(store.getState(), team) : 'every team'}, so far and projected`} data={data} height={170} fmt={money}
             series={[{ key: 'band', name: 'Forecast band', color: 'chart-muted', mark: 'band' }, { key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}

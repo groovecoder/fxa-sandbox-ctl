@@ -32,7 +32,7 @@ export const alerts = memo((s) => [pipe(s), AGENTS(s), STATE(s), merged(s), stra
   staleFeed('agents', st.agents_age_seconds, st.agents_interval);
   staleFeed('tickets', st.age_seconds, st.interval);
   if (!st.stats_error) staleFeed('stats', st.stats_age_seconds, st.stats_interval);
-  if (old.length) add('warn', old.map(([n]) => n).join(', '), `Data is up to ${ago(Math.max(...old.map(([, a]) => a))).replace(' ago', '')} old. This page shows older data`);
+  if (old.length) add('warn', old.map(([n]) => n).join(', '), `Data is up to ${ago(Math.max(...old.map(([, a]) => a))).replace(' ago', '')} old.`);
   if (st.error) add('bad', 'tickets', st.error);
   if (st.agents_error) add('bad', 'agents', st.agents_error);
   if (st.stats_error) add('warn', 'stats', st.stats_error);

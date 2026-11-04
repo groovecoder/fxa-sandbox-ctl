@@ -20,7 +20,6 @@ export const errOpen = (e: Row) => e.status === 'open' || e.status === 'reopened
 export type RailBadge = { n: string; tone: string; label?: string };
 
 export function railBadges(s: Store, sel: Sel, alerts: Alert[]): Record<ViewId, RailBadge> {
-  const needs = safe(() => sel.ovNeeds(s));
   const bad = alerts.some((a) => a.tone === 'bad');
   const snap = safe(() => sel.pipeSnap(s));
   const review = snap?.review as Row[] | null | undefined;
@@ -36,7 +35,8 @@ export function railBadges(s: Store, sel: Sel, alerts: Alert[]): Record<ViewId, 
   const teams = teamsOf(s);
   const tb = teams ? (safe(() => sel.teamBadge(s, teams)) ?? '') : '';
   return {
-    overview: { n: needs == null ? '' : needs.unknown ? '?' : String(needs.total || (alerts.length ? '!' : '')), tone: bad ? 'bad' : 'warn' },
+    // Overview has no Needs you card, so its badge only flags a page alert.
+    overview: { n: alerts.length ? '!' : '', tone: bad ? 'bad' : 'warn' },
     // A snapshot with no review list is unknown, never 0.
     pipeline: { n: !snap ? '' : waiting == null ? '?' : waiting ? String(waiting) : '', tone: 'info', label: waiting == null && snap ? 'Reviews unknown: the review list did not load' : wl },
     sessions: { n: String(sessionList(s).filter((x) => LIVE_STATES.includes(x.state ?? '')).length || ''), tone: 'info' },

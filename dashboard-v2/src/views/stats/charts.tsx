@@ -78,8 +78,8 @@ export function Scatter({ title, what, points, x, y }: ScatterProps) {
         {!points.length ? <NoData>Nothing in this range.</NoData> : (
           <ScatterChart width={width} height={200} margin={{ top: 8, right: 10, bottom: 0, left: 0 }} accessibilityLayer={false}>
             <CartesianGrid stroke="var(--line)" />
-            <XAxis type="number" dataKey="x" name={x.name} tick={axis} tickLine={false} tickFormatter={(v: number) => x.format(v)} />
-            <YAxis type="number" dataKey="y" name={y.name} tick={axis} tickLine={false} width={46} tickFormatter={(v: number) => y.format(v)} />
+            <XAxis type="number" dataKey="x" name={x.name} tick={axis} tickLine={false} axisLine={{ stroke: 'var(--line2)' }} tickFormatter={(v: number) => x.format(v)} />
+            <YAxis type="number" dataKey="y" name={y.name} tick={axis} tickLine={false} axisLine={{ stroke: 'var(--line2)' }} width={46} tickFormatter={(v: number) => y.format(v)} />
             <ZAxis range={[36, 36]} />
             <Dots data={points} fill="var(--chart-1)" isAnimationActive={false}
               onMouseEnter={(_, i) => k.setActive(i)} onMouseLeave={() => k.setActive(null)}>

@@ -39,7 +39,7 @@ const gate = () => { let open!: (fs: Frame[]) => void; const p = new Promise<Fra
 test('rail: 7 links with icon, label and badge; aria-current; an empty badge is hidden', async ({ page }) => {
   await open(page, '#errors');
   const links = page.getByRole('navigation', { name: 'Views' }).getByRole('link');
-  await expect(links).toHaveText(['Overview3', 'Pipeline1', 'Sessions2', 'Stats', 'Errors', 'Sandboxes3', 'Teams2']);
+  await expect(links).toHaveText(['Overview!', 'Pipeline1', 'Sessions2', 'Stats', 'Errors', 'Sandboxes3', 'Teams2']);
   for (const a of await links.all()) await expect(a.locator('svg')).toHaveCount(1);
   await expect(page.getByRole('link', { name: /^Errors/ })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('a[aria-current]')).toHaveCount(2);

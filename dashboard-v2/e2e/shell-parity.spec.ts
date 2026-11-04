@@ -11,7 +11,7 @@ const keysOn = (page: Page) => page.addInitScript(() => localStorage.setItem('ke
 test('rail: 7 links with icon, label and badge; aria-current; an empty badge is hidden', async ({ page }) => {
   await open(page, '#errors');
   const links = page.getByRole('navigation', { name: 'Views' }).getByRole('link');
-  await expect(links).toHaveText(['Overview3', 'Pipeline2', 'Sessions1', 'Stats', 'Errors1', 'Sandboxes2', 'Teams2']);
+  await expect(links).toHaveText(['Overview!', 'Pipeline2', 'Sessions1', 'Stats', 'Errors1', 'Sandboxes2', 'Teams2']);
   for (const a of await links.all()) await expect(a.locator('svg')).toHaveCount(1);
   await expect(page.getByRole('link', { name: /^Errors/ })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('a[aria-current]')).toHaveCount(2); // the rail link and the tab
@@ -28,7 +28,7 @@ test('badges: tones, labels, and the unknown and alert forms', async ({ page }) 
   await expect(badge(page, 'teams')).toHaveClass('n warn');
 });
 
-test('badges: "!" at 0 Needs with an alert, "?" for unknown Needs, reviews and errors', async ({ browser }) => {
+test('badges: "!" on Overview with an alert, no Needs count there, "?" for unknown reviews and errors', async ({ browser }) => {
   let page = await browser.newPage();
   await open(page, '#overview', { sel: { ovNeeds: { total: 0, sandbox: 0, by: {}, unknown: '' }, alerts: [{ tone: 'warn', subject: 'pass', what: 'x' }] } });
   await expect(badge(page, 'overview')).toHaveText('!');
@@ -39,7 +39,8 @@ test('badges: "!" at 0 Needs with an alert, "?" for unknown Needs, reviews and e
     (fx.sel.pipeSnap as Record<string, unknown>).review = null;
     fx.store.feeds.errors!.error = 'errors --json failed';
   });
-  await expect(badge(page, 'overview')).toHaveText('?');
+  // Overview has no Needs you card in v2, so an unknown Needs count is no "?" there.
+  await expect(badge(page, 'overview')).not.toHaveText('?');
   await expect(badge(page, 'pipeline')).toHaveText('?');
   await expect(badge(page, 'errors')).toHaveText('?');
   await expect(badge(page, 'errors')).toHaveClass('n warn');
