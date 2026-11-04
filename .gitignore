@@ -15,6 +15,8 @@ logs/
 # Python bytecode
 __pycache__/
 *.pyc
+# The desktop gateway's packages for its check (test.sh uses it)
+desktop-gateway/.venv/
 
 # Built before each image build (vm_guide_build)
 packer/.vm-agent-guide.md

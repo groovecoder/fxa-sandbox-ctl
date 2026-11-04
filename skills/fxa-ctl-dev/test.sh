@@ -25,6 +25,28 @@ _tmo() {
     $SIG{ALRM} = sub { kill "KILL", -$p; exit 142 }; alarm $t; waitpid($p, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$FXA_CHECK_TIMEOUT" "$@"
 }
 
+# _gwpy   The python3 with the desktop gateway's packages: desktop-gateway/.venv of this tree or of the main
+# worktree, else python3 when it has them; empty when none has them.
+_gwpy() {
+  local p main; main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; main="${main%/.git}"
+  for p in "$ROOT/desktop-gateway/.venv/bin/python3" "$main/desktop-gateway/.venv/bin/python3" python3; do
+    "$p" -c 'import aiohttp, google.auth' 2>/dev/null && { echo "$p"; return; }
+  done
+}
+GW_SKIP="desktop-gateway/check.py (to run it: python3 -m venv desktop-gateway/.venv && desktop-gateway/.venv/bin/pip install -r desktop-gateway/requirements.txt)"
+
+# others   The pids of the other test.sh runs on this host. Runs in parallel share the CPU. Not this run's process
+# group, and not its callers: the shell that started it has the test.sh path in its command too.
+others() {
+  local me p=$$ up=" $$ "; me="$(ps -o pgid= -p $$ | tr -d ' ')"
+  while p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')"; [ -n "$p" ] && [ "$p" -gt 1 ]; do up="$up$p "; done
+  ps -A -o pgid=,pid=,command= | awk -v me="$me" -v up="$up" '$1 != me && !index(up, " " $2 " ") && /fxa-ctl-dev\/test\.sh/ && !/awk/ { print $2 }' | paste -sd, - || true
+}
+say_others() {
+  local o; o="$(others)"
+  [ -z "$o" ] || echo "note $HOST: other test.sh runs on this host (pids $o): this run takes longer, and a check with a time limit can fail" >&2
+}
+
 # check_one <file> <host>   Run once, then read the output: grep -q in a pipe stopped at the
 # first FAIL, the check died of SIGPIPE, and pipefail hid the failure. A nonzero exit fails too.
 check_one() {
@@ -77,8 +99,9 @@ run_here() {
       for t in infra/llm-proxy/proxy_test.py infra/mcp-gateway/gateway_test.py dashboard/*.check.py; do o="$(_tmo python3 "$t" 2>&1)" || { c=$?; echo "FAIL $HOST: $t$([ "$c" != 142 ] || echo " did not finish in ${FXA_CHECK_TIMEOUT}s")"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"
         [ -z "${FXA_CHECK_VERBOSE:-}" ] || grep -m1 -A25 '^Traceback' <<< "$o" | sed 's/^/  | /'; b=1; }; done
       # The desktop gateway's check needs its packages (desktop-gateway/requirements.txt); without them it is skipped, not passed.
-      if python3 -c 'import aiohttp, google.auth' 2>/dev/null; then o="$(python3 desktop-gateway/check.py 2>&1)" || { echo "FAIL $HOST: desktop-gateway/check.py"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; b=1; }
-      else echo "skip $HOST: desktop-gateway/check.py (pip install -r desktop-gateway/requirements.txt to run it)"; fi
+      p="$(_gwpy)"
+      if [ -n "$p" ]; then o="$("$p" desktop-gateway/check.py 2>&1)" || { echo "FAIL $HOST: desktop-gateway/check.py"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; b=1; }
+      else echo "skip $HOST: $GW_SKIP"; fi
       exit "$b" ) > "$py" 2>&1 & pyp=$!
   fi
   run_pool "$HOST" "${picked[@]}" || bad=1
@@ -167,9 +190,9 @@ run_changed() {
   [ -z "${FXA_CHANGED_DRY:-}" ] || { printf '%s\n' ${picked[@]+"${picked[@]}"}; return; }
   [ ${#picked[@]} -eq 0 ] || run_pool "$HOST" "${picked[@]}" || bad=1
   for t in $py; do
-    if [ "$t" = desktop-gateway/check.py ] && ! python3 -c 'import aiohttp, google.auth' 2>/dev/null; then
-      echo "skip $HOST: $t (pip install -r desktop-gateway/requirements.txt to run it)"; continue; fi
-    o="$(_tmo python3 "$t" 2>&1)" || { c=$?; echo "FAIL $HOST: $t$([ "$c" != 142 ] || echo " did not finish in ${FXA_CHECK_TIMEOUT}s")"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; bad=1; }
+    local p=python3
+    if [ "$t" = desktop-gateway/check.py ]; then p="$(_gwpy)"; [ -n "$p" ] || { echo "skip $HOST: $GW_SKIP"; continue; }; fi
+    o="$(_tmo "$p" "$t" 2>&1)" || { c=$?; echo "FAIL $HOST: $t$([ "$c" != 142 ] || echo " did not finish in ${FXA_CHECK_TIMEOUT}s")"; grep -E "^(FAIL|ERROR)[: ]" <<< "$o" | head -3 | sed "s/^/  /"; bad=1; }
   done
   # The bot's e2e plays every scenario against fake-ctl.sh; a ctl push to main does not run it.
   if [ -n "$e2e" ]; then
@@ -197,11 +220,11 @@ run_changed() {
 }
 
 case "${1:-both}" in
-  mac|here) run_here ;;
-  changed) run_changed "${2:-}" ;;
+  mac|here) say_others; run_here ;;
+  changed) say_others; run_changed "${2:-}" ;;
   linux) run_linux ;;
   # Both at once: the Ubuntu half prints after this host's.
-  *) l="$(mktemp "${TMPDIR:-/tmp}/fxa-linux.XXXXXX")"; ( run_linux; exit "$rc" ) > "$l" 2>&1 & lp=$!
+  *) say_others; l="$(mktemp "${TMPDIR:-/tmp}/fxa-linux.XXXXXX")"; ( run_linux; exit "$rc" ) > "$l" 2>&1 & lp=$!
      run_here; wait "$lp" || rc=1; cat "$l"; rm -f "$l" ;;
 esac
 exit "$rc"

@@ -76,4 +76,22 @@ if node -e 'const [a, b] = process.versions.node.split(".").map(Number); process
 else
   check "with Node before 20.19, the dashboard-v2 checks skip and say so" "0|yes" "$(changed dashboard-v2/src/a.ts)|$(grep -q 'skipped: needs Node 20.19+' "$tmp/out" && echo yes)"
 fi
+# The desktop gateway's check runs with the python3 of desktop-gateway/.venv; with none, it is skipped with the setup command.
+mkdir -p "$r/desktop-gateway/.venv/bin"; printf 'print("FAIL: planted")\nraise SystemExit(1)\n' > "$r/desktop-gateway/check.py"; echo '# edit' > "$r/desktop-gateway/main.py"
+printf '#!/bin/sh\ncase "$1" in -c) exit 0 ;; esac\ntouch "%s/venv-ran"; exec python3 "$@"\n' "$tmp" > "$r/desktop-gateway/.venv/bin/python3"; chmod +x "$r/desktop-gateway/.venv/bin/python3"
+( cd "$r" && git add desktop-gateway/check.py desktop-gateway/main.py && git -c user.email=t@example.com -c user.name=t commit -qm gw )
+check "a changed gateway runs its check with the venv's python3" "1|yes|yes" "$(changed desktop-gateway/main.py)|$(grep -q 'FAIL [a-z]*: desktop-gateway/check.py' "$tmp/out" && echo yes)|$([ -e "$tmp/venv-ran" ] && echo yes)"
+rm -rf "$r/desktop-gateway/.venv"
+check "with no venv and no packages, the gateway check is skipped with the setup command" "yes" \
+  "$(python3 -c 'import aiohttp, google.auth' 2>/dev/null && echo yes || { changed desktop-gateway/main.py >/dev/null; grep -q 'skip [a-z]*: desktop-gateway/check.py (to run it: python3 -m venv desktop-gateway/.venv' "$tmp/out" && echo yes; })"
+# Another test.sh run in its own process group is named on stderr; this run's own processes are not.
+mkdir -p "$tmp/o/skills/fxa-ctl-dev"; echo 'sleep 30' > "$tmp/o/skills/fxa-ctl-dev/test.sh"
+perl -e 'setpgrp(0, 0); exec @ARGV' bash "$tmp/o/skills/fxa-ctl-dev/test.sh" & op=$!; sleep 0.5
+check "another run on the host is named, by pid, on stderr" "yes|no" \
+  "$( (cd "$r" && bash skills/fxa-ctl-dev/test.sh changed HEAD 2>&1 >/dev/null) | grep -q "^note [a-z]*: other test.sh runs on this host (pids .*\b$op\b" && echo yes)|$( (cd "$r" && bash skills/fxa-ctl-dev/test.sh changed HEAD 2>/dev/null) | grep -q '^note' && echo yes || echo no)"
+kill "$op" 2>/dev/null; wait "$op" 2>/dev/null
+# The shell that starts a run has the test.sh path in its command line too, and the run can be in another process group.
+printf 'cd "%s" && perl -e '"'"'setpgrp(0, 0); exec @ARGV'"'"' bash "$1" changed HEAD 2>&1 >/dev/null; echo "caller $$"\n' "$r" > "$tmp/caller.sh"
+check "the caller of this run is not named as another run" "no" \
+  "$(bash "$tmp/caller.sh" skills/fxa-ctl-dev/test.sh > "$tmp/c.out"; c="$(sed -n 's/^caller //p' "$tmp/c.out")"; grep '^note' "$tmp/c.out" | grep -qw "$c" && echo yes || echo no)"
 exit "$fail"
