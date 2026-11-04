@@ -84,11 +84,11 @@ describe('the keyboard model', () => {
     expect(document.querySelector('[aria-live=polite]')!.textContent).toBe('Tue, 0: 2 runs');
   });
 
-  it('Sankey lays out the nodes, drops a link to a missing node, and Enter gives the node', () => {
+  it('Sankey loads Visx lazily, lays out the nodes, drops a link to a missing node, and Enter gives the node', async () => {
     const onNode = vi.fn();
     const nodes = [{ id: 'q', label: 'Queue' }, { id: 'm', label: 'Merged' }];
     render(<Sankey {...a11y} nodes={nodes} links={[{ source: 'q', target: 'm', value: 4 }, { source: 'q', target: 'x', value: 1 }]} onNode={onNode} />);
-    expect(screen.getByText('Queue 4')).toBeTruthy();
+    expect(await screen.findByText('Queue 4')).toBeTruthy();
     const img = screen.getByRole('img', { name: a11y.summary });
     fireEvent.keyDown(img, { key: 'End' });
     fireEvent.keyDown(img, { key: 'Enter' });

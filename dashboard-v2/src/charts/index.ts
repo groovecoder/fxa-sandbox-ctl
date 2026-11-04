@@ -77,7 +77,7 @@ export type TerminalProps = { title: string; lines: string[]; state: TerminalSta
 export { ChartFrame } from './frame';
 export { KpiCard, BarList, Spark, Tracker } from './tremor';
 export { Gantt } from './gantt';
-export { Sankey } from './sankey';
+export { Sankey } from './lazy';
 export { Heatmap } from './heatmap';
 export { StripPlot } from './strip';
 export { Belt } from './belt';
