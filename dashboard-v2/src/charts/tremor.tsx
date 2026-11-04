@@ -1,6 +1,5 @@
 // Adapted from the Tremor Raw KPI card, BarList, SparkAreaChart and Tracker (tremorlabs/tremor, recharts 3.10.1):
 // project tokens in place of the Tremor palette, no first-paint motion, and words for every tone.
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import { Card, Tag } from '../ui';
 import { cx, FILL } from '../ui/tone';
 import { Tip, useChartKeys, useTween } from './frame';
@@ -59,26 +58,25 @@ export function BarList({ label, items, format = String, color = 'chart-1' }: Ba
   );
 }
 
+// Plain SVG, not the Recharts area chart: Recharts is about 80 KB gzip, too much for a sparkline in the first view.
 export function Spark({ label, values, color = 'chart-1' }: SparkProps) {
-  const data = values.map((v, i) => ({ i, v }));
+  const max = Math.max(0, ...values.map((v) => v ?? 0)) || 1, n = Math.max(1, values.length - 1);
+  // A null is a gap: each run of numbers is its own line and area. y goes from 23 (zero) up to 2 (the max).
+  const runs: [number, number][][] = [[]];
+  values.forEach((v, i) => (v == null ? runs.push([]) : runs[runs.length - 1]!.push([(i / n) * 100, 23 - (v / max) * 21])));
   return (
     <div role="img" aria-label={label} className="h-s6 w-full">
-      <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 120, height: 24 }}>
-        <AreaChart data={data} margin={{ top: 2, right: 1, bottom: 1, left: 1 }} accessibilityLayer={false}>
-          <Area
-            dataKey="v"
-            type="linear"
-            connectNulls={false}
-            isAnimationActive={false}
-            stroke={`var(--${color})`}
-            fill={`var(--${color})`}
-            fillOpacity={0.15}
-            strokeWidth={1.5}
-            dot={false}
-            activeDot={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      <svg width="100%" height="100%" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+        {runs.filter((r) => r.length > 1).map((r) => {
+          const line = r.map(([x, y]) => `${x},${y}`).join(' ');
+          return (
+            <g key={r[0]![0]}>
+              <polygon points={`${r[0]![0]},23 ${line} ${r[r.length - 1]![0]},23`} fill={`var(--${color})`} fillOpacity={0.15} />
+              <polyline points={line} fill="none" stroke={`var(--${color})`} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

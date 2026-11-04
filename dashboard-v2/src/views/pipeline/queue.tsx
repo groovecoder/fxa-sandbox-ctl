@@ -5,7 +5,7 @@ import { days, jiraHref, prUrl } from '../../format';
 import { isWaitingOnHuman, skipGroups, verdictTag } from '../../model';
 import type { J } from '../../model/base';
 import { SNAP, jiraSite, laneTitle, teamRepo } from '../../model/pipeline';
-import { useApp } from '../../store';
+import { MODEL, useParts } from '../../app/store';
 import type { Store } from '../../store/types';
 import { Card, CheckBars, EmptyBox, Tag } from '../../ui';
 import { cx } from '../../ui/tone';
@@ -72,7 +72,7 @@ function Details({ name, def, summary, children }: { name: string; def: boolean;
 }
 
 export function Queue() {
-  const s = useApp((x) => x), snap = SNAP(s);
+  const s = useParts(MODEL), snap = SNAP(s);
   if (!snap) return <EmptyBox>Loading the pipeline…</EmptyBox>;
   const review: J[] | null = snap.review ?? null, waiting = review ? review.filter(isWaitingOnHuman) : [];
   const others = review ? review.filter((r) => !isWaitingOnHuman(r)) : [];

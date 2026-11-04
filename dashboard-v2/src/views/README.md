@@ -14,6 +14,7 @@ The shell loads the chunk on the first visit to the view. Vite puts the chunk in
 
 - Read a store slice with `useApp((s) => s.feeds.errors)` from `src/store`. `useApp` compares shallowly, so a delta repaints only what it changes.
 - Read derived values with the memoized selectors of `src/model`, for example `useApp(sbRows)`.
+- A view that gives the whole state to the model reads it with `useParts(MODEL)` from `src/app/store`, plus the slices that it reads outside `MODEL` (for example `s.tails`). Do not use `useApp((s) => s)`: the view then repaints on each ping and terminal line. `src/app/rerender.test.tsx` checks this.
 - Do not return a new object or a new array of new objects from a selector that you write in the view. The shallow compare then fails on each read, and React renders again without end. Use a `src/model` selector, or `useMemo` on the slices.
 - Start the reads of a shown item with `readHistory`, `readUsage`, `readRoutines` and the other `read*` functions of `src/store`.
 

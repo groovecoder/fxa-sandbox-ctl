@@ -1,5 +1,5 @@
 // The shell: rail, header and tabs, side list, main, details panel, status bar, and the keys.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
 import { firstSessTab, format, parse, TEAM_RE, TEAM_TABS, viewHash } from '../router';
 import type { Route, ViewId } from '../router/types';
 import type { Prefs, Store, Theme } from '../store/types';
@@ -65,11 +65,13 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
     const id = def.id;
     if (!def.load || MAIN[id]) return;
     def.load().then(({ default: c }) => {
-      MAIN[id] = () => <c.Main />;
+      // memo: the shell repaints on each store change; a view repaints only on the store parts that it reads.
+      const Main = memo(c.Main);
+      MAIN[id] = () => <Main />;
       if (c.right) RIGHT[id] = c.right;
       if (c.side) SIDE[id] = c.side;
-      if (c.sideTools) TOOLS[id] = c.sideTools;
-      const Side = c.Side;
+      if (c.sideTools) TOOLS[id] = memo(c.sideTools);
+      const Side = c.Side && memo(c.Side);
       if (Side) SIDEPANE[id] = () => <Side />;
     }, () => {
       MAIN[id] = () => <p className="empty">This view did not load. Reload the page.</p>;

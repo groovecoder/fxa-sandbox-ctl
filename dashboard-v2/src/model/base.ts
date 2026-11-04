@@ -22,7 +22,8 @@ export const LIVE_SESSION = ['starting', 'active', 'wrapping'];
 export const PIPE_LISTS = ['inflight', 'review', 'blocked', 'open_prs', 'merged_prs'];
 
 // The v1 STATE: the snapshot top level, from the full, agents and stats feeds.
-export const STATE = memo((s) => [s.feeds], (s): J => {
+// Its deps are the fields themselves, so a new stats copy or an errors delta keeps the same STATE.
+export const STATE = memo((s) => [s.feeds.full, s.feeds.agents, s.feeds.stats].flatMap((f) => [f?.ageSeconds, f?.interval, f?.error, f?.refreshing]), (s): J => {
   const f = s.feeds.full, a = s.feeds.agents, st = s.feeds.stats;
   return {
     age_seconds: f?.ageSeconds, interval: f?.interval, error: f?.error, refreshing: f?.refreshing,
