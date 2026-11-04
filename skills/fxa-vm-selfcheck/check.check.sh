@@ -37,6 +37,7 @@ echo '{}' > .fxa-test-plan.json; printf 'plan  unit a.test  PASS\nplan  flow new
 sleep 1; touch packages/app/src/a.ts
 out="$(bash "$C" "$r")"
 has() { grep -c -- "$1" <<< "$out" | tr -d ' '; }
+check "the diff lists files with line counts, no stat bars" "1|0" "$(grep -cx $'1\t1\tapps/x.ts' <<< "$out")|$(grep -cE '\| +[0-9]+ [-+]' <<< "$out")"
 check "the untracked test is listed" "1" "$(grep -c '^  packages/app/src/a.test.tsx$' <<< "$(sed -n '/Untracked/,/==/p' <<< "$out")")"
 check "check 1: fireEvent/ByTestId in a new react test" "1" "$(has '! react test uses')"
 check "check 3: a removed export asks for tsc on its package" "1" "$(has '! a removed export or changed signature in packages/app: run npx tsc --noEmit -p packages/app/tsconfig.json')"

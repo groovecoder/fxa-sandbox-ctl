@@ -31,7 +31,7 @@ Check 7. The sections below are the reference for each check.
 ```bash
 cd /workspace
 BASE="$(git merge-base HEAD "origin/${FXA_WORKTREE_BASE:-main}")"
-git --no-pager diff --stat "$BASE"
+git --no-pager diff --numstat "$BASE"
 git --no-pager status --short
 ```
 
@@ -143,7 +143,7 @@ appear for the first time. A clean `main` does not prove a clean branch.
 ## Check 4: Scope
 
 ```bash
-git --no-pager diff --stat "$BASE"
+git --no-pager diff --numstat "$BASE"
 ```
 
 Read the file list against the ticket. Revert a file the ticket does not need:

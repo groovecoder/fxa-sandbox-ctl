@@ -14,7 +14,9 @@ changed="$( { git diff --name-only "$BASE"; git ls-files --others --exclude-stan
 untracked="$(git ls-files --others --exclude-standard | grep -v '^\.fxa-' || true)"
 
 echo "== Step 0: the diff from ${BASE:0:10}"
-git --no-pager diff --stat=100 "$BASE" -- . ':(exclude).fxa-*' | tail -n 20
+# Added and removed lines per file: stat bars cost tokens and say nothing more.
+git --no-pager diff --numstat "$BASE" -- . ':(exclude).fxa-*' | head -n 40
+git --no-pager diff --shortstat "$BASE" -- . ':(exclude).fxa-*'
 [ -n "$untracked" ] && { echo "Untracked (read each one; a diff hides them):"; sed 's/^/  /' <<< "$untracked"; }
 
 echo "== Check 1: test lines"
