@@ -9,9 +9,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 
 // One server per v1 page fixture: the page polls it, as parity-v2.sh does.
-const servers: Record<string, { url: string; stop: () => void }> = {};
+const servers: Record<string, { url: string; stop: () => void; up: () => boolean }> = {};
 async function serve(fixture: string) {
-  if (servers[fixture]) return servers[fixture].url;
+  // fullyParallel: a worker can run afterAll for its share of this file and then get more of its tests.
+  if (servers[fixture]?.up()) return servers[fixture].url;
   // Port 0: serve.py binds a free port and prints it once it listens, so parallel workers never share one.
   const p = spawn('python3', ['e2e/serve.py', '--port', '0', '--fixture', `../skills/fxa-ctl-dev/page-fixture-${fixture}.json`], { stdio: ['ignore', 'pipe', 'inherit'] });
   const port = await new Promise<string>((ok, no) => {
@@ -20,10 +21,15 @@ async function serve(fixture: string) {
     p.on('exit', (c) => no(new Error(`serve.py exited with ${c}`)));
   });
   const url = `http://127.0.0.1:${port}`;
-  servers[fixture] = { url, stop: () => p.kill() };
+  servers[fixture] = { url, stop: () => p.kill(), up: () => p.exitCode === null && p.signalCode === null };
   return url;
 }
-test.afterAll(() => Object.values(servers).forEach((s) => s.stop()));
+test.afterAll(() => {
+  for (const [k, s] of Object.entries(servers)) {
+    s.stop();
+    delete servers[k];
+  }
+});
 test.use({ viewport: { width: 1440, height: 1000 } });
 
 // edit changes an API answer before the page reads it, as a v1 check edits AGENTS.
