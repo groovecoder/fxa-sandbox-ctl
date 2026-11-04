@@ -57,7 +57,8 @@ kbd { font: 600 var(--t-label) var(--mono); color: var(--dim); border: 1px solid
 .side .sh h2 .n { color: var(--faint); font-weight: 500; }
 .search { margin-top: var(--s3); display: flex; align-items: center; gap: 6px; border: 1px solid var(--line2); border-radius: var(--r-md);
   padding: 0 10px; background: var(--panel); color: var(--dim); }
-.search:focus-within { border-color: var(--link); }
+/* Rule 9: the input has no outline of its own, so the search box shows it. */
+.search:focus-within { border-color: var(--link); outline: 2px solid var(--link); outline-offset: 2px; }
 .search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); font: inherit; padding: 8px 0; outline: none; }
 .slist2 { overflow: auto; padding: 0 var(--s2) var(--s3); flex: 1; }
 .slist2 ul { list-style: none; margin: 0; padding: 0; }
@@ -135,7 +136,8 @@ dialog::backdrop { background: rgb(0 0 0 / .4); }
 .help label { display: flex; gap: var(--s2); align-items: flex-start; margin-top: var(--s4); color: var(--dim); font-size: var(--t-sub); }
 .help a { color: var(--link); }
 .palette { width: min(560px, 92vw); margin: 12vh auto auto; }
-.palette input { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: var(--t-heading); padding: var(--s3) var(--s4); outline: none; }
+.palette input { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: var(--t-heading); padding: var(--s3) var(--s4); }
+.palette input:focus-visible { outline-offset: -2px; }
 .palette ul { list-style: none; margin: 0; padding: var(--s2); max-height: 50vh; overflow: auto; }
 .palette li { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r-md); cursor: pointer; }
 .palette li[aria-selected="true"] { background: var(--infobg); }
