@@ -108,7 +108,7 @@ function Head({ fs, range, note, team }: P) {
   return (
     <section id="ov-head">
       <Tag label={h.tag} tone={f.atWork ? 'info' : 'dim'} run live={!!f.atWork} />
-      {h.who && <span className="ovwho">{h.who}</span>}
+      {h.who && <span className="ovwho">{h.who}{team ? ', every team' : ''}</span>}
       <span className="ovkpi">LLM, last hour <b>{note ? 'unknown' : !st ? 'loading' : typeof hr === 'number' ? usd(hr) : 'unknown'}</b></span>
       <div className="ovfilters">
         {teams.length > 1 && (
@@ -157,7 +157,8 @@ function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }
   if (m === 'spend' || m === 'runs') {
     const isS = m === 'spend', tot = isS ? sp.total : k.runs.v, by = (d: J) => (isS ? d.by : d.n);
     const data: Point[] = sp.days.map((d: J) => ({ lbl: shortDay(d.t), ...Object.fromEntries(OV_SRC.map(([src]) => [src, by(d)[src] ?? 0])) }));
-    const series: Series[] = OV_SRC.map(([src, color]) => ({ key: src, name: SRC_NAME[src]!, color }));
+    // A source with no run in the range draws no area, only a stray outline: leave it out, as the cards do.
+    const series: Series[] = OV_SRC.filter(([src]) => note || (sp.nby[src] ?? 0) > 0).map(([src, color]) => ({ key: src, name: SRC_NAME[src]!, color }));
     const f = isS ? usd : (v: number) => String(Math.round(v)), pk = sp.days.reduce((a: J, d: J) => { const v = isS ? d.usd : Object.values(d.n as Record<string, number>).reduce((x, y) => x + y, 0); return v > (a?.v ?? 0) ? { t: d.t, v } : a; }, null);
     chart = tot ? (
       <OvChart title={`${isS ? 'Spend' : 'Runs'} by day and source, last ${n}`} data={data} series={series} stacked fmt={isS ? money : f} height={200} onPick={go}
@@ -207,7 +208,7 @@ function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }
         summary={`${title}. ${data.filter((d) => d.v != null).length} days with a run.`}
         table={{ head: ['Day', name, ...(isR ? [] : ['25th to 75th percentile'])], rows: data.map((d) => [d.lbl, d.v == null ? 'none' : f(Number(d.v)), ...(isR ? [] : [d.band ? (d.band as number[]).map(f).join(' to ') : 'none'])]) }} />
     );
-    head = <span className="sub">{isR ? `${k.rate.n} pipeline run${k.rate.n === 1 ? '' : 's'} in the last ${n}` : `per pipeline run, last ${n}`}</span>;
+    head = <span className="sub">{isR ? `${k.rate.n} pipeline run${k.rate.n === 1 ? '' : 's'} in the last ${n}` : `Per pipeline run, last ${n}`}</span>;
   }
   const pk = sp.peak, pkText = m === 'spend' && pk ? `Peak ${shortDay(pk.t)}: ${usd(pk.usd)}${why ? '' : `, ${pk.merged} PR${pk.merged === 1 ? '' : 's'} merged that day`}` : '';
   return (
@@ -229,7 +230,7 @@ function MainCard({ fs, range, note, now, metric, team }: P & { metric: Metric }
       {note && <div className="ovknote">{note}</div>}
       <div className="ovhead">{head}{pkText && <span className="sub">{usd(sp.perDay)} a day on average · {pkText}</span>}</div>
       {chart}{leg}
-      {m === 'spend' && <p className="vh">Spend in the last {n}: {usd(sp.total)}, {OV_SRC.map(([src]) => `${SRC_NAME[src]} ${note ? 'unknown' : usd(sp.by[src] ?? 0)}`).join(', ')}. {pkText}.</p>}
+      {m === 'spend' && <p className="vh">Spend in the last {n}: {usd(sp.total)}, {OV_SRC.filter(([src]) => note || (sp.nby[src] ?? 0) > 0).map(([src]) => `${SRC_NAME[src]} ${note ? 'unknown' : usd(sp.by[src] ?? 0)}`).join(', ')}. {pkText}.</p>}
     </Sec>
   );
 }
@@ -253,10 +254,10 @@ function Budget({ fs, note, now, team }: P) {
         <>
           <div className="sub">{who}. At this rate the month ends near <b>{usd(b.end)}</b>.</div>
           <div className="ovleg"><span><i className="bg-chart-1" />Spent</span><span><i className="bg-chart-muted" />Projected</span></div>
-          <OvChart title={`${b.name} spend of every team, so far and projected`} data={data} height={170} fmt={money}
+          <OvChart title={`${b.name} spend of ${team ? teamLabel(store.getState(), team) : 'every team'}, so far and projected`} data={data} height={170} fmt={money}
             series={[{ key: 'band', name: 'Forecast band', color: 'chart-muted', mark: 'band' }, { key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}
-            refs={caps.slice(0, 3).map((t) => ({ y: t.budget.month_cap, label: `${teamName(t)} cap` }))}
-            summary={`${b.name} spend of every team: ${usd(b.mtd)} so far, near ${usd(b.end)} at the month end.`}
+            refs={caps.filter((t) => !team || t.profile === team).slice(0, 3).map((t) => ({ y: t.budget.month_cap, label: `${teamName(t)} cap` }))}
+            summary={`${b.name} spend of ${team ? teamLabel(store.getState(), team) : 'every team'}: ${usd(b.mtd)} so far, near ${usd(b.end)} at the month end.`}
             table={{ head: ['Day', 'Spent', 'Projected'], rows: data.map((d) => [d.lbl, d.spent == null ? '' : usd(Number(d.spent)), d.proj == null ? '' : usd(Number(d.proj))]) }} />
         </>
       )}

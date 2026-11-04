@@ -1,7 +1,7 @@
 /* The Overview layout, ported from the v1 Overview CSS: the same grid and breakpoints, tokens only. */
 .ov { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); align-items: start; }
 /* One padding for every card, so the card titles line up. */
-.ov .card { border: 1px solid var(--card-border); box-shadow: var(--shadow); border-radius: var(--r-lg); background: var(--panel); padding: var(--s4); min-width: 0; }
+.ov .card { position: relative; border: 1px solid var(--card-border); box-shadow: var(--shadow); border-radius: var(--r-lg); background: var(--panel); padding: var(--s4); min-width: 0; }
 .ov h2 { font: 700 var(--t-heading)/1.3 var(--head); margin: 0 0 var(--s3); color: var(--ink); }
 /* A card head: the title, then its count or link; the h2 holds the title alone. */
 .ov .cardhd { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; margin-bottom: var(--s3); }
@@ -28,13 +28,12 @@
 /* Two columns on a wide screen: the metrics, Activity and Teams on the left; the month, LLM spend and the hours on the right. */
 @media (min-width: 1100px) { .ovgrid { grid-template-columns: minmax(0, 1fr) 360px; } }
 .ovcol { display: grid; gap: var(--s3); min-width: 0; align-content: start; }
-/* One column below 1100 px, in DOM order; a tablet puts the right column's cards side by side. */
-.ovrail { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); align-content: start; align-items: start; min-width: 0; }
-@media (min-width: 1100px) { .ovrail { grid-template-columns: minmax(0, 1fr); } }
+/* One column below 1100 px, in DOM order: cards of unequal height side by side left holes. */
+.ovrail { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); align-content: start; min-width: 0; }
 .ov details { overflow-x: auto; }
 
 #ov-main { container-type: inline-size; }
-.mtabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: calc(-1 * var(--s4)) calc(-1 * var(--s4)) var(--s3); border-bottom: 1px solid var(--line); }
+.mtabs { border-radius: var(--r-lg) var(--r-lg) 0 0; overflow: hidden; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: calc(-1 * var(--s4)) calc(-1 * var(--s4)) var(--s3); border-bottom: 1px solid var(--line); }
 .mt { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-rows: subgrid; grid-row: span 4; grid-column: span 3; row-gap: 2px; min-width: 0; padding: var(--s3) var(--s4); border-bottom: 2px solid transparent; box-shadow: inset 1px 0 0 var(--line); }
 .mt:last-child { grid-column: 1 / -1; }
 @container (min-width: 420px) { .mt, .mt:last-child { grid-column: span 2; } .mt:nth-child(n+4) { grid-column: span 3; } }
@@ -59,7 +58,8 @@
 .ovleg i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .ovchart { margin-top: var(--s2); }
 /* The sources under the chart: each its total, its runs and its share. */
-.ovkinds { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; gap: var(--s2); grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+.ovkinds { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; gap: var(--s2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container (min-width: 700px) { .ovkinds { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); } }
 .ovkinds a, .ovkinds li > span { display: flex; flex-direction: column; gap: 2px; height: 100%; box-sizing: border-box; padding: var(--s2) var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); color: inherit; }
 .ovkinds a:hover { text-decoration: none; border-color: var(--line2); background: var(--hover); }
 .ovkinds .kn { display: flex; align-items: center; gap: 6px; font-size: var(--t-label); color: var(--dim); }

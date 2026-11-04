@@ -7,10 +7,10 @@ test('the theme script follows the system theme when no choice is saved', async 
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.goto('/v2/');
   expect(await theme(page)).toBe('dark');
-  expect(await bg(page)).toBe('rgb(27, 31, 36)');
+  expect(await bg(page)).toBe('rgb(15, 20, 27)');
   await page.emulateMedia({ colorScheme: 'light' });
   await expect.poll(() => theme(page)).toBe('light');
-  expect(await bg(page)).toBe('rgb(246, 248, 250)');
+  expect(await bg(page)).toBe('rgb(246, 247, 249)');
 });
 
 test('a saved theme wins over the system theme', async ({ page }) => {

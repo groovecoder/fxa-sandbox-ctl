@@ -24,7 +24,7 @@ export type ViewDef = {
 const tabs = (...t: [string, string][]) => t.map(([id, label]) => ({ id, label }));
 
 export const VIEWS: ViewDef[] = [
-  { id: 'overview', title: 'Overview', sub: "What needs you, what is running, and today's cost", tabs: [], side: false, right: false, bareTabs: [], load: () => import('../views/overview') },
+  { id: 'overview', title: 'Overview', sub: 'What is running, what it costs, and how the teams do', tabs: [], side: false, right: false, bareTabs: [], load: () => import('../views/overview') },
   {
     id: 'pipeline', title: 'Pipeline', sub: 'Jira tickets from the queue to the merge',
     tabs: tabs(['belts', 'Belts'], ['queue', 'Queue and review'], ['done', 'Done']), side: false, right: false, bareTabs: [],
