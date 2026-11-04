@@ -1406,6 +1406,8 @@ cmd_reconcile() {
                 else
                   echo "$key pr #$pr RED-INFRA $why; not this PR"
                 fi
+              elif why="$(gh_red_rerun "$key")"; then
+                echo "$key pr #$pr RERUN once: $why"
               else
                 echo "$key pr #$pr RED $ok $fail $run"
               fi
@@ -1512,6 +1514,7 @@ $(gh_drain "$inpr" 2>/dev/null | awk '$3 == "CONFLICT"' || true)"
       MERGED) if cmd_label "$key" merged >/dev/null 2>&1; then merged_n=$((merged_n + 1)); _info "drain: $key merged #$num (labelled, ticket closed)"; else _drain_wake "$key" "$line (label merged FAILED)"; fi ;;
       CLOSED) if cmd_label "$key" rejected >/dev/null 2>&1; then rejected_n=$((rejected_n + 1)); _info "drain: $key rejected #$num (labelled)"; else _drain_wake "$key" "$line (label rejected FAILED)"; fi ;;
       RED)    if why="$(gh_red_infra "$key")"; then infra=$((infra + 1)); _info "drain: $key $num RED-INFRA $why"
+              elif why="$(gh_red_rerun "$key")"; then _info "drain: $key $num RERUN once: $why"
               else
                 # The pass can only report a done PR's red, so the same red (head and failure count)
                 # wakes one pass, not every pass until a person acts.

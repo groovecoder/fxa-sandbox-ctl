@@ -37,7 +37,8 @@ token comes from `~/.circleci/cli.yml`. Never print it.
    `KEY none -`. `MERGED`→`$CTL label KEY merged`, `CLOSED`→`label KEY rejected`. **Never file a
    CLOSED PR as merged**; the label is the only record of what reviewers threw away. `none -`:
    do not relabel, report as an anomaly. `CONFLICT`: see conflicts. `CONFLICT? mergeability-
-   uncomputed`: report, do not rebase on a guess. `RED`: leave the label, put it under ⚠️ with
+   uncomputed`: report, do not rebase on a guess. `RERUN once:`: every failed GitHub Actions job
+   logged an outside fault, so the host reran them once for that head; do nothing. `RED`: leave the label, put it under ⚠️ with
    the failing job. **Assume repo infrastructure before the PR**, then prove it: read
    `$CTL ci-cause KEY` and judge on its `Failed tasks:`, `Failed to compile`, lint and test
    lines. A failure in a file the PR changed is the PR's (INCIDENTS: Reconcile and CI). `label KEY done` posts the PR-ready comment itself, once per PR. `label KEY merged` posts the one telemetry comment itself, then assigns the ticket to the

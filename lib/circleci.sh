@@ -4,6 +4,10 @@
 #
 # Public API:
 #   circleci_token                    CIRCLECI_TOKEN, CIRCLECI_CLI_TOKEN, or ~/.circleci/cli.yml
+#   circleci_job_path <url>           "<org>/<repo>/<job number>" of a CircleCI job link, any project
+#   circleci_job_workflow <token> <path>   the job's workflow id
+#   circleci_failed_log <token> <path>     the failed steps' output, with no color codes
+#   circleci_rerun_failed <token> <workflow id>   rerun the workflow from its failed jobs
 #   circleci_digests <text> <nonce> [dir]
 #     For each mozilla/fxa job or workflow link in <text> (at most 2): the failed
 #     tests, the end of each failed step, and Playwright's error context for up to
@@ -23,6 +27,28 @@ circleci_token() {
 
 # The token goes in on stdin (-K -), never on curl's command line, where ps shows it.
 _circleci_get() { printf 'header = "Circle-Token: %s"\n' "$1" | curl -sf -m 30 -K - "$2"; }
+
+circleci_job_path() {
+  [[ "$1" =~ circleci\.com/gh/([^/]+/[^/?#]+)/([0-9]+) ]] \
+    || [[ "$1" =~ app\.circleci\.com/pipelines/(gh|github)/([^/]+/[^/]+)/[0-9]+/workflows/[0-9a-f-]+/jobs/([0-9]+) ]] || return 1
+  if [ "${#BASH_REMATCH[@]}" -eq 3 ]; then echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"; else echo "${BASH_REMATCH[2]}/${BASH_REMATCH[3]}"; fi
+}
+
+circleci_job_workflow() {
+  _circleci_get "$1" "https://circleci.com/api/v2/project/gh/${2%/*}/job/${2##*/}" | jq -r '.latest_workflow.id // empty' 2>/dev/null
+}
+
+circleci_failed_log() {
+  local url
+  _circleci_get "$1" "https://circleci.com/api/v1.1/project/github/$2" \
+    | jq -r '.steps[].actions[] | select(.failed == true) | .output_url // empty' 2>/dev/null | head -3 \
+    | while read -r url; do curl -sf -m 30 "$url" | jq -r '.[].message' 2>/dev/null | perl -pe 's/\e\[[0-9;]*[A-Za-z]//g'; done
+}
+
+circleci_rerun_failed() {
+  printf 'header = "Circle-Token: %s"\n' "$1" | curl -sf -m 30 -K - -X POST -H 'Content-Type: application/json' \
+    -d '{"from_failed": true}' "https://circleci.com/api/v2/workflow/$2/rerun" >/dev/null
+}
 
 # _circleci_job <token> <number> [dir]   One job: its name and status, failed tests,
 # failed steps' tails, Playwright error contexts, and with [dir] their traces.
