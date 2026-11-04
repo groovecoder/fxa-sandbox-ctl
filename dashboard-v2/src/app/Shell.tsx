@@ -158,6 +158,14 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   useEffect(() => {
     if (showright && narrowRight) document.getElementById('rclose')?.focus();
   }, [showright, narrowRight]);
+  // An open drawer makes the page behind it inert, so browse mode stays in it; the header keeps its List and Details buttons.
+  const drawer = narrowSide && showside && route.view !== 'teams' ? 'side' : narrowRight && showright ? 'right' : '';
+  useEffect(() => {
+    if (!drawer) return;
+    const els = [...document.querySelectorAll<HTMLElement>(`.rail, #main > .mc, footer.status, #${drawer === 'side' ? 'right' : 'side'}`)];
+    for (const el of els) el.inert = true;
+    return () => { for (const el of els) el.inert = false; };
+  }, [drawer]);
 
   // A new view or tab puts the focus on its heading, unless the view put the focus in its content or a fast "/" put it in the search.
   const at = useRef('');

@@ -288,11 +288,16 @@ for (const [hash, h1, btn, first] of [['#errors/all/a1b2c3d4e5', 'Errors', '#tri
     await page.locator(btn).click();
     await expect(page.locator(first)).toBeFocused();
     const drawer = btn === '#tright' ? 'right' : 'side';
+    const behind = `.rail, #main > .mc, footer.status, #${drawer === 'side' ? 'right' : 'side'}`;
+    const inert = () => page.evaluate((q) => [...document.querySelectorAll<HTMLElement>(q)].map((e) => e.inert), behind);
+    expect(await inert()).toEqual([true, true, true, true]);
+    await expect(page.locator(btn)).not.toHaveAttribute('inert');
     for (const k of [...Array(6).fill('Tab'), ...Array(8).fill('Shift+Tab')] as string[]) {
       await page.keyboard.press(k);
       expect(await page.evaluate((id) => !!document.activeElement?.closest(`#${id}`), drawer), k).toBe(true);
     }
     await page.keyboard.press('Escape');
     await expect(page.locator(btn)).toBeFocused();
+    expect(await inert()).toEqual([false, false, false, false]);
   });
 }
