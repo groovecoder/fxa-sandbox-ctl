@@ -46,7 +46,7 @@ export function Done() {
       <div className="pflow-grid">
         <Card flat sm>
           <h3 className="sgroup">Merges per week</h3>
-          <BarList label="Merges per week" items={ws.map((w) => ({ name: `Week of ${w.label}`, value: w.rows.length }))} color="chart-3" />
+          <BarList label="Merges per week" items={ws.map((w) => ({ name: `Week of ${w.label}`, value: w.rows.length }))} />
           <StripPlot title="Days to merge, per week" unit="days"
             summary={`Days to merge per week of the merge. The median of all is ${medText} days.`}
             groups={ws.map((w) => ({ label: w.label, median: median(w.rows.map((r) => r.took)) ?? undefined,
@@ -55,7 +55,7 @@ export function Done() {
         </Card>
         <Card flat sm>
           <h3 className="sgroup">Merged by</h3>
-          <BarList label="Merged by" items={[...by].sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }))} color="chart-2" />
+          <BarList label="Merged by" items={[...by].sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }))} />
         </Card>
       </div>
       <div className="tscroll">

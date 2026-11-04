@@ -13,8 +13,9 @@ import { connect } from '../../store';
 import type { Store } from '../../store/types';
 import { Card, CheckBars, EmptyBox, Tag } from '../../ui';
 import { cx } from '../../ui/tone';
-import { BELT_HINT, BELT_PHASES, BELT_SUBS, GROUP_NAME, GROUPS, ageSecs, ageWords, beltTone, doneRows, mergesPerDay, NODE_STOPS } from './data';
+import { BELT_HINT, BELT_SUBS, GROUP_NAME, GROUPS, ageSecs, ageWords, beltTone, doneRows, mergesPerDay } from './data';
 import { Flow } from './flow';
+import { WaitStrip } from './queue';
 import { Ext, SrcBadge, Tile, useOpen } from './parts';
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -61,7 +62,6 @@ const liveTails = (x: State): unknown[] => (SNAP(x) ? (beltGroups(x) as J).worki
 export function Belts() {
   const s = useParts<State>((x) => [...MODEL(x), ...liveTails(x), x.flow, x.live.sid]);
   const g: J = beltGroups(s), snap = SNAP(s), sel = s.route.sel, bad = useBadLink();
-  const [stops, setStops] = useState<[number, number] | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const focus = useRef<{ el: HTMLElement; key: string; f: string } | null>(null);
   const said = useRef<HTMLParagraphElement>(null);
@@ -101,9 +101,6 @@ export function Belts() {
 
   if (!snap) return <EmptyBox>Loading the pipeline…</EmptyBox>;
   const n = beltCount(g), anyLive = live.length > 0;
-  const shown = (r: J) => !stops || (r.st >= stops[0] && r.st <= stops[1]);
-  const counts = LANE_ST.map((_, j) => GROUPS.reduce((c, k) => c + g[k].filter((r: J) => r.st === j).length, 0));
-  const unknownAny = GROUPS.some((k) => g.unknown[k]);
   const old = g.outside.filter((r: J) => r.age >= 3).length;
   const repo = teamRepo(s, ''), lbl = snap.team?.pr_label;
   const prHref = repo && lbl ? `https://github.com/${repo}/pulls?q=is%3Apr+state%3Aopen+label%3A${encodeURIComponent(lbl)}` : '';
@@ -116,28 +113,19 @@ export function Belts() {
   const ageMax = Math.max(1, ...all.map((r) => ageSecs(r) ?? 0));
   const row = (r: J) => <BeltRow key={r.t.key} r={r} s={s} open={r.t.key === sel} ageMax={ageMax} />;
 
-  const sub = ([k, who, name, pick]: (typeof BELT_SUBS)[number], lo: number, hi: number) => {
+  // Working now always shows, so an empty belt says no agent runs; the other groups show only with rows.
+  const sub = ([k, who, name, pick]: (typeof BELT_SUBS)[number]) => {
     if (g.unknown[k]) return null;
-    const rs = g[k].filter((r: J) => r.st >= lo && r.st <= hi && pick(r) && shown(r));
-    return rs.length ? (
+    const rs = g[k].filter(pick);
+    return rs.length || k === 'working' ? (
       <div key={name} role="group" aria-label={name}>
-        <h3 className="bsub"><span className="who">{who}</span>{name} <span className="cnt">{rs.length}</span><span className="hint">{BELT_HINT[name]}</span></h3>
-        <ul className="belts">{rs.map(row)}</ul>
+        <h2 className="bsub"><span className="who">{who}</span>{name} <span className="cnt">{rs.length}</span><span className="hint">{BELT_HINT[name]}</span></h2>
+        {rs.length ? <ul className="belts">{rs.map(row)}</ul> : <p className="bnone">No agent runs now.</p>}
       </div>
     ) : null;
   };
-  const phases = BELT_PHASES.map(([name, why, lo, hi]) => {
-    const body = BELT_SUBS.map((x) => sub(x, lo, hi)).filter(Boolean);
-    const c = BELT_SUBS.reduce((t, [k, , , pick]) => t + g[k].filter((r: J) => r.st >= lo && r.st <= hi && pick(r)).length, 0);
-    return body.length ? (
-      <div key={name} role="group" aria-labelledby={`bp-${lo}`}>
-        <h2 className="bgh" id={`bp-${lo}`}>{name} <span className="cnt">{unknownAny ? '?' : c}</span><span className="why">{why}</span></h2>
-        {body}
-      </div>
-    ) : null;
-  }).filter(Boolean);
+  const groups = BELT_SUBS.map(sub).filter(Boolean);
   const unknown = GROUPS.filter((k) => g.unknown[k]).map((k) => <EmptyBox key={k}>{GROUP_NAME[k]}: {g.unknown[k]}</EmptyBox>);
-  const stopName = stops && (stops[0] === stops[1] ? LANE_ST[stops[0]] : `${LANE_ST[stops[0]]} to ${LANE_ST[stops[1]]}`);
 
   return (
     <div id="s-lanes">
@@ -151,43 +139,37 @@ export function Belts() {
           sub={merged == null ? 'GitHub did not answer' : <>pipeline tickets<Spark label="Merges per day, last 14 days" values={mergesPerDay(done)} color="chart-3" /></>} />
       </div>
       <Where g={g} s={s} sel={sel} bad={bad} done={done} />
-      {stops && (
-        <p className="bwhere">Showing the belts at {stopName}. <button type="button" className="linkbtn" onClick={() => setStops(null)}>Show all stops</button></p>
-      )}
-      <div className="bwrap" ref={box} tabIndex={-1} onFocus={onFocus} aria-label="Belts">
-        <div className="bgrid bstops" aria-hidden="true">
-          <span>Ticket</span>
-          <div>
-            <div className="phs"><b className="ph-q">Queue</b><b className="ph-a">Agent run</b><b className="ph-p">PR</b></div>
-            <div className="cols">{LANE_ST.map((st, j) => <div key={st}><b title={st}>{st}</b><span>{unknownAny ? '?' : counts[j] || '·'}</span></div>)}</div>
-          </div>
-          <span className="r">Status</span>
+      <div className="pcols">
+        <div className="bwrap" ref={box} tabIndex={-1} onFocus={onFocus} aria-label="Belts">
+          {unknown}
+          {groups}
+          {g.outside.length > 0 && (
+            <details className="bout" open={outside.open || g.outside.some((r: J) => r.t.key === sel)} onToggle={outside.onToggle}>
+              <summary>Outside the pipeline ({g.outside.length}){old ? ` · ${old} wait 3+ days` : ''}</summary>
+              <ul className="belts">{g.outside.map(row)}</ul>
+            </details>
+          )}
         </div>
-        {unknown}
-        {phases.length ? phases : unknown.length ? null : <EmptyBox>Nothing on the belts.</EmptyBox>}
-        {g.outside.length > 0 && (
-          <details className="bout" open={outside.open || g.outside.some((r: J) => r.t.key === sel)} onToggle={outside.onToggle}>
-            <summary>Outside the pipeline ({g.outside.length}){old ? ` · ${old} wait 3+ days` : ''}</summary>
-            <ul className="belts">{g.outside.filter(shown).map(row)}</ul>
-          </details>
-        )}
+        <aside className="paside" aria-label="Pipeline details">
+          <Flow g={g} snap={snap} done={done} />
+          {snap.review?.length > 0 && <WaitStrip review={snap.review} />}
+        </aside>
       </div>
-      <p className="sr-only" aria-live="polite" ref={said} />
-      <Flow g={g} snap={snap} done={done} points={s.flow.points} onStops={(id) => setStops(NODE_STOPS[id] ?? null)} />
+      <p className="sr-only" id="belts-said" aria-live="polite" ref={said} />
     </div>
   );
 }
 
 // Where a key from a link is when it has no belt: a hold, the queue, Done, or nowhere.
 function Where({ g, s, sel, bad, done }: { g: J; s: Store; sel: string; bad: boolean; done: J[] }) {
-  const qv = <>(<a href="#pipeline/queue">Queue and review</a>)</>;
+  const qv = <>(<a href="#pipeline/queue">Queue</a>)</>;
   let text: ReactNode = null;
   if (bad) text = 'That link names no ticket.';
   else if (sel && !['working', 'needs', 'fixes', 'review', 'outside'].some((x) => g[x].some((r: J) => r.t.key === sel))) {
     const i = boardItems(s).find((x: J) => x.key === sel), d = done.find((x) => x.t.key === sel);
     text = i?.waitsOn ? <>{sel} waits on {i.waitsOn} {qv}</> : i?.column === 'next' ? <>{sel} is ready in the queue {qv}</> : i ? <>{sel} is in the queue {qv}</>
       : d ? <>{sel} {d.l1.replace(/^Merged/, 'merged')} (<a href="#pipeline/done">Done</a>)</>
-        : <>{sel} is not on a belt now. Look in <a href="#pipeline/queue">Queue and review</a> or <a href="#pipeline/done">Done</a>.</>;
+        : <>{sel} is not on a belt now. Look in <a href="#pipeline/queue">Queue</a> or <a href="#pipeline/done">Done</a>.</>;
   }
   return text ? <p className="bwhere" id="bwhere">{text}</p> : null;
 }
@@ -219,11 +201,19 @@ function BeltRow({ r, s, open, ageMax }: { r: J; s: Store; open: boolean; ageMax
           <a className="t blink" href={href} onClick={onRow} data-focus="row" aria-expanded={open} aria-controls={open ? `bd-${t.key}` : undefined} title={t.summary || undefined}>
             {title.text || t.key}
           </a>
-          {r.l2 && <span className="l2" title={r.l2}>{r.l2}</span>}
         </span>
+        {/* Only a run moves on the belt; a row that waits on a person shows why it stopped. */}
         <span className="trk">
-          <Belt stops={LANE_ST} at={r.st} tone={tone ?? 'dim'} label={live ? `${r.l1}, agent working` : r.l1} live={live} />
-          {t.pr != null && hasChecks(t) && <CheckBars ok={t.ok ?? 0} fail={t.fail ?? 0} running={t.running ?? 0} />}
+          {r.group === 'working' ? (
+            <>
+              <Belt stops={LANE_ST} at={r.st} tone={tone ?? 'dim'} label={live ? `${r.l1}, agent working` : r.l1} live={live} />
+              {r.l2 && <span className="l2" title={r.l2}>{r.l2}</span>}
+            </>
+          ) : (
+            <span className="why" title={r.l2 || undefined}>
+              {t.pr != null && hasChecks(t) && <CheckBars ok={t.ok ?? 0} fail={t.fail ?? 0} running={t.running ?? 0} />} {r.l2}
+            </span>
+          )}
         </span>
         <span className="st">
           <Tag label={r.l1} tone={tone} title={r.l1} />

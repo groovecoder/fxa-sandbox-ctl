@@ -7,7 +7,7 @@ import { snapshotActions, viewerAction } from '../../live/poll';
 import { type Action, apply } from '../../live/reducers';
 import { store } from '../../store';
 import { Belts } from './belts';
-import { doneRows, flowGraph, median, mergesPerDay, stackFlow, ageWords } from './data';
+import { doneRows, flowGraph, median, mergesPerDay, ageWords } from './data';
 import { Done } from './done';
 import { Queue } from './queue';
 
@@ -58,9 +58,7 @@ describe('the pure parts', () => {
     expect(rows[1]!.took).toBe(2);
     expect(mergesPerDay(rows, 3, now)).toEqual([1, 0, 1]);
   });
-  it('stacks the flow bands in stop order', () => {
-    expect(stackFlow([{ at: 1, stops: [1, 2, 0, 0, 0, 0, 0, 0, 3] }])[0]!.tops).toEqual([1, 3, 3, 3, 3, 3, 3, 3, 6]);
-  });
+
   it('gives each age its unit word', () => {
     expect(ageWords({ age: 1, t: {} })).toBe('1 day');
     expect(ageWords({ t: { elapsed_seconds: 720 } })).toBe('12 min');
@@ -76,12 +74,14 @@ describe('the pure parts', () => {
 });
 
 describe('Belts', () => {
-  it('shows the tiles, the phases and the outside list', () => {
+  it('shows the tiles, the groups with Working now first, and a belt on the agent rows only', () => {
     load();
     render(<Belts />);
     const tile = (l: string) => document.querySelector(`[data-stat="${l}"] .text-kpi`)!.textContent;
     expect([tile('Needs you'), tile('Agents working'), tile('Open PRs'), tile('Merged, 7 days')]).toEqual(['1', '2', '3', '1']);
-    expect([...document.querySelectorAll('.bgh')].map((h) => h.firstChild!.textContent!.trim())).toEqual(['PR', 'Agent run', 'Queue', 'Pipeline flow']);
+    expect([...document.querySelectorAll('.bwrap [role=group]')].map((h) => h.getAttribute('aria-label'))).toEqual(['Working now', 'Review and merge', 'Decide', 'The agent fixes it, next pass']);
+    const belts = [...document.querySelectorAll('[data-belt]')].filter((li) => li.querySelector('.trk [role=img][aria-label*="Stop "]')).map((li) => li.closest('[role=group]')?.getAttribute('aria-label'));
+    expect(new Set(belts)).toEqual(new Set(['Working now']));
     expect(screen.getByText(/^Outside the pipeline \(2\)/)).toBeTruthy();
     expect(screen.getByRole('img', { name: /^Agent · 12 min, agent working\. Stop 3 of 9, Agent$/ })).toBeTruthy();
   });
@@ -113,7 +113,7 @@ describe('Belts', () => {
       return { feeds: { ...s.feeds, full: { ...full, data } } };
     }));
     expect(document.activeElement?.getAttribute('aria-label')).toBe('Belts');
-    expect(document.querySelector('[aria-live=polite].sr-only')!.textContent).toBe('FXA-21 left the belts.');
+    expect(document.getElementById('belts-said')!.textContent).toBe('FXA-21 left the belts.');
   });
 
   it('opens a row with the details region, and Watch the agent opens the terminal', () => {
@@ -142,16 +142,13 @@ describe('Belts', () => {
   });
 });
 
-describe('Queue and review', () => {
-  it('shows the tiles, the review lists and the queue head with held tickets apart', () => {
+describe('Queue', () => {
+  it('shows the queue tiles and head with held tickets apart, and no review PRs, which are on Belts', () => {
     load(undefined, '#pipeline/queue');
     render(<Queue />);
     const tile = (l: string) => document.querySelector(`[data-stat="${l}"] .text-kpi`)!.textContent;
-    expect([tile('Waiting on a reviewer'), tile('Stuck in review'), tile('Launchable'), tile('Waits on a person')]).toEqual(['2', '2', '1', '1']);
-    const heads = [...document.querySelectorAll('h2.qh')].map((h) => h.textContent);
-    expect(heads[0]).toBe('Waiting on a reviewer2oldest wait first');
-    expect(heads[1]).toMatch(/^Not waiting on a reviewer3.*1 closed or merged/);
-    expect(heads[2]).toBe('Queuelabelled ai-queue21 launchable, plus 1 held');
+    expect([tile('Launchable'), tile('Waits on a person')]).toEqual(['1', '1']);
+    expect([...document.querySelectorAll('h2.qh')].map((h) => h.textContent)).toEqual(['Queuelabelled ai-queue21 launchable, plus 1 held']);
   });
   it('keeps a details element as a person left it across an update', () => {
     load(undefined, '#pipeline/queue');
@@ -169,7 +166,6 @@ describe('Queue and review', () => {
     fx['/api/snapshot'].snapshot.review = null;
     load(fx, '#pipeline/queue');
     render(<Queue />);
-    expect(screen.getByText('GitHub fetch failed; unknown, not zero')).toBeTruthy();
     expect(screen.getByText('Jira fetch failed; unknown, not zero')).toBeTruthy();
     expect(document.querySelector('[data-stat="Launchable"] .text-kpi')!.textContent).toBe('?');
   });

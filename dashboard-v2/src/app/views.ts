@@ -27,7 +27,7 @@ export const VIEWS: ViewDef[] = [
   { id: 'overview', title: 'Overview', sub: 'What is running, what it costs, and how the teams do', tabs: [], side: false, right: false, bareTabs: [], load: () => import('../views/overview') },
   {
     id: 'pipeline', title: 'Pipeline', sub: 'Jira tickets from the queue to the merge',
-    tabs: tabs(['belts', 'Belts'], ['queue', 'Queue and review'], ['done', 'Done']), side: false, right: false, bareTabs: [],
+    tabs: tabs(['belts', 'Belts'], ['queue', 'Queue'], ['done', 'Done']), side: false, right: false, bareTabs: [],
     load: () => import('../views/pipeline'),
   },
   {

@@ -27,6 +27,7 @@ export function Belt({ stops, at, tone = 'info', label, live }: BeltProps) {
           className={cx('absolute left-0 top-1/2 -translate-y-1/2 border-t-2 transition-all duration-300', LINE[tone])}
           style={{ width: `${pos}%` }}
         />
+        {live && <span className="ds-belt absolute left-0 top-1/2 -translate-y-1/2" style={{ width: `${pos}%` }} />}
         {stops.map((s, j) => (
           <span
             key={s + j}

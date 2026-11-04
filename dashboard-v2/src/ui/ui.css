@@ -8,6 +8,9 @@
 @keyframes ds-blink { 50% { opacity: 0; } }
 .ds-pulse, .ds-live::before { animation: ds-pulse 1.6s ease-in-out infinite; }
 .ds-blink { animation: ds-blink 1s steps(1) infinite; }
+/* A live belt: gaps move along its done part, so the run reads as moving. */
+@keyframes ds-belt { to { background-position: 18px 0; } }
+.ds-belt { height: 2px; background: repeating-linear-gradient(90deg, transparent 0 9px, var(--panel) 9px 13px) 0 0 / 18px 2px; animation: ds-belt .9s linear infinite; }
 .ds-run::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 .ds-checks { display: inline-flex; gap: 2px; align-items: center; vertical-align: -2px; }

@@ -1,4 +1,4 @@
-// The Pipeline view: Belts, Queue and review, and Done. It has no side list and no details panel, as in v1.
+// The Pipeline view: Belts, Queue and Done. It has no side list and no details panel, as in v1.
 import { MotionConfig } from 'motion/react';
 import type { ViewChunk } from '../../app/views';
 import { useApp } from '../../store';

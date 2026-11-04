@@ -1,24 +1,19 @@
 // The pipeline view's pure parts: v1 doneRows, beltTone and the belt phases, and the data of the new charts.
 import { days } from '../../format';
-import { LANE_ST, type J } from '../../model/base';
+import type { J } from '../../model/base';
 import type { Tone } from '../../ui';
 
 // The status tag of a belt: a PR that waits on review 3 days or more needs a look, so it is amber.
 export const beltTone = (r: J): Tone | undefined =>
   (({ 'k-live': 'info', 'k-bad': 'bad', 'k-warn': 'warn', 'k-ok': r.group === 'review' && r.age >= 3 ? 'warn' : 'ok' }) as Record<string, Tone>)[r.tone];
 
-// Phases closest to the merge first, then who acts. A stop's phase follows LANE_ST.
-export const BELT_PHASES: [string, string, number, number][] = [
-  ['PR', 'the agent is done; the PR moves to a merge', 5, 8],
-  ['Agent run', 'a sandbox works on the ticket', 1, 4],
-  ['Queue', 'before a sandbox starts', 0, 0],
-];
+// The belt groups, top to bottom: the live runs, then what a person must do, then what the agent retries.
 export const BELT_SUBS: [string, string, string, (r: J) => boolean][] = [
+  ['working', 'Agent', 'Working now', () => true],
   ['review', 'You', 'Review and merge', () => true],
   ['needs', 'You', 'Fix it', (r) => r.tone === 'k-bad'],
   ['needs', 'You', 'Decide', (r) => r.tone !== 'k-bad'],
   ['fixes', 'Agent', 'The agent fixes it, next pass', () => true],
-  ['working', 'Agent', 'Working now', () => true],
 ];
 export const BELT_HINT: Record<string, string> = {
   'Review and merge': 'CI passed. A person reviews and merges each PR.',
@@ -87,16 +82,8 @@ export function flowGraph(g: J, snap: J, done: J[], now = Date.now()) {
   const summary = `Pipeline now: ${n.ready + n.held + n.skipped} in the queue (${n.ready} ready, ${n.held} held, ${n.skipped} skipped), ${n.run} in an agent run, ${n.pr} at a PR, ${n.merged} merged in 7 days, ${n.closed} closed.`;
   return { nodes, links, n, summary };
 }
-// The stops that a click on a flow node shows on the belts.
-export const NODE_STOPS: Record<string, [number, number]> = { queue: [0, 0], ready: [0, 0], held: [0, 0], skipped: [0, 0], run: [1, 4], pr: [5, 7], merged: [8, 8], closed: [8, 8] };
 
-// The cumulative flow: per point, the top of each stop's band, Queue at the bottom.
-export function stackFlow(points: { at: number; stops: number[] }[]) {
-  return points.map((p) => {
-    let y = 0;
-    return { at: p.at, tops: LANE_ST.map((_, i) => (y += p.stops[i] ?? 0)) };
-  });
-}
+
 
 // How long a review row has waited: since the last human review, else since the PR opened.
 export const waitDays = (r: J): number | null => days(r.last_human_review?.at ?? r.created ?? r.updated);
