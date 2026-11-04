@@ -92,6 +92,16 @@
  {
   "key": "ov.needs",
   "v2": "",
-  "why": "v1 index.html renderOvNeeds: the Overview had a Needs you card; v2 drops it on purpose (the owner does not use it; the rail badge and Pipeline keep the count)"
+  "why": "v1 index.html renderOvNeeds: the Overview had a Needs you card; v2 drops it on purpose (the owner does not use it; Pipeline keeps the review count)"
+ },
+ {
+  "key": "badges.overview",
+  "v2": "",
+  "why": "v1 index.html railBadges: the Overview badge counted Needs you items; v2 has no Needs you card, so the badge shows only '!' for a page alert"
+ },
+ {
+  "key": "badges.overview",
+  "v2": "!",
+  "why": "v1 index.html railBadges: the Overview badge counted Needs you items; v2 has no Needs you card, so the badge shows only '!' for a page alert"
  }
 ]
