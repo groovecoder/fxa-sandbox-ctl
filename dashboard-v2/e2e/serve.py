@@ -198,5 +198,7 @@ if a.live and a.v1:
     paths = ("/api/snapshot", "/api/team-admin", "/api/teams", "/api/sessions", "/api/errors", "/api/overview", "/api/routines/summary", "/api/history")
     print(json.dumps({**{p: live_get(fs, p, {}) for p in paths}, "/api/stats": LIVE_STATS}))
     sys.exit()
-print(f"v2 e2e server: http://localhost:{a.port}/v2/ ({a.fixture or a.live or 'live fixtures'})", flush=True)
-ThreadingHTTPServer(("127.0.0.1", a.port), Handler).serve_forever()
+# --port 0 takes a free port and prints it: a port found free first can be taken before the bind.
+httpd = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+print(f"v2 e2e server: http://localhost:{httpd.server_address[1]}/v2/ ({a.fixture or a.live or 'live fixtures'})", flush=True)
+httpd.serve_forever()

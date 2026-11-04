@@ -219,10 +219,11 @@ one() {
   # The view probes visit many routes: the virtual time must cover every sleep.
   r="$(PAGE_NOW="$now" PAGE_BUDGET="${PAGE_BUDGET:-45000}" bash "$here/page.sh" '#overview' --fixture "$fx" --probe "$PROBE")" || { c=$?; [ "$c" = 3 ] && { printf '%s\n' "$r" > "$tmp/skip"; return 0; }; echo "FAIL $n: v1: $r"; return 1; }
   printf '%s' "$r" > "$tmp/$n.v1.json"
-  port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
-  python3 "$v2/e2e/serve.py" --port "$port" "${src[@]}" --dist "$tmp/dist" > "$tmp/$n.serve.log" 2>&1 & pid=$!
+  # Port 0: serve.py binds a free port and prints it once it listens, so the parallel fixtures never share one.
+  python3 "$v2/e2e/serve.py" --port 0 "${src[@]}" --dist "$tmp/dist" > "$tmp/$n.serve.log" 2>&1 & pid=$!
   trap 'kill "$pid" 2>/dev/null || true' EXIT
-  for _ in $(seq 50); do curl -sf -o /dev/null "http://127.0.0.1:$port/v2/" && break; sleep 0.1; done
+  for _ in $(seq 100); do port="$(sed -n 's/.*localhost:\([0-9]*\)\/.*/\1/p' "$tmp/$n.serve.log" | head -1)"; [ -n "$port" ] && break; sleep 0.1; done
+  [ -n "$port" ] || { echo "FAIL $n: serve.py did not start: $(tail -2 "$tmp/$n.serve.log" | tr '\n' ' ')"; return 1; }
   ( cd "$v2" && PARITY_NOW="$now" node e2e/parity-probe.ts "http://127.0.0.1:$port/v2/#overview" "$tmp/probe.js" ) > "$tmp/$n.v2.json" 2> "$tmp/$n.probe.err" \
     || { echo "FAIL $n: v2: $(tail -2 "$tmp/$n.probe.err" | tr '\n' ' ')"; return 1; }
   [ -s "$tmp/$n.v2.json" ] || return 0

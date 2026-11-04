@@ -1,24 +1,25 @@
 // Sandboxes (design 6.6): the parity list as tests, on the v1 page fixtures through serve.py --fixture, plus axe in both themes.
 import AxeBuilder from '@axe-core/playwright';
 import { spawn } from 'node:child_process';
-import { createServer, type AddressInfo } from 'node:net';
+
 import { expect, test, type Page } from '@playwright/test';
 
 type J = ReturnType<typeof JSON.parse>;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const freePort = () => new Promise<number>((r) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = (s.address() as AddressInfo).port; s.close(() => r(p)); }); });
+
 
 // One server per v1 page fixture: the page polls it, as parity-v2.sh does.
 const servers: Record<string, { url: string; stop: () => void }> = {};
 async function serve(fixture: string) {
   if (servers[fixture]) return servers[fixture].url;
-  const port = await freePort();
-  const p = spawn('python3', ['e2e/serve.py', '--port', String(port), '--fixture', `../skills/fxa-ctl-dev/page-fixture-${fixture}.json`], { stdio: 'ignore' });
+  // Port 0: serve.py binds a free port and prints it once it listens, so parallel workers never share one.
+  const p = spawn('python3', ['e2e/serve.py', '--port', '0', '--fixture', `../skills/fxa-ctl-dev/page-fixture-${fixture}.json`], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise<string>((ok, no) => {
+    let out = '';
+    p.stdout!.on('data', (b: Buffer) => { const m = /localhost:(\d+)\//.exec((out += b)); if (m) ok(m[1]!); });
+    p.on('exit', (c) => no(new Error(`serve.py exited with ${c}`)));
+  });
   const url = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {
-    if (await fetch(`${url}/v2/`).then((r) => r.ok, () => false)) break;
-    await sleep(100);
-  }
   servers[fixture] = { url, stop: () => p.kill() };
   return url;
 }
