@@ -10,7 +10,7 @@
 @media (min-width: 1200px) { .pcols { grid-template-columns: minmax(0, 1fr) 340px; } }
 .paside { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
 .paside .pwait { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
-.bgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, 300px) auto; gap: var(--s3); align-items: center; padding: 0 var(--s3); }
+.bgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, 300px) 220px; gap: var(--s3); align-items: center; padding: 0 var(--s3); }
 
 .bgh { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0; padding: var(--s3) var(--s3) 4px; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
 .bgh .why { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
@@ -48,6 +48,13 @@
 .belt .agebar { display: none; height: 3px; border-radius: 2px; background: var(--line2); align-self: flex-end; }
 @media (min-width: 1100px) { .belt .agebar { display: block; } }
 .belt .bcost { width: 80px; }
+.belt .stage { min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-label); font-weight: 600; color: var(--info); }
+/* The stop names line up with the belt: the inner belt box starts and ends at the first and last stop centres. */
+.blegend { padding-bottom: var(--s2); font-size: var(--t-tiny); color: var(--faint); }
+.blegend .stops { position: relative; height: 14px; margin: 0 var(--s1); }
+.blegend .stops > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.blegend .stops > span:first-child { transform: none; }
+.blegend .stops > span:last-child { transform: translateX(-100%); }
 
 .psrc { width: 28px; height: 28px; border-radius: var(--r-pill); display: grid; place-items: center; flex: none; }
 .psrc svg { width: 14px; height: 14px; }

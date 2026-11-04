@@ -19,6 +19,8 @@ import { WaitStrip } from './queue';
 import { Ext, SrcBadge, Tile, useOpen } from './parts';
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+// The stops named under the live belts: Queue, Agent, PR, CI and Merged.
+const LEGEND = [0, 2, 5, 6, 8];
 const q = (x: number | null) => (x == null ? null : x);
 
 // A link that names no ticket: the shell drops the key before this chunk loads, so the first one comes from the page load.
@@ -121,6 +123,13 @@ export function Belts() {
       <div key={name} role="group" aria-label={name}>
         <h2 className="bsub"><span className="who">{who}</span>{name} <span className="cnt">{rs.length}</span><span className="hint">{BELT_HINT[name]}</span></h2>
         {rs.length ? <ul className="belts">{rs.map(row)}</ul> : <p className="bnone">No agent runs now.</p>}
+        {k === 'working' && rs.length > 0 && (
+          <div className="bgrid blegend" aria-hidden="true">
+            <span />
+            <span className="stops">{LEGEND.map((i) => <span key={i} style={{ left: `${(i / (LANE_ST.length - 1)) * 100}%` }}>{LANE_ST[i]}</span>)}</span>
+            <span />
+          </div>
+        )}
       </div>
     ) : null;
   };
@@ -207,7 +216,6 @@ function BeltRow({ r, s, open, ageMax }: { r: J; s: Store; open: boolean; ageMax
           {r.group === 'working' ? (
             <>
               <Belt stops={LANE_ST} at={r.st} tone={tone ?? 'dim'} label={live ? `${r.l1}, agent working` : r.l1} live={live} />
-              {r.l2 && <span className="l2" title={r.l2}>{r.l2}</span>}
             </>
           ) : (
             <span className="why" title={r.l2 || undefined}>
@@ -216,7 +224,8 @@ function BeltRow({ r, s, open, ageMax }: { r: J; s: Store; open: boolean; ageMax
           )}
         </span>
         <span className="st">
-          <Tag label={r.l1} tone={tone} title={r.l1} />
+          {/* A run's stop is on its belt, so its status is what the agent does now. */}
+          {r.group === 'working' ? <span className="stage" title={r.l2 || r.l1}>{r.l2 || r.l1}</span> : <Tag label={r.l1} tone={tone} title={r.l1} />}
           <span className="stn">at {LANE_ST[r.st]}</span>
           {!/\d+ days?/.test(r.l1) && age && (
             <span className={cx('age', r.age >= 7 && 'old')} title={`${r.group === 'working' ? 'running' : 'waiting'} ${age}`}>
