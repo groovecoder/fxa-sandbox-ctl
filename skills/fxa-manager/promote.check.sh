@@ -79,6 +79,10 @@ RUNS='{"workflow_runs":[{"status":"completed","conclusion":"success"},{"status":
 check "ci: one failure is red" "red" "$(ci_state "$tmp/w" abc123)"
 RUNS='{"workflow_runs":[{"conclusion":null,"status":"in_progress"}]}'
 check "ci: one still running is running" "running" "$(ci_state "$tmp/w" abc123)"
+RUNS='{"workflow_runs":[{"name":"checks","status":"completed","conclusion":"success"},{"name":"macos","status":"in_progress","conclusion":null}]}'
+check "ci: the macos workflow running does not hold the promote" "green" "$(ci_state "$tmp/w" abc123)"
+RUNS='{"workflow_runs":[{"name":"checks","status":"completed","conclusion":"success"},{"name":"macos","status":"completed","conclusion":"failure"}]}'
+check "ci: a red macos workflow does not block the promote" "green" "$(ci_state "$tmp/w" abc123)"
 RUNS='{"workflow_runs":[]}'
 check "ci: no runs is none" "none" "$(ci_state "$tmp/w" abc123)"
 gh() { return 1; }

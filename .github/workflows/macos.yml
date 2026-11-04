@@ -1,0 +1,58 @@
+# The macOS half of the checks, apart from checks.yml: vm.sh promote waits for checks only, since the live bot runs on Ubuntu.
+# A red run here still marks the commit red on GitHub.
+name: macos
+on:
+  push:
+    branches: [main, 'improve/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  macos:
+    # The laptop's OS: bash 3.2 and BSD tools. A 3.2-only break used to pass CI and reach main.
+    runs-on: macos-latest
+    timeout-minutes: 25
+    # A gate: a check that breaks on macOS bash 3.2 fails CI. Its runner is slow and starts the step with SIGPIPE
+    # ignored; the steps below handle both (i591, i644).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/2', '2/2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: vbudhram/fxa-agent-bot
+          path: bot
+      # The image's python3 is Homebrew's newest (3.15); the laptop runs 3.14, and the proxy tests fail only on 3.15.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Packages
+        run: for c in jq ffmpeg; do command -v $c >/dev/null || brew install -q $c; done
+      # The image's PATH has a newer bash first; the checks must run on the system's bash 3.2.
+      - name: bash 3.2 first on PATH
+        run: |
+          mkdir -p "$HOME/bash32" && ln -sf /bin/bash "$HOME/bash32/bash" && echo "$HOME/bash32" >> "$GITHUB_PATH"
+          /bin/bash -c 'echo "bash $BASH_VERSION"'
+      - name: Git identity for the checks that commit
+        run: |
+          git config --global user.email test@example.com
+          git config --global user.name test
+          git config --global init.defaultBranch main
+      - name: The checks, on bash 3.2
+        run: |
+          bash -c '[ "${BASH_VERSINFO[0]}" = 3 ] || { echo "not bash 3.2, got $BASH_VERSION"; exit 1; }'
+          # The runner starts the step with SIGPIPE ignored, and bash cannot reset it: a writer into `| head` then gets
+          # EPIPE, not SIGPIPE (BSD tr on /dev/urandom never stops, yes exits 1). The checks run as from a terminal.
+          perl -e '$SIG{PIPE} = "DEFAULT"; exec @ARGV' bash skills/fxa-ctl-dev/test.sh here
+        env:
+          FXA_CHECK_SHARD: ${{ matrix.shard }}
+          FXA_BOT_REPO: ${{ github.workspace }}/bot
+          # Each finished check prints a line, and a hung one fails at 5 min, so the log names it.
+          FXA_CHECK_PROGRESS: '1'
+          # The page probes test the page in Chrome, not bash 3.2, and the Ubuntu jobs run them. Here they took 5.5 of the 6.5 min.
+          CHROME: none
+          # page.check.sh took 223 to 300 s on the slow macOS runner; a hang still fails at 600 s.
+          FXA_CHECK_TIMEOUT: '600'
+          FXA_CHECK_VERBOSE: '1'

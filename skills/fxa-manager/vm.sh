@@ -136,11 +136,12 @@ promote_ci_wait() {
   echo "$cs $bs"
 }
 # ci_state <repo dir> <sha>   green, red, running, none, or unknown (gh failed): the CI runs of that commit on main.
+# The macos workflow does not count: it checks the laptop's scripts, and the live bot runs on Ubuntu.
 # Only main's runs: after a fast-forward the same commit also has its improve branch's run,
 # and a flaky red there must not block a green main.
 ci_state() {
   local slug; slug="$(git -C "$1" remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')"
-  gh api "repos/$slug/actions/runs?head_sha=$2&branch=main" --jq '[.workflow_runs[] | if .status == "completed" then .conclusion else "running" end]
+  gh api "repos/$slug/actions/runs?head_sha=$2&branch=main" --jq '[.workflow_runs[] | select(.name != "macos") | if .status == "completed" then .conclusion else "running" end]
     | if length == 0 then "none" elif any(. == "running") then "running"
       elif all(. == "success" or . == "skipped" or . == "neutral") then "green" else "red" end' 2>/dev/null || echo unknown
 }
