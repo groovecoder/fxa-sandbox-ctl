@@ -7,6 +7,8 @@ import { Heatmap, Spark, type ChartColor } from '../../charts';
 import { ago, jiraHref, modelName, plainMd, usd } from '../../format';
 import { latest } from '../../live/api';
 import { beltGroups, costPerMerged, ovFloor, ovNeeds, pipeSnap } from '../../model';
+import { slotList } from '../../model/floor';
+import { KIND_LABEL } from '../../model/pipeline';
 import type { J } from '../../model/base';
 import { sessHref, sessTabOf } from '../../model/sessions';
 import { kpiChange, ovKpis, ovSpend, ovStats, ovTeams, statsBounds } from '../../model/stats';
@@ -20,14 +22,15 @@ import { cx } from '../../ui/tone';
 import { OvChart, type Point, type Series } from './chart';
 import {
   OV_METRICS, OV_RANGES, OV_SRC, RUN_KIND, SRC_NAME, WEEKDAYS, capOf, headOf, median, metricOf, ovBudget, ovHours, ovLlm, ovWeek,
-  overviewOf, prsWhy, quart, rangeName, rangeOf, rowMs, teamSpark, tileOf, todaySummary, type Metric, type Range, type Tile,
+  overviewOf, prsWhy, quart, rangeName, rangeOf, rowMs, teamSpark, tileOf, type Metric, type Range, type Tile,
 } from './model';
 import { runBadge, statsNote } from '../shared/stats';
 import './overview.css';
 
 const SWATCH: Record<ChartColor, string> = { 'chart-1': 'bg-chart-1', 'chart-2': 'bg-chart-2', 'chart-3': 'bg-chart-3', 'chart-4': 'bg-chart-4', 'chart-5': 'bg-chart-5', 'chart-muted': 'bg-chart-muted' };
 const shortDay = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-const money = (v: number) => (Math.abs(v) >= 10 ? `$${Math.round(v)}` : usd(v));
+const money = (v: number) => (v === 0 || Math.abs(v) >= 1 ? `$${Math.round(v)}` : usd(v));
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // The figures move with the clock: a new minute computes them again.
@@ -62,6 +65,9 @@ function useOverviewFeed() {
 function Sec({ id, sm, className, children }: { id: string; sm?: boolean; className?: string; children: ReactNode }) {
   return <section id={id} className={cx('card', sm && 'sm', className)}>{children}</section>;
 }
+// A card head: the h2 is the plain title, so a heading list reads well; the count or link sits beside it.
+const Hd = ({ t, children }: { t: ReactNode; children?: ReactNode }) => <div className="cardhd"><h2>{t}</h2>{children}</div>;
+const Go = () => <span aria-hidden="true"> ›</span>;
 
 function Main() {
   const route = useApp((s) => s.route);
@@ -71,17 +77,21 @@ function Main() {
   const stats = useApp((s) => s.feeds.stats), slim = useApp((s) => s.feeds.overview);
   // The stats-only store that the stats functions read, so a session delta computes nothing again.
   const fs = useMemo(() => ({ feeds: { stats, overview: slim } }) as unknown as Store, [stats, slim]);
-  const note = statsNote(stats, now);
+  // Old stats still show, with one notice at the top; a card says unknown only when there is no stats at all.
+  const full = statsNote(stats, now), has = !!ovStats(fs), note = has ? '' : full;
   const p = { fs, range, note, now };
   return (
     <div className="ov">
       <Boundary><Head {...p} /></Boundary>
-      <Boundary><Floor /></Boundary>
+
       <div className="ovgrid">
-        <Boundary><MainCard {...p} metric={metric} /></Boundary>
         <div className="ovrail">
           <Boundary><Needs /></Boundary>
           <Boundary><Budget {...p} /></Boundary>
+        </div>
+        <div className="ovcol">
+          <Boundary><Floor /></Boundary>
+          <Boundary><MainCard {...p} metric={metric} /></Boundary>
         </div>
       </div>
       <div className="ov3">
@@ -98,12 +108,12 @@ type P = { fs: Store; range: Range; note: string; now: number };
 
 function Head({ fs, range, note }: P) {
   const f = useApp(ovFloor) as J;
-  const h = headOf(f), hr = ovStats(fs)?.llm?.hour_usd;
+  const st = ovStats(fs), hr = st?.llm?.hour_usd, h = headOf(f);
   return (
-    <section id="ov-head" aria-label="At work now">
+    <section id="ov-head">
       <Tag label={h.tag} tone={f.atWork ? 'info' : 'dim'} run live={!!f.atWork} />
       {h.who && <span className="ovwho">{h.who}</span>}
-      <span className="ovkpi">LLM, last hour <b>{typeof hr === 'number' && !note ? usd(hr) : 'unknown'}</b></span>
+      <span className="ovkpi">LLM, last hour <b>{note ? 'unknown' : !st ? 'loading' : typeof hr === 'number' ? usd(hr) : 'unknown'}</b></span>
       <div className="seg" role="group" aria-label="Range">
         {OV_RANGES.map(([k, l]) => <button key={k} type="button" data-ovrange={k} aria-pressed={range === k} onClick={() => setQuery({ range: k })}>{l}</button>)}
       </div>
@@ -133,15 +143,20 @@ function FloorTile({ t }: { t: Tile }) {
 }
 
 function Floor() {
-  const f = useApp(ovFloor) as J;
+  const f = useApp(ovFloor) as J, loading = useApp((s) => !s.feeds.agents);
   const tiles = useMemo(() => (f.tiles ?? []).map(tileOf), [f]);
   const n = (w: string) => tiles.filter((t: Tile) => t.word === w).length;
+  // The free slots fold into one tile: they all say the same thing.
+  const free = tiles.filter((t: Tile) => t.word === 'free'), shown = tiles.filter((t: Tile) => t.word !== 'free');
+  if (free.length) shown.push({ ...free[0]!, id: 'free', name: free.length === 1 ? free[0]!.name : `${free.length} slots`, title: slotList(free.map((t: Tile) => t.name)), href: undefined });
+  const held = n('held');
   return (
     <Sec id="ov-floor" sm>
-      <h2>Live floor<span className="note">{f.unknown ? 'unknown' : `${tiles.length} on the floor: ${n('running') + n('working')} at work, ${n('free')} free`}</span></h2>
-      {f.unknown ? <EmptyBox>{f.stale ? 'The floor is unknown: the agents feed is stale.' : 'The floor is unknown: the agents feed did not load.'}</EmptyBox>
-        : !tiles.length ? <EmptyBox>Nothing on the floor: no pool slot and no live session.</EmptyBox>
-          : <ul className="ovfloor" aria-label="Pool slots and live sessions">{tiles.map((t: Tile) => <li key={t.id}><FloorTile t={t} /></li>)}</ul>}
+      <Hd t="Live floor"><span className="note">{loading ? '' : f.unknown ? 'unknown' : `${n('running') + n('working')} at work, ${free.length} free${held ? `, ${held} held` : ''}`}</span></Hd>
+      {loading ? <EmptyBox>Loading the agents…</EmptyBox>
+        : f.unknown ? <EmptyBox>{f.stale ? 'The floor is unknown: the agents feed is stale.' : 'The floor is unknown: the agents feed did not load.'}</EmptyBox>
+          : !tiles.length ? <EmptyBox>Nothing on the floor: no pool slot and no live session.</EmptyBox>
+            : <ul className="ovfloor" aria-label="Pool slots and live sessions">{shown.map((t: Tile) => <li key={t.id}><FloorTile t={t} /></li>)}</ul>}
     </Sec>
   );
 }
@@ -153,11 +168,11 @@ function Needs() {
   if (n.sandbox) parts.push(<a key="sb" href="#overview" onClick={(e) => { e.preventDefault(); document.getElementById('attn')?.focus(); }}>{n.sandbox} sandbox alert{n.sandbox === 1 ? '' : 's'}</a>);
   return (
     <Sec id="ov-needs" sm className={cx('needs', (calm || n.unknown) && 'calm')}>
-      <h2>Needs you<span className="big">{n.unknown ? '?' : n.total}</span><a className="note" href="#pipeline/belts">Open the list ›</a></h2>
-      <div className="sub">{n.unknown ? n.unknown : calm ? 'Nothing needs you.' : parts.flatMap((x, i) => (i ? [' · ', x] : [x]))}</div>
+      <Hd t="Needs you"><span className="big">{n.unknown ? '?' : n.total}</span><a className="note" href="#pipeline/belts">Open the list<Go /></a></Hd>
+      <div className="sub">{n.unknown ? cap(String(n.unknown)) : calm ? 'Nothing needs you.' : parts.flatMap((x, i) => (i ? [' · ', x] : [x]))}</div>
       {!n.unknown && rows.slice(0, 4).map((r) => (
         <a key={r.t.key} className="nrow" href={`#pipeline/belts/${encodeURIComponent(r.t.key)}`}>
-          <Tag label={r.l1} tone={r.tone === 'k-bad' ? 'bad' : 'warn'} /><span className="key">{r.t.key}</span><span className="why" title={r.l2}>{r.l2}</span>
+          <Tag label={r.l1} tone={r.tone === 'k-bad' ? 'bad' : 'warn'} /><span className="key">{r.t.key}</span><span className="why" title={r.l2 || r.item?.next}>{cap(r.l2 || r.item?.next || (r.item?.kind && KIND_LABEL[r.item.kind]) || '')}</span>
         </a>
       ))}
     </Sec>
@@ -176,7 +191,7 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
   const s = ovStats(fs), n = rangeName(range);
   const k = useMemo(() => (s ? ovKpis(fs, range, now) : null), [s, fs, range, now]);
   const sp = useMemo(() => (s ? ovSpend(fs, range) : null), [s, fs, range]);
-  if (!s || !k || !sp) return <Sec id="ov-main"><h2>Last {n}</h2><EmptyBox>{note ? `Stats unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
+  if (!s || !k || !sp) return <Sec id="ov-main"><Hd t={`Last ${n}`} /><EmptyBox>{note ? `Stats unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
   const why = prsWhy(s, now), m = metric;
   const tabs: Record<Metric, [string, { t: string; c: string }]> = {
     spend: [usd(k.spend.v), kpiChange(k.spend, 'pct', true)], runs: [k.runs.v.toLocaleString(), { ...kpiChange(k.runs, 'pct', false), c: '' }],
@@ -190,11 +205,11 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
     const series: Series[] = OV_SRC.map(([src, color]) => ({ key: src, name: SRC_NAME[src]!, color }));
     const f = isS ? usd : (v: number) => String(Math.round(v)), pk = sp.days.reduce((a: J, d: J) => { const v = isS ? d.usd : Object.values(d.n as Record<string, number>).reduce((x, y) => x + y, 0); return v > (a?.v ?? 0) ? { t: d.t, v } : a; }, null);
     chart = tot ? (
-      <OvChart title={`${isS ? 'Spend' : 'Runs'} by day and source, last ${n}`} data={data} series={series} stacked brush fmt={isS ? money : f} onPick={go}
+      <OvChart title={`${isS ? 'Spend' : 'Runs'} by day and source, last ${n}`} data={data} series={series} stacked fmt={isS ? money : f} height={200} onPick={go}
         summary={`${isS ? 'Spend' : 'Runs'} by day and source, last ${n}. Total ${isS ? usd(tot) : tot.toLocaleString()}.${pk ? ` Peak ${shortDay(pk.t)}, ${f(pk.v)}.` : ''}`}
         table={{ head: ['Day', ...series.map((x) => x.name), 'Total'], rows: data.map((d) => [d.lbl, ...series.map((x) => f(Number(d[x.key]))), f(series.reduce((a, x) => a + Number(d[x.key]), 0))]) }} />
     ) : <EmptyBox>{isS ? `$0.00 · no runs in the last ${n}` : `No run in the last ${n}.`}</EmptyBox>;
-    head = <a className="ovopen" href={`#stats/spend?range=${range}`}><span className="lbl">{isS ? 'Spend' : 'Runs'}, last {n}</span> <b className="big">{isS ? usd(sp.total) : tot.toLocaleString()}</b> <span className="go">in Stats ›</span></a>;
+    head = <a className="ovopen" href={`#stats/spend?range=${range}`}><span className="go">{isS ? 'Spend' : 'Runs'} in Stats<Go /></span></a>;
     // A stale or failed feed may lack a source's newest runs, so a source figure says unknown, never a value or 0.
     leg = (
       <div className="ovleg">
@@ -212,8 +227,7 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
     const c = costPerMerged(statsBounds('7d', now)[0], Infinity, s.prs, s.rows);
     head = why ? null : (
       <>
-        <a className="ovopen" href="#stats/prs?range=7d"><span className="lbl">Merged, 7 days</span> <b className="big">{k.merged.v}</b> <span className="go">in Stats ›</span></a>
-        <a className="ovopen" href="#stats/prs?range=7d"><span className="lbl">Cost per merged PR</span> <b className="big">{c.per != null ? usd(c.per) : '—'}</b> <span className="go">{c.per != null ? `${usd(c.spentIn)} all-in over ${c.mergedIn.length}` : 'no PR merged in 7 days'}</span></a>
+        <a className="ovopen" href="#stats/prs?range=7d"><span className="lbl">Cost per merged PR, 7 days</span> <b className="big">{c.per != null ? usd(c.per) : '—'}</b> <span className="go">{c.per != null ? `${usd(c.spentIn)} all-in over ${c.mergedIn.length}` : 'no PR merged in 7 days'}<Go /></span></a>
       </>
     );
   } else {
@@ -234,20 +248,21 @@ function MainCard({ fs, range, note, now, metric }: P & { metric: Metric }) {
   const pk = sp.peak, pkText = m === 'spend' && pk ? `Peak ${shortDay(pk.t)}: ${usd(pk.usd)}${why ? '' : `, ${pk.merged} PR${pk.merged === 1 ? '' : 's'} merged that day`}` : '';
   return (
     <Sec id="ov-main">
+      <h2 className="vh">Last {n}</h2>
       <div className="mtabs" role="group" aria-label="Metric">
         {OV_METRICS.map(([key, lbl]) => {
           const [v, c] = tabs[key];
           return (
             <button key={key} type="button" className="mt" data-ovmetric={key} aria-pressed={m === key} onClick={() => setQuery({ metric: key })}>
-              <span className="ml">{lbl}</span><span className="mv">{v}</span>
-              <span className="mc">{c.t ? <><span className={`chg ${c.c}`.trim()}>{c.t}</span>{c.c && <span className="vh">, {c.c === 'good' ? 'better' : 'worse'},</span>} vs the {key === 'merged' ? '7 days' : n} before</> : key === 'merged' && why ? why : ''}</span>
+              <span className="ml">{lbl}<span className="vh">: </span></span><span className="mv">{v}</span>
+              <span className="mdelta">{c.t ? <><span className={`chg ${c.c}`.trim()}>{c.t}{c.c && ` ${c.c === 'good' ? 'better' : 'worse'}`}</span> vs the {key === 'merged' ? '7 days' : n} before</> : key === 'merged' && why ? why : ''}</span>
             </button>
           );
         })}
       </div>
       {note && <div className="ovknote">{note}</div>}
       <div className="ovhead">{head}{pkText && <span className="sub">{usd(sp.perDay)} a day on average · {pkText}</span>}</div>
-      {leg}{chart}
+      {chart}{leg}
       {m === 'spend' && <p className="vh">Spend in the last {n}: {usd(sp.total)}, {OV_SRC.map(([src]) => `${SRC_NAME[src]} ${note ? 'unknown' : usd(sp.by[src] ?? 0)}`).join(', ')}. {pkText}.</p>}
     </Sec>
   );
@@ -257,20 +272,20 @@ function Budget({ fs, note, now }: P) {
   const s = ovStats(fs), teams = useApp((x) => x.feeds.teams);
   const b = useMemo(() => (s ? ovBudget(s.rows ?? [], now) : null), [s, now]);
   const name = new Date(now).toLocaleDateString(undefined, { month: 'long' });
-  if (!s || !b) return <Sec id="ov-budget" sm><h2>{name} spend</h2><EmptyBox>{note ? `Spend unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
+  if (!s || !b) return <Sec id="ov-budget" sm><Hd t={`${name} spend`} /><EmptyBox>{note ? `Spend unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
   const list = (Array.isArray(teams?.data) ? teams.data : []) as J[];
   const caps = teams?.error ? [] : list.filter((t) => t.budget?.month_cap > 0 && !t.budget_error);
   const tnote = !teams ? 'Loading the team budgets…' : teams.error ? `Team budgets unknown: the teams feed failed: ${teams.error}.` : !caps.length ? 'No team has a monthly budget cap.' : '';
   const data: Point[] = b.pts.map((p) => ({ lbl: shortDay(p.t), spent: p.spent, proj: p.proj, band: p.band }));
   return (
     <Sec id="ov-budget" sm>
-      <h2>{b.name} spend<span className="note mono">{note ? 'unknown' : usd(b.mtd)}</span></h2>
+      <Hd t={`${b.name} spend`}><span className="note mono">{note ? 'unknown' : usd(b.mtd)}</span></Hd>
       {note ? (
         <><div className="ovknote">{note}</div><div className="sub">Every team. The month-end figure is unknown until the stats load again.</div></>
       ) : (
         <>
           <div className="sub">Every team. At this rate the month ends near <b>{usd(b.end)}</b>.</div>
-          <div className="ovleg"><span><i className="bg-chart-1" />Spent <b>{usd(b.mtd)}</b></span><span><i className="bg-chart-muted" />Projected <b>{usd(b.end)}</b></span></div>
+          <div className="ovleg"><span><i className="bg-chart-1" />Spent</span><span><i className="bg-chart-muted" />Projected</span></div>
           <OvChart title={`${b.name} spend of every team, so far and projected`} data={data} height={170} fmt={money}
             series={[{ key: 'band', name: 'Forecast band', color: 'chart-muted', mark: 'band' }, { key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}
             refs={caps.slice(0, 3).map((t) => ({ y: t.budget.month_cap, label: `${teamName(t)} cap` }))}
@@ -288,7 +303,7 @@ function Budget({ fs, note, now }: P) {
           </div>
         );
       })}
-      {caps.length > 3 && <a className="note" href="#teams">{caps.length - 3} more capped team{caps.length === 4 ? '' : 's'} ›</a>}
+      {caps.length > 3 && <a className="note" href="#teams">{caps.length - 3} more capped team{caps.length === 4 ? '' : 's'}<Go /></a>}
       {tnote && <div className="sub">{tnote}</div>}
     </Sec>
   );
@@ -318,12 +333,12 @@ function RunRow({ r, site, sessions, fresh }: { r: J; site: unknown; sessions: S
       <span className={cx('ic', ic)} title={kind}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d={d} /></svg></span>
       <span className="t" title={[r.key, r.title].filter(Boolean).join(' ')}>{key} {plainMd(title)}</span>
       <span className="r"><Tag label={b.label} tone={b.tone} href={b.href || undefined} /><span>{[r.min != null ? `${r.min} min` : '', r.usd != null ? usd(r.usd) : ''].filter(Boolean).join(' · ')}</span></span>
-      <span className="d">{r.team && <Tag label={r.team} />}{title.toLowerCase().includes(String(r.kind || kind).toLowerCase()) ? null : <span>{r.kind || kind}</span>}</span>
+      <span className="d">{r.team && <Tag label={r.team} />}{[title, b.label].some((x) => x.toLowerCase().includes(String(r.kind || kind).toLowerCase())) ? null : <span>{r.kind || kind}</span>}</span>
     </div>
   );
 }
 
-function Activity({ fs, range, note, now }: P) {
+function Activity({ range, note }: P) {
   const [runs, setRuns] = useState<{ runs: J[] | null; err: string | null }>({ runs: null, err: null });
   const tick = useApp((s) => s.feeds.full?.fetchedAt ?? 0), sessions = useApp((s) => s.sessions.byKey), site = useApp((s) => (pipeSnap(s) as J)?.team?.jira_site);
   const last = useRef(''), fresh = useRef(false);
@@ -340,16 +355,13 @@ function Activity({ fs, range, note, now }: P) {
     return () => clearTimeout(id);
   }, [range, tick]);
   useEffect(() => { if (runs.runs) fresh.current = true; }, [runs.runs]);
-  const s = ovStats(fs);
-  if (runs.err) return <Sec id="ov-runs" sm><h2>Activity</h2><EmptyBox>Recent runs unavailable: {runs.err}. The next poll tries again.</EmptyBox></Sec>;
-  if (!runs.runs) return <Sec id="ov-runs" sm><h2>Activity</h2><EmptyBox>Loading the recent runs…</EmptyBox></Sec>;
-  const sum = todaySummary(s ? s.rows ?? [] : null, runs.runs.length, now);
+  if (runs.err) return <Sec id="ov-runs" sm><Hd t="Activity" /><EmptyBox>Recent runs unavailable: {runs.err}. The next poll tries again.</EmptyBox></Sec>;
+  if (!runs.runs) return <Sec id="ov-runs" sm><Hd t="Activity" /><EmptyBox>Loading the recent runs…</EmptyBox></Sec>;
   return (
     <Sec id="ov-runs" sm>
-      <h2>Activity<a className="note" href="#sessions">All sessions ›</a></h2>
-      {sum && <div className="sub">{sum}</div>}
+      <Hd t="Activity"><a className="note" href="#sessions">All sessions<Go /></a></Hd>
       {note && <div className="ovknote">{note}</div>}
-      {runs.runs.length ? runs.runs.map((r, i) => <RunRow key={`${r.key}:${r.at}:${i}`} r={r} site={site} sessions={sessions} fresh={fresh} />) : <EmptyBox>No run in the last {rangeName(range)}.</EmptyBox>}
+      {runs.runs.length ? runs.runs.map((r) => <RunRow key={`${r.key}:${r.at}`} r={r} site={site} sessions={sessions} fresh={fresh} />) : <EmptyBox>No run in the last {rangeName(range)}.</EmptyBox>}
     </Sec>
   );
 }
@@ -357,7 +369,7 @@ function Activity({ fs, range, note, now }: P) {
 function Llm({ fs, note, now }: P) {
   const s = ovStats(fs);
   const l = useMemo(() => (s ? ovLlm(s.llm ?? {}, now) : null), [s, now]);
-  if (!s || !l) return <Sec id="ov-llm" sm><h2>LLM spend</h2><EmptyBox>{note ? `LLM spend unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
+  if (!s || !l) return <Sec id="ov-llm" sm><Hd t="LLM spend" /><EmptyBox>{note ? `LLM spend unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
   const series: Series[] = l.perDay
     ? [...l.top3.map((m, i) => ({ key: `m${i}`, name: modelName(m), color: (['chart-1', 'chart-2', 'chart-3'] as const)[i]! })), { key: 'other', name: 'Other models', color: 'chart-muted' as const }]
     : [{ key: 'usd', name: 'LLM spend', color: 'chart-1' }];
@@ -365,14 +377,14 @@ function Llm({ fs, note, now }: P) {
   const tot = l.days.reduce((a, d) => a + Number(d.usd), 0);
   return (
     <Sec id="ov-llm" sm>
-      <h2>LLM spend<span className="note mono">{typeof l.hr === 'number' && !note ? `${usd(l.hr)} last hour` : 'last hour unknown'}</span></h2>
+      <Hd t="LLM spend, 14 days"><span className="note mono">{note || (!data.length && typeof l.hr === 'number' && l.hr > 0) ? 'unknown' : usd(tot)}</span></Hd>
       {note && <div className="ovknote">{note}</div>}
       <div className="sub">By UTC date for the last 14 days, as the LLM proxy logs it.</div>
       {data.length ? (
         <OvChart title="LLM spend by model and UTC day, last 14 days" data={data} series={series} stacked fmt={money} height={200}
           summary={`LLM spend by UTC day, last 14 days. Total ${usd(tot)}.`}
           table={{ head: ['UTC day', ...series.map((x) => x.name)], rows: data.map((d) => [String(d.day), ...series.map((x) => usd(Number(d[x.key] ?? 0)))]) }} />
-      ) : <EmptyBox>No LLM call in the last 14 UTC days.</EmptyBox>}
+      ) : <EmptyBox>{typeof l.hr === 'number' && l.hr > 0 ? `Daily LLM spend unknown: the proxy logged ${usd(l.hr)} in the last hour, but no day total yet.` : 'No LLM call in the last 14 UTC days.'}</EmptyBox>}
       {l.top.slice(0, 3).map(([m, v]) => <Kv key={m} label={modelName(m)} value={usd(v)} />)}
       {l.rest > 0 && <Kv label="Other models" value={usd(l.rest)} />}
     </Sec>
@@ -383,14 +395,14 @@ function Hours({ fs, note, now }: P) {
   const s = ovStats(fs);
   const h = useMemo(() => (s ? ovHours(s.rows ?? [], now) : null), [s, now]);
   const w = useMemo(() => (s ? ovWeek(s.rows ?? [], now) : null), [s, now]);
-  if (!s || !h || !w) return <Sec id="ov-hours" sm><h2>Runs by hour, 24 h</h2><EmptyBox>{note ? `Runs unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
+  if (!s || !h || !w) return <Sec id="ov-hours" sm><Hd t="Runs by hour, 24 h" /><EmptyBox>{note ? `Runs unknown: ${note}` : 'Loading the stats…'}</EmptyBox></Sec>;
   const cols = [...Array(24)].map((_, i) => String(i)), wk = w.flat().reduce((a, x) => a + x, 0);
   const cells = w.flatMap((r, i) => r.map((v, j) => ({ row: i, col: j, value: v, label: `${v} run${v === 1 ? '' : 's'}` })));
   const top = cells.reduce((a, c) => (c.value > a.value ? c : a), cells[0]!);
   const data: Point[] = h.b.map((x) => ({ lbl: x.lbl, n: x.n }));
   return (
     <Sec id="ov-hours" sm>
-      <h2>Runs by hour, 24 h<span className="note">{note ? 'unknown' : `${h.tot} run${h.tot === 1 ? '' : 's'}`}</span></h2>
+      <Hd t="Runs by hour, 24 h"><span className="note">{note ? 'unknown' : `${h.tot} run${h.tot === 1 ? '' : 's'}`}</span></Hd>
       {note && <div className="ovknote">{note}</div>}
       {h.tot ? (
         <>
@@ -412,15 +424,17 @@ function Teams({ fs, range, note, now }: P) {
   const all = useParts(MODEL), teams = all.feeds.teams, n = rangeName(range);
   const rows0 = useMemo(() => ovTeams(all, range), [all, range]);
   const s = ovStats(fs), spark = useMemo(() => (s ? teamSpark(s.rows ?? [], now) : {}), [s, now]);
-  if (!teams) return <Sec id="ov-teams"><h2>Teams, last {n}</h2><EmptyBox>Loading the teams…</EmptyBox></Sec>;
+  if (!teams) return <Sec id="ov-teams"><Hd t={`Teams, last ${n}`} /><EmptyBox>Loading the teams…</EmptyBox></Sec>;
   // A failed or stale stats feed: the runs, PRs and spend say unknown, and the rows go by name.
   const st = !!s && !note, rows = st ? rows0 : [...rows0].sort((a, b) => teamName(a.t).localeCompare(teamName(b.t)));
   const failed = (Array.isArray(teams.data) ? teams.data : []).filter((t: J) => t.load_error) as J[];
   const tnote = !teams.error ? '' : rows.length ? `The teams feed failed: ${teams.error}. These rows are from ${ago(Math.round(teams.ageSeconds ?? 0))}.` : `Teams unknown: ${teams.error}.`;
+  // "no cap" says something only when some team has a cap or a budget read failed.
+  const anyCap = rows.some(({ t }: J) => t.budget?.month_cap > 0 || t.budget_error);
   const link = (t: J) => (/^[a-z][a-z0-9-]{1,30}$/.test(t.profile ?? '') ? <a href={`#teams/${t.profile}`}>{teamName(t)}</a> : teamName(t));
   return (
     <Sec id="ov-teams">
-      <h2>Teams, last {n}<a className="note" href="#teams">All teams ›</a></h2>
+      <Hd t={`Teams, last ${n}`}><a className="note" href="#teams">All teams<Go /></a></Hd>
       {[note, tnote].filter(Boolean).map((t) => <div key={t} className="ovknote">{t}</div>)}
       {rows.length || failed.length ? (
         <div className="tscroll">
@@ -437,7 +451,7 @@ function Teams({ fs, range, note, now }: P) {
                     <td className="num">{st ? u.prs : '—'}</td>
                     <td className="bud">
                       <b>{st ? usd(u.usd) : '—'}</b>
-                      <span className="hint">{t.budget_error ? 'budget unknown' : cap ? `${usd(b.month_usd)} of ${usd(cap)} this month` : 'no cap'}</span>
+                      <span className="hint">{t.budget_error ? 'budget unknown' : cap ? `${usd(b.month_usd)} of ${usd(cap)} this month` : anyCap ? 'no cap' : ''}</span>
                       {cap ? <Meter pct={(100 * b.month_usd) / cap} tone={b.month_usd >= cap ? 'bad' : b.month_usd >= 0.9 * cap ? 'warn' : undefined} label={`${teamName(t)}: ${Math.round((100 * b.month_usd) / cap)}% of this month's cap`} /> : null}
                       {st && spark[t.profile] && <span className="tspark"><Spark label={`${teamName(t)} spend per day, last 30 days: the top day ${usd(spark[t.profile]!.reduce((a, b) => Math.max(a, b), 0))}`} values={spark[t.profile]!} format={usd} /></span>}
                     </td>

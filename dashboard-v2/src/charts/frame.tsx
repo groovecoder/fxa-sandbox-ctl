@@ -79,8 +79,8 @@ export function DataTable({ title, table }: { title: string; table: ChartTable }
       <caption className="sr-only">{title}</caption>
       <thead>
         <tr>
-          {table.head.map((h) => (
-            <th key={h} scope="col" className="border-b border-line px-s2 py-s1 text-left font-semibold text-dim">
+          {table.head.map((h, j) => (
+            <th key={h} scope="col" className={`whitespace-nowrap border-b border-line px-s2 py-s1 font-semibold text-dim ${j ? 'text-right' : 'text-left'}`}>
               {h}
             </th>
           ))}
@@ -90,7 +90,8 @@ export function DataTable({ title, table }: { title: string; table: ChartTable }
         {table.rows.map((r, i) => (
           <tr key={i}>
             {r.map((c, j) => (
-              <td key={j} className={typeof c === 'number' ? 'border-b border-line px-s2 py-s1 text-right tabular-nums' : 'border-b border-line px-s2 py-s1'}>
+              // The first column names the row; the rest are figures, so they align right.
+              <td key={j} className={`whitespace-nowrap border-b border-line px-s2 py-s1 ${j ? 'text-right tabular-nums' : ''}`}>
                 {c}
               </td>
             ))}

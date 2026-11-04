@@ -51,7 +51,7 @@ export function OvChart({ title, summary, table, data: all, series, fmt, stacked
             className={onPick ? 'cursor-pointer' : undefined}>
             <CartesianGrid vertical={false} stroke="var(--line)" />
             <XAxis dataKey="lbl" tickLine={false} axisLine={false} minTickGap={24} />
-            <YAxis tickLine={false} axisLine={false} width={46} tickFormatter={(v: number) => fmt(v)} allowDecimals={false}
+            <YAxis tickLine={false} axisLine={false} width="auto" tickFormatter={(v: number) => fmt(v)} allowDecimals={false}
               domain={yMax != null ? [0, (max: number) => Math.min(max, yMax)] : [0, 'auto']} allowDataOverflow={yMax != null} />
             <Tooltip isAnimationActive={false} formatter={(v) => word(val(v), fmt)} cursor={{ fill: 'var(--hover)', stroke: 'var(--line2)' }}
               contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', fontSize: 'var(--t-label)', color: 'var(--ink)' }} />
@@ -62,7 +62,7 @@ export function OvChart({ title, summary, table, data: all, series, fmt, stacked
               if (s.mark === 'band') return <Area key={s.key} dataKey={s.key} name={s.name} stroke="none" fill={c} fillOpacity={0.18} connectNulls={false} isAnimationActive={false} />;
               return <Area key={s.key} dataKey={s.key} name={s.name} stroke={c} fill={c} fillOpacity={0.35} stackId={stacked ? 'a' : undefined} type="linear" connectNulls={false} isAnimationActive={false} />;
             })}
-            {refs.map((r) => <ReferenceLine key={r.label} y={r.y} stroke="var(--ink)" strokeDasharray="4 3" label={{ value: r.label, position: 'insideTopRight', className: 'ovref' }} />)}
+            {refs.map((r) => <ReferenceLine key={r.label} y={r.y} stroke="var(--ink)" strokeDasharray="4 3" label={{ value: r.label, position: 'insideBottomRight', offset: 6, className: 'ovref' }} />)}
             {k.active != null && <ReferenceLine x={data[k.active]!.lbl} stroke="var(--link)" />}
 
           </ComposedChart>

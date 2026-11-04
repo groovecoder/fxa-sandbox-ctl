@@ -21,16 +21,16 @@ async function open(page: Page, hash = '#overview') {
   return asked;
 }
 
-test('the cards come in the v1 order, with the live floor under the head', async ({ page }) => {
+test('Needs you comes first after the head, then the live floor, then the metrics', async ({ page }) => {
   await open(page);
   const ids = await page.locator('.ov section[id]').evaluateAll((s) => s.map((x) => x.id));
-  expect(ids).toEqual(['ov-head', 'ov-floor', 'ov-main', 'ov-needs', 'ov-budget', 'ov-runs', 'ov-llm', 'ov-hours', 'ov-teams']);
+  expect(ids).toEqual(['ov-head', 'ov-needs', 'ov-budget', 'ov-floor', 'ov-main', 'ov-runs', 'ov-llm', 'ov-hours', 'ov-teams']);
   await expect(page.locator('#ov-head')).toContainText(/\d+ at work now/);
   await expect(page.locator('#ov-head')).toContainText(/\d agents? and \d sessions?/);
   await expect(page.locator('#ov-head .ovkpi')).toHaveText(/^LLM, last hour \$\d+\.\d\d$/);
 });
 
-test('the floor has a tile per slot and live session, each with a word, and a tile opens its belt', async ({ page }) => {
+test('the floor has a tile per busy slot and live session, one tile for the free slots, and a tile opens its belt', async ({ page }) => {
   await open(page);
   const floor = page.getByRole('list', { name: 'Pool slots and live sessions' });
   await expect(floor.locator('.ovtile')).not.toHaveCount(0);
@@ -38,7 +38,9 @@ test('the floor has a tile per slot and live session, each with a word, and a ti
   await expect(tile).toContainText('running');
   await expect(tile).toContainText('stop 3 of 9');
   await expect(tile).toHaveAttribute('href', '#pipeline/belts/EX-101');
-  await expect(floor.locator('.ovtile', { hasText: 'ex-auto-3' })).toContainText('free');
+  const free = floor.locator('.ovtile', { hasText: 'free' });
+  await expect(free).toHaveCount(1);
+  await expect(free).toContainText(/ex-auto-\d/);
   // The last output line shows on focus.
   await tile.focus();
   await expect(tile.locator('.out')).toHaveCSS('opacity', '1');
@@ -76,17 +78,14 @@ test('the metric tabs: values, the change words, the chart and its table, and th
   await page.locator('#ov-main summary', { hasText: 'Show as table' }).click();
   await expect(page.locator('#ov-main table th').nth(2)).toHaveText('25th to 75th percentile');
   await page.locator('[data-ovmetric="merged"]').click();
-  await expect(page.locator('#ov-main .ovopen')).toHaveCount(2);
-  await expect(page.locator('#ov-main .ovopen').nth(1)).toContainText('Cost per merged PR');
+  await expect(page.locator('#ov-main .ovopen')).toHaveCount(1);
+  await expect(page.locator('#ov-main .ovopen')).toContainText('Cost per merged PR');
 });
 
-test('the brush zooms the spend chart by day, and a click on a day opens Stats', async ({ page }) => {
+test('a click on a day of the spend chart opens Stats', async ({ page }) => {
   await open(page);
-  const t = page.locator('#ov-main .recharts-brush [aria-label^="Zoom:"]').first();
-  const before = await t.getAttribute('aria-label');
-  await t.focus();
-  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
-  await expect(t).not.toHaveAttribute('aria-label', before!);
+  await expect(page.locator('#ov-main .recharts-brush')).toHaveCount(0);
+  await page.locator('#ov-main [role="img"]').first().scrollIntoViewIfNeeded();
   const box = (await page.locator('#ov-main [role="img"] .recharts-surface').boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -96,8 +95,9 @@ test('the brush zooms the spend chart by day, and a click on a day opens Stats',
 test('Needs you: the total, the parts, the rows, and the sandbox part focuses the alerts', async ({ page }) => {
   await open(page);
   const n = page.locator('#ov-needs');
-  await expect(n.locator('h2 .big')).toHaveText(/^\d+$/);
-  await expect(n.getByRole('link', { name: 'Open the list ›' })).toHaveAttribute('href', '#pipeline/belts');
+  await expect(n.locator('.cardhd .big')).toHaveText(/^\d+$/);
+  await expect(n.getByRole('heading', { level: 2 })).toHaveText('Needs you');
+  await expect(n.getByRole('link', { name: 'Open the list', exact: true })).toHaveAttribute('href', '#pipeline/belts');
   await expect(n.locator('.nrow').first()).toHaveAttribute('href', /^#pipeline\/belts\/EX-/);
   await n.getByRole('link', { name: /sandbox alerts?$/ }).click();
   await expect(page.locator('#attn')).toBeFocused();
@@ -113,14 +113,14 @@ test('Needs you says so when nothing needs you, in place of hiding the card', as
     return r.fulfill({ json: j });
   });
   await open(page);
-  await expect(page.locator('#ov-needs h2 .big')).toHaveText('0');
+  await expect(page.locator('#ov-needs .cardhd .big')).toHaveText('0');
   await expect(page.locator('#ov-needs .sub')).toHaveText('Nothing needs you.');
 });
 
 test('Activity: the summary, the row fields, a PR link, and a session link to its real tab', async ({ page }) => {
   await open(page);
   const a = page.locator('#ov-runs');
-  await expect(a.getByRole('link', { name: 'All sessions ›' })).toHaveAttribute('href', '#sessions');
+  await expect(a.getByRole('link', { name: 'All sessions', exact: true })).toHaveAttribute('href', '#sessions');
   const pr = a.locator('.ovrun[data-run="EX-310"]');
   await expect(pr.getByRole('link', { name: 'PR #312' })).toHaveAttribute('href', 'https://github.com/example/repo/pull/312');
   await expect(pr).toContainText('16 min · $1.12');
@@ -150,7 +150,7 @@ test('a failed stats read: the cards say unknown, and the budget shows no stale 
 test('Runs by hour: the 24 h bars and the weekday heatmap, one tab stop with the keys', async ({ page }) => {
   await open(page);
   const h = page.locator('#ov-hours');
-  await expect(h.locator('h2 .note')).toHaveText(/^\d+ runs?$/);
+  await expect(h.locator('.cardhd .note')).toHaveText(/^\d+ runs?$/);
   const heat = h.getByRole('img', { name: /^Runs by weekday and hour, last 4 weeks/ });
   await heat.focus();
   await page.keyboard.press('ArrowRight');
@@ -175,10 +175,10 @@ test('Budget and Teams: up to 3 capped teams, the rest as a link, meters at the 
   await page.route('**/api/teams', (r) => r.fulfill({ json: { teams, age_seconds: 1, error: null } }));
   await open(page);
   const b = page.locator('#ov-budget');
-  await expect(b.locator('h2')).toContainText(/^\w+ spend\$\d/);
+  await expect(b.locator('.cardhd')).toContainText(/^\w+ spend\$\d/);
   await expect(b.locator('.capr')).toHaveCount(3);
   await expect(b.locator('.capr').first()).toContainText('Over the cap.');
-  await expect(b.getByRole('link', { name: '1 more capped team ›' })).toHaveAttribute('href', '#teams');
+  await expect(b.getByRole('link', { name: '1 more capped team', exact: true })).toHaveAttribute('href', '#teams');
   const t = page.locator('#ov-teams');
   await expect(t.locator('tr[data-team="example"]').getByRole('img', { name: /^example: 120% of this month's cap$/ })).toBeVisible();
   await expect(t.locator('tr[data-team-error="sample-d"]')).toContainText('did not load');

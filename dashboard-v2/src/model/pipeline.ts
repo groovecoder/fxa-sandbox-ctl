@@ -13,16 +13,18 @@ export const pipe = memo((s) => [s.prefs.pipeTeam, ...snapFeeds(s)], (s) => {
   for (const [n, t] of Object.entries(s.feeds)) if (n.startsWith('team:') && t) snaps[n.slice(5)] = { snapshot: t.data ?? null, error: t.error, age_seconds: t.ageSeconds };
   const keyTeam: Record<string, string> = {}, PIPE_TEAM = s.prefs.pipeTeam;
   const full = Object.entries(snaps).filter(([, t]) => t?.snapshot && !t.snapshot.redacted);
-  const tag = (team: string, xs: J) => (Array.isArray(xs) ? xs.map((i: J) => { if (i?.key) keyTeam[i.key] = team; return { ...i, team }; }) : []);
+  const tag = (team: string, xs: J) => (Array.isArray(xs) ? xs.map((i: J) => { if (i?.key && !(i.key in keyTeam)) keyTeam[i.key] = team; return { ...i, team }; }) : []);
   full.forEach(([team, t]) => { PIPE_LISTS.forEach((l) => tag(team, t.snapshot[l])); Object.values(t.snapshot.queue ?? {}).forEach((v) => tag(team, v)); });
+  // Two teams on one repo list the same PRs and tickets: All teams shows each once, under the first team.
+  const once = (xs: J[]) => { const seen = new Set<string>(); return xs.filter((i) => { const id = i?.key || (i?.number != null ? `#${i.number}` : ''); if (!id) return true; if (seen.has(id)) return false; seen.add(id); return true; }); };
   let snap: J;
   const base = f?.data as J;
   if (PIPE_TEAM && snaps[PIPE_TEAM]) snap = full.some(([team]) => team === PIPE_TEAM) ? snaps[PIPE_TEAM].snapshot : null;
   else if (!base || full.length < 2) snap = base ?? null;
   else {
     snap = { ...base, queue: { ...(base.queue ?? {}) } };
-    PIPE_LISTS.forEach((l) => { snap[l] = base[l] == null ? null : full.flatMap(([team, t]) => tag(team, t.snapshot[l])); });
-    ['ready', 'skipped'].forEach((l) => { if (Array.isArray(base.queue?.[l])) snap.queue[l] = full.flatMap(([team, t]) => tag(team, t.snapshot.queue?.[l])); });
+    PIPE_LISTS.forEach((l) => { snap[l] = base[l] == null ? null : once(full.flatMap(([team, t]) => tag(team, t.snapshot[l]))); });
+    ['ready', 'skipped'].forEach((l) => { if (Array.isArray(base.queue?.[l])) snap.queue[l] = once(full.flatMap(([team, t]) => tag(team, t.snapshot.queue?.[l]))); });
   }
   return { snap, snaps, keyTeam };
 });

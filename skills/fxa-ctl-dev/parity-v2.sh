@@ -51,9 +51,11 @@ for (let i = 0; i < 50 && !(document.querySelector("#ov-main [data-ovmetric]") &
 await sleep(1500);
 const q = (s) => document.querySelector(s)?.textContent.trim() ?? "";
 out.ov.atwork = (q("#ov-head").match(/(\S+) at work now/) ?? [])[1] ?? "";
-out.ov.needs = q("#ov-needs h2 .big");
+out.ov.needs = q("#ov-needs h2 .big, #ov-needs .cardhd .big");
 for (const m of ["spend", "runs", "merged", "rate", "median"]) out.ov["kpi_" + m] = q(`[data-ovmetric="${m}"] .mv`);
-for (const c of ["budget", "llm", "hours"]) out.ov[c] = q(`#ov-${c} h2 .note`);
+for (const c of ["budget", "hours"]) out.ov[c] = q(`#ov-${c} h2 .note, #ov-${c} .cardhd .note`);
+// The last-hour LLM spend: v1 has it in the LLM card head, v2 in the page head.
+out.ov.llm = ((q("#ov-llm h2 .note") || q("#ov-head .ovkpi b")).match(/\$[\d.,]+|unknown/) ?? [""])[0];
 out.ov.teams = document.querySelectorAll("#ov-teams tr[data-team]").length;
 out.ov.runs = document.querySelectorAll("#ov-runs .ovrun").length;
 for (const r of ["overview", "pipeline/belts", "sessions/live", "stats/spend", "errors/open", "runners/all", "teams"]) {

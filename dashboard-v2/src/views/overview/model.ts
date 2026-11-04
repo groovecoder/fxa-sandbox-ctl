@@ -56,17 +56,6 @@ export function tileOf(t: J): Tile {
 
 export const RUN_KIND: Record<string, string> = { pipeline: 'pipeline run', slack: 'Slack session', answer: 'quick answer', pass: 'pass', depfix: 'dependency fix' };
 
-// Today's count from every stats row but the passes. Only a quick answer counts as answered.
-const OUT = [['pr', 'PR opened', 'PRs opened'], ['no_pr', 'with no change', 'with no change'], ['answered', 'answered', 'answered'], ['session', 'Slack session', 'Slack sessions'], ['depfix', 'dependency fix', 'dependency fixes']] as const;
-const outOf = (r: J) => (r.src === 'pipeline' ? (r.pr ? 'pr' : 'no_pr') : r.src === 'answer' ? 'answered' : r.src === 'slack' ? 'session' : r.src === 'depfix' ? 'depfix' : '');
-export function todaySummary(rows: J[] | null, runs: number, now = Date.now()): string {
-  if (!rows) return '';
-  const today = localDay(now), td = rows.filter((r) => r.src !== 'pass' && localDay(rowMs(r)) === today);
-  if (!td.length) return runs ? 'Nothing today. The latest runs:' : 'Nothing today.';
-  const parts = OUT.map(([k, one, many]) => [td.filter((r) => outOf(r) === k).length, one, many] as const).filter(([n]) => n);
-  return `${td.length} today${parts.map(([n, one, many], i) => `${i ? ', ' : ': '}${n} ${n === 1 ? one : many}`).join('')}`;
-}
-
 // Runs started in each of the last 24 local hours; passes are the scheduler's, not counted.
 export function ovHours(rows: J[], now = Date.now()) {
   const h0 = new Date(now); h0.setMinutes(0, 0, 0);

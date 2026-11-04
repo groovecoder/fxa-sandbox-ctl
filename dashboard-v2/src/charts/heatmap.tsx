@@ -24,7 +24,7 @@ export function Heatmap({ title, summary, table, rows, cols, cells, onCell }: He
         {rows.length === 0 || cols.length === 0 ? (
           <NoData />
         ) : (
-          <svg width={width} height={HEAD + rows.length * (size + GAP)} className="block">
+          <svg width={width} height={HEAD + rows.length * (size + GAP)} className="block" onMouseLeave={() => k.setActive(null)}>
             {cols.map((c, j) =>
               j % every === 0 ? (
                 <text key={c} x={LABEL + j * (size + GAP) + size / 2} y={HEAD - 4} textAnchor="middle" className="fill-faint text-tiny">

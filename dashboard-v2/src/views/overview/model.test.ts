@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capOf, headOf, metricOf, ovBudget, ovHours, ovLlm, ovWeek, overviewOf, prsWhy, quart, rangeOf, teamSpark, tileOf, todaySummary } from './model';
+import { capOf, headOf, metricOf, ovBudget, ovHours, ovLlm, ovWeek, overviewOf, prsWhy, quart, rangeOf, teamSpark, tileOf } from './model';
 import { runBadge, statsNote } from '../shared/stats';
 
 const NOW = new Date(2026, 10, 18, 14, 30).getTime();
@@ -48,13 +48,6 @@ describe('the Overview model', () => {
     expect(runBadge({ outcome: 'odd' })).toMatchObject({ label: 'odd', tone: 'dim' });
   });
 
-  it("counts today's runs, and does not count a Slack session or a dependency fix as answered", () => {
-    const rows = [{ src: 'pipeline', pr: true }, { src: 'pipeline' }, { src: 'answer' }, { src: 'slack' }, { src: 'depfix' }, { src: 'pass' }].map((r) => ({ ...r, ms: NOW - 60000 }));
-    expect(todaySummary(rows, 4, NOW)).toBe('5 today: 1 PR opened, 1 with no change, 1 answered, 1 Slack session, 1 dependency fix');
-    expect(todaySummary([], 4, NOW)).toBe('Nothing today. The latest runs:');
-    expect(todaySummary([], 0, NOW)).toBe('Nothing today.');
-    expect(todaySummary(null, 0, NOW)).toBe('');
-  });
 
   it('puts runs in 24 local hours ending now, without the passes', () => {
     const h = ovHours([{ src: 'pipeline', ms: NOW - 60000 }, { src: 'slack', ms: NOW - 120000 }, { src: 'pass', ms: NOW }, { src: 'slack', ms: NOW - 3 * 3600000 }, { src: 'slack', ms: NOW - 30 * 3600000 }], NOW);

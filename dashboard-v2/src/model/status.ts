@@ -26,14 +26,16 @@ export type AlertRow = { tone: 'bad' | 'warn'; subject: string; what: string; fi
 export const alerts = memo((s) => [pipe(s), AGENTS(s), STATE(s), merged(s), strays(s)], (s): AlertRow[] => {
   const snap = SNAP(s), g = AGENTS(s), st = STATE(s), out: AlertRow[] = [], h = snap?.health ?? {};
   const add = (tone: 'bad' | 'warn', subject: string, what: string, fix?: string) => out.push(fix ? { tone, subject, what, fix } : { tone, subject, what });
-  const staleFeed = (name: string, age: J, every: J) => age != null && every && age > 3 * every &&
-    add('bad', name, `feed is ${ago(age).replace(' ago', '')} old, refreshes every ${every}s; the page is showing history`);
+  // The stale feeds share one alert, so the page says the age once.
+  const old: [string, number][] = [];
+  const staleFeed = (name: string, age: J, every: J) => { if (age != null && every && age > 3 * every) old.push([name, age]); };
   staleFeed('agents', st.agents_age_seconds, st.agents_interval);
   staleFeed('tickets', st.age_seconds, st.interval);
+  if (!st.stats_error) staleFeed('stats', st.stats_age_seconds, st.stats_interval);
+  if (old.length) add('warn', old.map(([n]) => n).join(', '), `Data is up to ${ago(Math.max(...old.map(([, a]) => a))).replace(' ago', '')} old. This page shows older data`);
   if (st.error) add('bad', 'tickets', st.error);
   if (st.agents_error) add('bad', 'agents', st.agents_error);
   if (st.stats_error) add('warn', 'stats', st.stats_error);
-  else staleFeed('stats', st.stats_age_seconds, st.stats_interval);
   const sp = h.seconds_since_pass;
   if (snap && (sp == null || sp > 7200)) add('warn', 'pass', sp == null ? 'no pass recorded yet' : `no pipeline pass in ${ago(sp).replace(' ago', '')}, so open PRs get no reconcile, feedback or rebase rounds. To start the passes, the operator runs /fxa-automation in Claude Code.`);
   else if (sp > 1500) add('warn', 'pass', `last pass ${ago(sp)}; the cron fires every 20 minutes`);
