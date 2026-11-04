@@ -242,7 +242,10 @@ def check(rec, name=None):
         if acc.get("jira_prefixes"):
             bad.append("a team that takes secret tickets cannot list access.jira_prefixes: a Slack tag of a key starts the public team's session")
 
-    pr = obj(rec.get("pr", {}), "pr", {"open", "reviewers", "users", "labels", "infra_checks", "review_rounds"})
+    pr = obj(rec.get("pr", {}), "pr", {"open", "reviewers", "users", "labels", "infra_checks", "review_rounds", "rerun_infra"})
+    # pr.rerun_infra: false stops the one rerun of a red CI job that logs an outside fault (gh_red_rerun).
+    if "rerun_infra" in pr:
+        flag(pr["rerun_infra"], "pr.rerun_infra")
     # pr.review_rounds: the automatic fix rounds the bot runs on a PR for review bots and CI; 0 always asks.
     if "review_rounds" in pr:
         v = pr["review_rounds"]
@@ -382,6 +385,8 @@ def env(rec):
         yield "PIPE_PR_LABELS", ",".join(pr["labels"])
     if pr.get("infra_checks"):
         yield "PIPE_INFRA_CHECKS", ",".join(pr["infra_checks"])
+    if pr.get("rerun_infra") is False:
+        yield "PIPE_RERUN_INFRA", "0"
     if rec.get("skills"):
         yield "PIPE_TEAM_SKILLS", " ".join(rec["skills"])
     if rec.get("boot"):

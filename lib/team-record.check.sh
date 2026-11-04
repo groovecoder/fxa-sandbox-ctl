@@ -284,6 +284,8 @@ f4() { printf '{ "schema": 1, "name": "f4", "repos": [ { "slug": "mozilla/fxa", 
 ok4=', "jira": { "project": "FFF", "board": "225", "sprint": "^FxA Sprint " }, "pr": { "infra_checks": ["extract=Bad credentials"] }, "caps": { "runners": 8 }'
 check "the board, the sprint, the infra rules and the runner cap reach the loader" "225|^FxA Sprint |extract=Bad credentials|8" \
   "$(f4 "$ok4" | awk -F'\t' '/^PIPE_JIRA_BOARD|^PIPE_JIRA_SPRINT_MATCH|^PIPE_INFRA_CHECKS|^PIPE_MAX_LAUNCHES_GCE/{print $2}' | paste -sd'|' -)"
+check "pr.rerun_infra: false turns the rerun off, true or no key leaves it on, a string is refused" "0|||1" \
+  "$(f4 ', "pr": { "rerun_infra": false }' | sed -n 's/^PIPE_RERUN_INFRA\t//p')|$(f4 ', "pr": { "rerun_infra": true }' | grep -c '^PIPE_RERUN_INFRA' | grep -v '^0$')|$(f4 '' | grep -c '^PIPE_RERUN_INFRA' | grep -v '^0$')|$(f4 ', "pr": { "rerun_infra": "no" }' | grep -c 'pr.rerun_infra')"
 check "two infra rules join with a comma, as the CI reader splits them" "a=x,b c=y z" \
   "$(f4 ', "pr": { "infra_checks": ["a=x", "b c=y z"] }' | sed -n 's/^PIPE_INFRA_CHECKS\t//p')"
 r=""; for j in ', "jira": { "board": "x" }' ', "jira": { "sprint": "^FxA" }' ', "jira": { "board": "1", "sprint": "(a+)+" }' \
