@@ -122,9 +122,9 @@ promote_ci() {
   case "$1 $2" in *red*) echo red ;; *running*) echo running ;; "green green") echo skip-tests ;; *) echo test ;; esac
 }
 # promote_ci_wait <ctl dir> <ctl sha> <bot dir> <bot sha>   "<ctl state> <bot state>", after waiting up to
-# FXA_PROMOTE_CI_WAIT_S (600) for runs still going: a promote right after a push need not be run again.
+# FXA_PROMOTE_CI_WAIT_S (1200) for runs still going: a promote right after a push need not be run again. CI takes about 16 min.
 promote_ci_wait() {
-  local cs bs said="" end=$(( $(date +%s) + ${FXA_PROMOTE_CI_WAIT_S:-600} ))
+  local cs bs said="" end=$(( $(date +%s) + ${FXA_PROMOTE_CI_WAIT_S:-1200} ))
   while :; do
     cs="$(ci_state "$1" "$2")" bs="$(ci_state "$3" "$4")"
     [ "$(promote_ci "$cs" "$bs")" = running ] && [ "$(date +%s)" -lt "$end" ] || break
@@ -438,7 +438,7 @@ EOF2
       echo "CI on main: controller $cs, bot $bs."
       case "$(promote_ci "$cs" "$bs")" in
         red) echo "Not promoted: CI failed on main. Fix it first (gh run list -b main)." >&2; exit 1 ;;
-        running) echo "Not promoted: CI on main still runs after ${FXA_PROMOTE_CI_WAIT_S:-600} s. Promote again when it is done." >&2; exit 1 ;;
+        running) echo "Not promoted: CI on main still runs after ${FXA_PROMOTE_CI_WAIT_S:-1200} s. Promote again when it is done." >&2; exit 1 ;;
         skip-tests) echo "CI passed on both commits, so the bot's tests do not run again here." ;;
         *) promote_tests "$BOT_ROOT" "$(sed -n 's/^bot //p' "$DEV_RECORD")" "$CTL_ROOT" "$(sed -n 's/^ctl //p' "$DEV_RECORD")" || exit 1 ;;
       esac
