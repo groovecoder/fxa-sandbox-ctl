@@ -56,6 +56,8 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   const autoSess = useRef(false);
   // A hashchange, not the first read of the hash: only a navigation moves the focus.
   const navd = useRef(false);
+  // When "/" last put the focus in the search: a "/" that comes just after a tab key wins over the heading focus.
+  const slashAt = useRef(-Infinity);
 
   const setPrefs = useCallback((p: Partial<Prefs>) => st.setState((x) => ({ prefs: { ...x.prefs, ...p } })), [st]);
 
@@ -154,7 +156,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
     if (showright && narrowRight) document.getElementById('rclose')?.focus();
   }, [showright, narrowRight]);
 
-  // A new view or tab puts the focus on its heading, unless the view put the focus in its content.
+  // A new view or tab puts the focus on its heading, unless the view put the focus in its content or a fast "/" put it in the search.
   const at = useRef('');
   useEffect(() => {
     const k = `${route.view}/${route.tab}`;
@@ -163,6 +165,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
     const nav = navd.current;
     navd.current = false;
     if (!nav || mainRef.current?.querySelector('.mc')?.contains(document.activeElement)) return;
+    if (document.activeElement?.id === 'q' && performance.now() - slashAt.current < 1000) return;
     document.getElementById('vtitle')?.focus({ preventScroll: !narrowSide });
   }, [route.view, route.tab, narrowSide]);
 
@@ -246,7 +249,10 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       else if (e.key === '/') {
         e.preventDefault();
         if (narrowSide) setShowside(true);
-        else document.getElementById('q')?.focus();
+        else {
+          document.getElementById('q')?.focus();
+          slashAt.current = performance.now();
+        }
       } else if (e.key === 'j' || e.key === 'k') {
         const items = [...document.querySelectorAll<HTMLElement>('.si')];
         if (!items.length) return;
