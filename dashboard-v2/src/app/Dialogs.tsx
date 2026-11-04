@@ -38,15 +38,19 @@ function useModal(open: boolean, onClose: () => void) {
       onClose();
       back.current?.focus?.();
     };
+    // A late close event after a fast reopen must not close the new dialog.
+    const late = () => {
+      if (!d.open) on();
+    };
     // The focus never leaves the dialog for the browser frame.
     const tab = (e: KeyboardEvent) => wrapTab(e, d);
     // Esc: the close event comes a task later, so a fast Enter on the opener would find the state still open.
     d.addEventListener('cancel', on);
-    d.addEventListener('close', on);
+    d.addEventListener('close', late);
     d.addEventListener('keydown', tab);
     return () => {
       d.removeEventListener('cancel', on);
-      d.removeEventListener('close', on);
+      d.removeEventListener('close', late);
       d.removeEventListener('keydown', tab);
     };
   }, [onClose]);
