@@ -1,10 +1,10 @@
 // The shell: rail, header and tabs, side list, main, details panel, status bar, and the keys.
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent as RKey, type ReactNode } from 'react';
 import { firstSessTab, format, parse, TEAM_RE, TEAM_TABS, viewHash } from '../router';
 import type { Route, ViewId } from '../router/types';
 import type { Prefs, Store, Theme } from '../store/types';
 import { agentsOf, docTitle, pipeTeams, railBadges, sessionList, tabCount } from './derive';
-import { Help, Palette } from './Dialogs';
+import { Help, Palette, wrapTab } from './Dialogs';
 import { Boundary, ICON, VIEW_ICON } from './parts';
 import { Alerts, StatusBar, useTabTitle } from './Status';
 import { safe, savePref, SIDE, useSel, useStore, useStoreState, type SideGroup } from './store';
@@ -54,6 +54,8 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   const cur = useRef(-1);
   const mainRef = useRef<HTMLElement>(null);
   const autoSess = useRef(false);
+  // A hashchange, not the first read of the hash: only a navigation moves the focus.
+  const navd = useRef(false);
 
   const setPrefs = useCallback((p: Partial<Prefs>) => st.setState((x) => ({ prefs: { ...x.prefs, ...p } })), [st]);
 
@@ -86,7 +88,8 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       // Opening or closing a belt inside one tab keeps the place; a new view or tab starts at the top.
       if (!(r.view === 'pipeline' && prev.view === r.view && prev.tab === r.tab) && mainRef.current) mainRef.current.scrollTop = 0;
     };
-    const on = () => {
+    const on = (e?: Event) => {
+      if (e) navd.current = true;
       const hash = location.hash, prev = st.getState().route;
       const r = parse(hash, prev);
       autoSess.current = r.view === 'sessions' && !hash.replace(/^#/, '').split(/[/?]/)[1] && prev.view !== 'sessions';
@@ -148,6 +151,30 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   useEffect(() => {
     if (showright && narrowRight) document.getElementById('rclose')?.focus();
   }, [showright, narrowRight]);
+
+  // A new view or tab puts the focus on its heading, unless the view put the focus in its content.
+  const at = useRef('');
+  useEffect(() => {
+    const k = `${route.view}/${route.tab}`;
+    if (at.current === k) return;
+    at.current = k;
+    const nav = navd.current;
+    navd.current = false;
+    if (!nav || mainRef.current?.querySelector('.mc')?.contains(document.activeElement)) return;
+    document.getElementById('vtitle')?.focus({ preventScroll: !narrowSide });
+  }, [route.view, route.tab, narrowSide]);
+
+  // An update that removes the focused node: the focus goes to its panel, and a polite message says so.
+  const last = useRef<{ el: Element; k: string; box: string } | null>(null);
+  const gone = useRef<HTMLParagraphElement>(null);
+  useLayoutEffect(() => {
+    const f = last.current, k = `${route.view}/${route.tab}`;
+    if (!f || f.el.isConnected || document.activeElement !== document.body || f.k !== k) return;
+    last.current = null;
+    const to = f.box === 'side' ? document.querySelector<HTMLElement>('#side .slist2') : f.box === 'right' ? document.getElementById('right') : document.getElementById('vtitle');
+    to?.focus({ preventScroll: true });
+    if (gone.current) gone.current.textContent = 'The item you were on is gone.';
+  });
 
   const cycleTheme = useCallback(() => {
     const t = THEMES[(THEMES.indexOf(st.getState().prefs.theme) + 1) % THEMES.length]!;
@@ -255,11 +282,12 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={shellCls} style={paneStyle as CSSProperties}>
+    <div className={shellCls} style={paneStyle as CSSProperties} onFocus={(e) => { last.current = { el: e.target, k: `${route.view}/${route.tab}`, box: e.target.closest('#side') ? 'side' : e.target.closest('#right') ? 'right' : '' }; }}>
+      <p className="vh" aria-live="polite" id="focus-say" ref={gone} />
       <Boundary>
         <Rail route={route} badges={badges} theme={prefs.theme} onTheme={cycleTheme} onHelp={() => setHelp(true)} onPalette={() => setPalette(true)} />
       </Boundary>
-      <aside className="side" id="side" aria-label="List">
+      <aside className="side" id="side" aria-label="List" onKeyDown={narrowSide && showside && route.view !== 'teams' ? (e) => wrapTab(e, e.currentTarget) : undefined}>
         <Boundary key={route.view}>
           {sideOn && SIDEPANE[route.view] ? SIDEPANE[route.view]!() : route.view === 'stats' ? (
             <><div className="sh"><h2>Filters</h2></div><p className="empty sgroup">loading…</p></>
@@ -281,7 +309,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
           </Boundary>
         </div>
       </main>
-      <aside className="right" id="right" aria-label="Details">
+      <aside className="right" id="right" aria-label="Details" tabIndex={-1} onKeyDown={narrowRight && showright ? (e) => wrapTab(e, e.currentTarget) : undefined}>
         <Boundary key={route.view}>
           <button type="button" className="drawer-close" id="rclose" onClick={() => { setShowright(false); document.getElementById('tright')?.focus(); }}>Close</button>
           {rightBody ?? <div className="emptybox">Select an item in the list to see its details.</div>}
@@ -337,7 +365,7 @@ function Header(p: { route: Route; s: Store; sideShown: boolean; rightShown: boo
   return (
     <div className="mh">
       <div className="row">
-        <h1 id="vtitle">{def.title}</h1>
+        <h1 id="vtitle" tabIndex={-1}>{def.title}</h1>
         <span className="vsub" id="vsub">{def.sub}</span>
         <span className="acts" id="vacts">
           {view === 'teams' && (
@@ -387,7 +415,7 @@ function SideList(p: { title: string; groups: SideGroup[] | null; q: string; set
         </div>
         {p.Tools && <p.Tools />}
       </div>
-      <div className="slist2">
+      <div className="slist2" tabIndex={-1}>
         {groups.length ? groups.map((g, gi) => (
           <div key={g.group ?? gi}>
             {g.group && <h3 className="sgroup">{g.group}</h3>}
