@@ -156,7 +156,8 @@ test('a store row equal to the feed row keeps the feed order; a newer one sorts 
 
 // Section 8: a delta of 50 session rows commits in under 16 ms of script. The reducer and the selectors that the shell
 // reads again on a session delta get that whole budget here; the render has its own check in e2e/perf.spec.ts.
-test('big-burst: each delta of 50 session rows applies, with the shell selectors, within the 16 ms budget', () => {
+// A shared CI runner can stall one run; a real slowdown fails every try.
+test('big-burst: each delta of 50 session rows applies, with the shell selectors, within the 16 ms budget', { retry: process.env.CI ? 2 : 0 }, () => {
   const xs = frames('big-burst'), snap = xs[1] as Frame & { event: 'snapshot' };
   // Also on a store with 2000 older sessions, since the merge and the sort grow with the list.
   const old = Array.from({ length: 2000 }, (_, i) => ({ ...snap.data.sessions[0]!, key: `agent-old${String(i).padStart(4, '0')}`, created: NOW - 86400 - i, state: 'stopped' }));
