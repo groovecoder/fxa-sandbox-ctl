@@ -15,7 +15,7 @@ export const health = memo((s) => [pipe(s), AGENTS(s), STATE(s), s.conn.mode], (
   // Nothing launchable while tickets wait on a person: the pipeline is idle for a reason a person can fix.
   const q = snap?.queue, ready = q?.ready?.length ?? 0, waits = queueWaits(s).length, starved = !q?.fetch_failed && ready === 0 && waits > 0;
   const level = dead || lowDisk ? 'dead' : stale || st.error || st.agents_error || quiet || starved ? 'warn' : '';
-  const word = level === 'dead' ? (lowDisk ? 'disk low' : 'no passes') : level === 'warn' ? (stale || st.error || st.agents_error || quiet ? 'degraded' : 'needs you') : paused ? 'paused' : 'healthy';
+  const word = level === 'dead' ? (lowDisk ? 'disk low' : 'no passes') : level === 'warn' ? (stale || st.error || st.agents_error || quiet ? 'degraded' : 'tickets wait') : paused ? 'paused' : 'healthy';
   const title = [`${g?.backend ?? snap?.backend ?? '?'}${g?.zone ? ` ${g.zone}` : ''}`, h.lock_held ? 'lock held' : 'lock free', g ? `launchcap ${g.launchcap ?? 'unknown'}` : '',
     `${h.free_gb ?? '?'}GB free`, snap ? `tickets snapshot took ${snap.took_seconds}s` : '', g ? `agents feed took ${g.took_seconds}s` : ''].filter(Boolean).join(' · ');
   return { level: level || (paused ? 'paused' : ''), word, title };

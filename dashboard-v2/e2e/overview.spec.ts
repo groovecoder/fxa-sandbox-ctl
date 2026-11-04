@@ -94,6 +94,13 @@ test('Activity: the summary, the row fields, a PR link, and a session link to it
   await expect(a.locator('.ovrun[data-run="EX-298"]')).toContainText('PR #301 merged');
 });
 
+test('Activity shows a run whose title is its key once', async ({ page }) => {
+  const runs = { ...RUNS, runs: [{ ...RUNS.runs[0], key: 'EX-399', title: 'EX-399' }] };
+  await page.route('**/api/runs/recent*', (r) => r.fulfill({ json: rel(runs) }));
+  await page.goto('/v2/#overview');
+  await expect(page.locator('#ov-runs .ovrun .t').first()).toHaveText(/^EX-399\s*$/);
+});
+
 test('Activity says when the runs read fails', async ({ page }) => {
   await page.route('**/api/runs/recent*', (r) => r.fulfill({ status: 500, json: { error: 'database is locked' } }));
   await page.goto('/v2/#overview');

@@ -83,7 +83,7 @@ export function ovWeek(rows: J[], now = Date.now()) {
   return n;
 }
 
-// This month's spend of every team by local day, the projection at the rate so far, and the band of the lowest to the highest day.
+// This month's spend of every team by local day, and the projection at the rate so far.
 export function ovBudget(rows: J[], now = Date.now()) {
   const d0 = new Date(now), mo = d0.getMonth(), days: { t: number; usd: number; cum: number }[] = [];
   for (const d = new Date(d0.getFullYear(), mo, 1); d.getMonth() === mo; d.setDate(d.getDate() + 1)) days.push({ t: d.getTime(), usd: 0, cum: 0 });
@@ -92,9 +92,8 @@ export function ovBudget(rows: J[], now = Date.now()) {
   let c = 0; days.forEach((d) => { c += d.usd; d.cum = c; });
   // The rate uses the days elapsed to now, not whole days; at least one, so a run early on the 1st does not project a huge month.
   const el = Math.max(1, (now - days[0]!.t) / DAY), mtd = days[today]!.cum, rate = mtd / el, end = mtd + rate * (days.length - el);
-  const past = days.slice(0, today + 1).map((d) => d.usd), lo = Math.min(...past), hi = Math.max(...past);
-  const pts = days.map((d, i) => ({ t: d.t, spent: i <= today ? d.cum : null, proj: i >= today ? (i === today ? mtd : mtd + rate * (i + 1 - el)) : null,
-    band: i >= today ? [i === today ? mtd : mtd + lo * (i + 1 - el), i === today ? mtd : mtd + hi * (i + 1 - el)] as [number, number] : null }));
+  // No min-max band: the busiest day times the days left set the y-axis, and the real spend sat flat at the bottom.
+  const pts = days.map((d, i) => ({ t: d.t, spent: i <= today ? d.cum : null, proj: i >= today ? (i === today ? mtd : mtd + rate * (i + 1 - el)) : null }));
   return { name: d0.toLocaleDateString(undefined, { month: 'long' }), days, el, mtd, end, pts };
 }
 // One capped team: its meter and its sentence.

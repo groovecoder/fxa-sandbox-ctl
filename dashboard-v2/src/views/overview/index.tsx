@@ -244,7 +244,7 @@ function Budget({ fs, note, now, team }: P) {
   const list = (Array.isArray(teams?.data) ? teams.data : []) as J[];
   const caps = teams?.error ? [] : list.filter((t) => t.budget?.month_cap > 0 && !t.budget_error);
   const tnote = !teams ? 'Loading the team budgets…' : teams.error ? `Team budgets unknown: the teams feed failed: ${teams.error}.` : !caps.length ? 'No team has a monthly budget cap.' : '';
-  const data: Point[] = b.pts.map((p) => ({ lbl: shortDay(p.t), spent: p.spent, proj: p.proj, band: p.band }));
+  const data: Point[] = b.pts.map((p) => ({ lbl: shortDay(p.t), spent: p.spent, proj: p.proj }));
   return (
     <Sec id="ov-budget" sm>
       <Hd t={`${b.name} spend`}><span className="note mono">{note ? 'unknown' : usd(b.mtd)}</span></Hd>
@@ -255,7 +255,7 @@ function Budget({ fs, note, now, team }: P) {
           <div className="sub">{who}. At this rate the month ends near <b>${Math.round(b.end).toLocaleString('en-US')}</b>.</div>
           <div className="ovleg"><span><i className="bg-chart-1" />Spent</span><span><i className="bg-chart-muted" />Projected</span></div>
           <OvChart title={`${b.name} spend of ${team ? teamLabel(store.getState(), team) : 'every team'}, so far and projected`} data={data} height={170} fmt={money}
-            series={[{ key: 'band', name: 'Forecast band', color: 'chart-muted', mark: 'band' }, { key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}
+            series={[{ key: 'spent', name: 'Spent', color: 'chart-1', mark: 'line' }, { key: 'proj', name: 'Projected', color: 'chart-muted', mark: 'line', dash: true }]}
             refs={caps.filter((t) => !team || t.profile === team).slice(0, 3).map((t) => ({ y: t.budget.month_cap, label: `${teamName(t)} cap` }))}
             summary={`${b.name} spend of ${team ? teamLabel(store.getState(), team) : 'every team'}: ${usd(b.mtd)} so far, near ${usd(b.end)} at the month end.`}
             table={{ head: ['Day', 'Spent', 'Projected'], rows: data.map((d) => [d.lbl, d.spent == null ? '' : usd(Number(d.spent)), d.proj == null ? '' : usd(Number(d.proj))]) }} />
@@ -294,7 +294,8 @@ function RunRow({ r, site, sessions, fresh }: { r: J; site: unknown; sessions: S
   // A session link goes to the tab the session is on now.
   const x = sessions[r.key], href = r.src === 'pipeline' ? jiraHref(r.key, site) : x && sessHref(r.key) ? `#sessions/${sessTabOf(x)}/${r.key}` : sessHref(r.key);
   const key = r.src === 'pass' || !r.key ? null : href ? <a className="key" href={href} {...(r.src === 'pipeline' ? { target: '_blank', rel: 'noreferrer' } : {})}>{r.key}</a> : <span className="key">{r.key}</span>;
-  const title = r.title || (r.src === 'pass' ? 'Pipeline pass' : ''), b = runBadge(r);
+  // A run with no title can carry its key as the title: do not show the key twice.
+  const title = (r.title !== r.key && r.title) || (r.src === 'pass' ? 'Pipeline pass' : ''), b = runBadge(r);
   return (
     <div className="ovrun" data-run={r.key} ref={ref}>
       <time dateTime={r.at}>{when}</time>

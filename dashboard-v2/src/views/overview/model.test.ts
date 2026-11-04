@@ -65,15 +65,14 @@ describe('the Overview model', () => {
     expect(w.flat().reduce((a, b) => a + b, 0)).toBe(2);
   });
 
-  it('projects the month at the rate so far, with a band from the lowest to the highest day', () => {
+  it('projects the month at the rate so far', () => {
     const b = ovBudget([{ usd: 10, ms: new Date(2026, 10, 1, 12).getTime() }, { usd: 30, ms: new Date(2026, 10, 2, 12).getTime() }, { usd: 99, ms: new Date(2026, 9, 31).getTime() }], NOW);
     expect(b.mtd).toBe(40);
     expect(b.days).toHaveLength(30);
     expect(b.end).toBeCloseTo(40 + (40 / b.el) * (30 - b.el));
     const last = b.pts[29]!;
     expect(last.spent).toBeNull();
-    expect(last.band![0]).toBeLessThanOrEqual(last.proj!);
-    expect(last.band![1]).toBeGreaterThanOrEqual(last.proj!);
+    expect(last.proj).toBeCloseTo(b.end);
     const c = capOf({ budget: { month_usd: 40, month_cap: 50 } }, b.el, b.days);
     expect([c.tone, c.over, c.day != null]).toEqual(['warn', false, true]);
     expect(capOf({ budget: { month_usd: 60, month_cap: 50 } }, b.el, b.days)).toMatchObject({ tone: 'bad', over: true });
