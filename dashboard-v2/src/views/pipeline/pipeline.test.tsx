@@ -148,8 +148,8 @@ describe('Queue', () => {
     load(undefined, '#pipeline/queue');
     render(<Queue />);
     const tile = (l: string) => document.querySelector(`[data-stat="${l}"] .text-kpi`)!.textContent;
-    expect([tile('Launchable'), tile('Waits on a person')]).toEqual(['1', '1']);
-    expect([...document.querySelectorAll('h2.qh')].map((h) => h.textContent)).toEqual(['Queuelabelled ai-queue21 launchable, plus 1 held']);
+    expect([tile('Launchable'), tile('Held'), tile('Waits on a person')]).toEqual(['1', '1', '1']);
+    expect(document.querySelector('#s-queue > h2')!.textContent).toBe('Queue 2labelled ai-queue, 1 launchable, plus 1 held');
   });
   it('lists a skipped ticket that has a belt on Belts only, not on Queue', () => {
     load();
@@ -188,6 +188,7 @@ describe('Done', () => {
     render(<Done />);
     expect(document.querySelector('#dline')!.textContent).toBe('1 ticket from the last 30 merged PRs labelled bot-pr, newest first.');
     expect(document.querySelector('[data-stat="Median days to merge"] .text-kpi')!.textContent).toBe('7');
+    expect(document.querySelector('[data-stat="Merged by"] .text-kpi')!.textContent).toBe('1');
     fireEvent.click(screen.getByRole('button', { name: 'Ticket' }));
     expect(document.querySelector('.dtab th')!.getAttribute('aria-sort')).toBe('ascending');
   });

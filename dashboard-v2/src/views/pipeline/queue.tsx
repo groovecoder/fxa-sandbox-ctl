@@ -45,7 +45,8 @@ export function Queue() {
   // A hold waits for another ticket to merge; it is not launchable, and not a skip a person must answer.
   const held = skipped.filter((k) => k.in_queue !== false && k.held_by), live: J[] = queueOnly(s), stale = skipped.filter((k) => k.in_queue === false);
   const qv = (x: number) => (q.fetch_failed ? null : x);
-  const off = snap.mode?.newtickets === 'off';
+  const off = snap.mode?.newtickets === 'off', h = snap.health ?? {};
+  const budget = h.launches_24h == null || h.max_launches_per_day == null ? null : `${h.launches_24h} of ${h.max_launches_per_day}`;
   const skipRow = (k: J) => (
     <div className="item qi" key={k.key}>
       <SrcBadge kind="jira" />
@@ -64,17 +65,17 @@ export function Queue() {
     <>
       <div className="ptiles">
         <Tile label="Launchable" value={qv(ready.length)}
-          sub={q.fetch_failed ? 'Jira did not answer' : `${off ? 'intake is off' : ready[0] ? `next up ${ready[0].key}` : 'nothing to launch'}${held.length ? ` · ${held.length} held on another ticket` : ''}`} />
+          sub={q.fetch_failed ? 'Jira did not answer' : off ? 'intake is off' : ready[0] ? `next up ${ready[0].key}` : 'nothing to launch'} />
+        <Tile label="Held" value={qv(held.length)} sub={q.fetch_failed ? 'Jira did not answer' : 'each waits for another ticket to merge'} />
         <Tile label="Waits on a person" value={qv(live.length)} sub={q.fetch_failed ? 'Jira did not answer' : 'skipped, each waits on an answer in Jira'} tone={live.length ? 'warn' : undefined} />
+        <Tile label="Launches, 24 h" value={budget} sub={budget ? 'the daily launch budget' : 'this snapshot has no launch budget'} />
       </div>
-      <p className="bwhere">The PRs that wait on a review are on <a href="#pipeline/belts">Belts</a>.</p>
-      <div id="s-queue">
-        <h2 className="qh">Queue<span className="sub">{snap.team?.queue_label ? `labelled ${snap.team.queue_label}` : 'in the queue'}</span>
-          <span className="n">{q.fetch_failed ? '?' : ready.length + live.length}</span>
-          {!q.fetch_failed && <span className="note">{ready.length} launchable{held.length ? `, plus ${held.length} held` : ''}</span>}</h2>
+      <div className="pcols">
+      <div id="s-queue" className="bwrap">
+        <h2 className="bsub">Queue <span className="cnt">{q.fetch_failed ? '?' : ready.length + live.length}</span>
+          <span className="hint">{snap.team?.queue_label ? `labelled ${snap.team.queue_label}` : 'in the queue'}{q.fetch_failed ? '' : `, ${ready.length} launchable${held.length ? `, plus ${held.length} held` : ''}`}</span></h2>
         {q.fetch_failed ? <div className="unknown">Jira fetch failed; unknown, not zero</div> : (
           <>
-            <QueueBar ready={ready} held={held} live={live} stale={stale} />
             {off ? (
               <>
                 <div className="empty">intake is off: the passes work on open PRs only and launch nothing from this queue</div>
@@ -115,6 +116,11 @@ export function Queue() {
             )}
           </>
         )}
+      </div>
+      <aside className="paside" aria-label="Queue details">
+        {!q.fetch_failed && <Card flat sm><QueueBar ready={ready} held={held} live={live} stale={stale} /></Card>}
+        <p className="bwhere">The PRs that wait on a review are on <a href="#pipeline/belts">Belts</a>.</p>
+      </aside>
       </div>
     </>
   );

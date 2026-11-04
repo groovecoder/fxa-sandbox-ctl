@@ -318,11 +318,12 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
       <main className="main" id="main" ref={mainRef}>
         <Boundary>
           <Header route={route} s={s} sideShown={sideShown} rightShown={rightShown} tlistClosed={tlistClosed}
-            onToggle={toggle} onTlist={() => setTlistClosed((o) => !o)} />
+            onToggle={toggle} onTlist={() => setTlistClosed((o) => !o)}
+            team={route.view === 'pipeline' ? <PipeTeam s={s} onPick={(t) => { savePref('pipeTeam', t); setPrefs({ pipeTeam: t }); }} /> : null} />
         </Boundary>
         <div className="mc">
           {route.view === 'overview' && <Boundary><Alerts alerts={alerts} ready={!!(s.feeds.full || s.feeds.agents)} /></Boundary>}
-          {route.view === 'pipeline' && <Boundary><PipeTeam s={s} onPick={(t) => { savePref('pipeTeam', t); setPrefs({ pipeTeam: t }); }} /></Boundary>}
+
           <Boundary key={`${route.view}/${route.tab}`}>
             {MAIN[route.view]?.() ?? <p className="empty">{def.load ? 'loading…' : 'This view is not built yet.'}</p>}
           </Boundary>
@@ -374,7 +375,7 @@ function Rail(p: { route: Route; badges: ReturnType<typeof railBadges>; theme: T
   );
 }
 
-function Header(p: { route: Route; s: Store; sideShown: boolean; rightShown: boolean; tlistClosed: boolean; onToggle: (w: 'side' | 'right') => void; onTlist: () => void }) {
+function Header(p: { route: Route; s: Store; sideShown: boolean; rightShown: boolean; tlistClosed: boolean; onToggle: (w: 'side' | 'right') => void; onTlist: () => void; team: ReactNode }) {
   const sel = useSel();
   const { view, tab } = p.route;
   const def = viewOf(view), bare = def.bareTabs.includes(tab);
@@ -387,6 +388,7 @@ function Header(p: { route: Route; s: Store; sideShown: boolean; rightShown: boo
         <h1 id="vtitle" tabIndex={-1}>{def.title}</h1>
         <span className="vsub" id="vsub">{def.sub}</span>
         <span className="acts" id="vacts">
+          {p.team}
           {view === 'teams' && (
             <button type="button" className="iconbtn lbl tlist-btn" id="tlist" aria-expanded={!p.tlistClosed} aria-controls="side" onClick={p.onTlist}>{ICON.side}List</button>
           )}
@@ -500,14 +502,14 @@ function PipeTeam({ s, onPick }: { s: Store; onPick: (t: string) => void }) {
     : red(cur) ? `A private team: details for team admins. ${counts.review} in review, ${counts.inflight} in flight, ${counts.ready} ready.`
       : !cur.snap ? `Unknown: ${cur.error || "the team's snapshot has not loaded"}` : '';
   return (
-    <div className="row pteam">
+    <div className="pteam" title={why}>
       <label className="hint">Team{' '}
         <select data-pteam aria-label="Pipeline team" value={cur ? pick : ''} onChange={(e) => onPick(e.target.value)}>
           <option value="">All teams</option>
           {ts.map((t) => <option key={t.key} value={t.key}>{name(t)}{red(t) ? ' (private)' : ''}</option>)}
         </select>
       </label>
-      <span className="hint">{why}</span>
+      {cur && why && <span className="hint">{why}</span>}
     </div>
   );
 }

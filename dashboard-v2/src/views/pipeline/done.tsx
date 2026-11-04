@@ -35,29 +35,18 @@ export function Done() {
   rows.slice().reverse().forEach((r) => { const w = weekOf(r.merged), e = weeks.get(w.at) ?? { label: w.label, rows: [] }; e.rows.push(r); weeks.set(w.at, e); });
   const ws = [...weeks.values()], by = new Map<string, number>();
   rows.forEach((r) => by.set(r.by || 'unknown', (by.get(r.by || 'unknown') ?? 0) + 1));
+  const people = [...by].sort((a, b) => b[1] - a[1]);
   return (
     <div id="s-done">
       <div className="ptiles">
         <Tile label="Tickets merged" value={rows.length} sub={`from the last ${cap} merged PRs`} />
         <Tile label="Merged, 7 days" value={wk} sub={wk === 1 ? 'ticket' : 'tickets'} />
         <Tile label="Median days to merge" value={medText} sub="from the PR's creation" />
+        <Tile label="Merged by" value={people.length} sub={`${people.length === 1 ? 'person' : 'people'} · ${people[0]![0]} merged ${people[0]![1]}`} />
       </div>
-      <p className="bwhere" id="dline">{rows.length} ticket{rows.length === 1 ? '' : 's'} from the last {cap} merged PRs{lbl ? ` labelled ${lbl}` : ''}, newest first.</p>
-      <div className="pflow-grid">
-        <Card flat sm>
-          <h3 className="sgroup">Merges per week</h3>
-          <BarList label="Merges per week" items={ws.map((w) => ({ name: `Week of ${w.label}`, value: w.rows.length }))} />
-          <StripPlot title="Days to merge, per week" unit="days"
-            summary={`Days to merge per week of the merge. The median of all is ${medText} days.`}
-            groups={ws.map((w) => ({ label: w.label, median: median(w.rows.map((r) => r.took)) ?? undefined,
-              points: w.rows.filter((r) => Number.isFinite(r.took)).map((r) => ({ value: Math.round(r.took * 10) / 10, label: r.t.key })) }))}
-            table={{ head: ['Week of', 'Ticket', 'Days to merge'], rows: ws.flatMap((w) => w.rows.map((r) => [w.label, r.t.key, Math.round(r.took * 10) / 10])) }} />
-        </Card>
-        <Card flat sm>
-          <h3 className="sgroup">Merged by</h3>
-          <BarList label="Merged by" items={[...by].sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name, value }))} />
-        </Card>
-      </div>
+      <div className="pcols">
+      <div className="bwrap">
+      <h2 className="bsub">Merged tickets <span className="cnt">{rows.length}</span><span className="hint" id="dline">{rows.length} ticket{rows.length === 1 ? '' : 's'} from the last {cap} merged PRs{lbl ? ` labelled ${lbl}` : ''}, newest first.</span></h2>
       <div className="tscroll">
         <table className="dtab">
           <caption className="sr-only">Merged tickets</caption>
@@ -86,6 +75,25 @@ export function Done() {
             })}
           </tbody>
         </table>
+      </div>
+      </div>
+      <aside className="paside" aria-label="Done details">
+        <Card flat sm>
+          <h3 className="ph">Merges per week</h3>
+          <BarList label="Merges per week" items={ws.map((w) => ({ name: `Week of ${w.label}`, value: w.rows.length }))} />
+        </Card>
+        <Card flat sm>
+          <StripPlot title="Days to merge, per week" unit="days"
+            summary={`Days to merge per week of the merge. The median of all is ${medText} days.`}
+            groups={ws.map((w) => ({ label: w.label, median: median(w.rows.map((r) => r.took)) ?? undefined,
+              points: w.rows.filter((r) => Number.isFinite(r.took)).map((r) => ({ value: Math.round(r.took * 10) / 10, label: r.t.key })) }))}
+            table={{ head: ['Week of', 'Ticket', 'Days to merge'], rows: ws.flatMap((w) => w.rows.map((r) => [w.label, r.t.key, Math.round(r.took * 10) / 10])) }} />
+        </Card>
+        <Card flat sm>
+          <h3 className="ph">Merged by</h3>
+          <BarList label="Merged by" items={people.map(([name, value]) => ({ name, value }))} />
+        </Card>
+      </aside>
       </div>
     </div>
   );
