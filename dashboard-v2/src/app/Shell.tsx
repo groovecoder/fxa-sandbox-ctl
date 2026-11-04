@@ -274,7 +274,7 @@ export function Shell({ poll }: { poll?: () => Promise<void> }) {
             onToggle={toggle} onTlist={() => setTlistClosed((o) => !o)} />
         </Boundary>
         <div className="mc">
-          {route.view === 'overview' && <Boundary><Alerts alerts={alerts} /></Boundary>}
+          {route.view === 'overview' && <Boundary><Alerts alerts={alerts} ready={!!(s.feeds.full || s.feeds.agents)} /></Boundary>}
           {route.view === 'pipeline' && <Boundary><PipeTeam s={s} onPick={(t) => { savePref('pipeTeam', t); setPrefs({ pipeTeam: t }); }} /></Boundary>}
           <Boundary key={`${route.view}/${route.tab}`}>
             {MAIN[route.view]?.() ?? <p className="empty">{def.load ? 'loading…' : 'This view is not built yet.'}</p>}

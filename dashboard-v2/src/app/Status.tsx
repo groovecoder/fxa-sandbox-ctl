@@ -110,17 +110,19 @@ export function StatusBar({ s, sel, health, onRefresh }: { s: Store; sel: Sel; h
 
 const alertKey = (a: Alert) => `${a.tone}|${a.subject}|${a.what}`;
 
-export function Alerts({ alerts }: { alerts: Alert[] }) {
+// ready: the first feed read came; the alerts it brings are the start, not news.
+export function Alerts({ alerts, ready }: { alerts: Alert[]; ready: boolean }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const seen = useRef<Set<string> | null>(null);
   const [say, setSay] = useState('');
   // The live region says only the alerts that are new, not the whole strip again.
   useEffect(() => {
+    if (!ready) return;
     const keys = new Set(alerts.map(alertKey));
     const fresh = seen.current ? alerts.filter((a) => !seen.current!.has(alertKey(a))) : [];
     seen.current = keys;
     if (fresh.length) setSay(fresh.map((a) => `New alert: ${a.subject}, ${a.what}`).join('. '));
-  }, [alerts]);
+  }, [alerts, ready]);
   return (
     <>
       <div className="vh" role="status" aria-live="polite" id="attn-say">{say}</div>
