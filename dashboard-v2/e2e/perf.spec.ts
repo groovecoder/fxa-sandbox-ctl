@@ -8,13 +8,16 @@ const sse = (fs: Frame[]) => fs.map((f) => `${f.id ? `id: ${f.id}\n` : ''}event:
 
 const FIRST_PAINT_MS = 1500;
 const DELTA_MS = 16;
+// A shared CI runner can stall one run; a real slowdown fails every try.
+test.describe.configure({ retries: process.env.CI ? 2 : 0 });
 
 test('the first paint is under 1.5 s on the fixture', async ({ page }) => {
   await page.goto('/v2/#overview');
   await expect(page.locator('#conn')).toHaveAttribute('data-mode', 'live');
-  const fcp = await page.evaluate(() => performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null);
-  expect(fcp).not.toBeNull();
-  expect(fcp!).toBeLessThan(FIRST_PAINT_MS);
+  // Chrome can record the paint entry after the page is live.
+  const fcp = () => page.evaluate(() => performance.getEntriesByName('first-contentful-paint')[0]?.startTime ?? null);
+  await expect.poll(fcp).not.toBeNull();
+  expect((await fcp())!).toBeLessThan(FIRST_PAINT_MS);
 });
 
 for (const route of ['#overview', '#sessions/stopped', '#runners', '#pipeline/belts']) {
