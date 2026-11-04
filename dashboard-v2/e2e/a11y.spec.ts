@@ -50,6 +50,8 @@ async function open(page: Page, hash: string, h1: string) {
   await page.goto(`/v2/${hash}`);
   await expect(page.locator('#vtitle')).toHaveText(h1);
   await expect(page.locator('#main > .mc')).not.toContainText(/^loading…$|loading teams/);
+  // A lazy chart adds its figure when it loads, which moves the figures after it.
+  await expect(page.locator('#main [data-lazy]')).toHaveCount(0);
 }
 
 for (const theme of ['light', 'dark'] as const) {

@@ -7,7 +7,8 @@ const ds = /\/ds\.spec\.ts$/;
 export default defineConfig({
   testDir: 'e2e',
   forbidOnly: !!process.env.CI,
-  use: { baseURL: `http://localhost:${port}` },
+  // One zone on every host, so a day group of the fixtures' clock reads the same on the laptop and in CI.
+  use: { baseURL: `http://localhost:${port}`, timezoneId: 'America/New_York' },
   projects: [
     { name: 'chromium', testIgnore: ds, use: { ...devices['Desktop Chrome'] } },
     // The #__ds example page is in the dev build only, so its check runs on the Vite dev server.

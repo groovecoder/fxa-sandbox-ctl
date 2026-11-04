@@ -7,7 +7,7 @@ const Layout = lazy(() => import('./sankey').then((m) => ({ default: m.Sankey })
 export function Sankey(p: SankeyProps) {
   return (
     // No chart role in the fallback: a key press on it would go nowhere.
-    <Suspense fallback={<p className="empty">loading…</p>}>
+    <Suspense fallback={<p className="empty" data-lazy="">loading…</p>}>
       <Layout {...p} />
     </Suspense>
   );
