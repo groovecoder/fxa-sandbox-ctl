@@ -101,7 +101,7 @@ export function Detail({ c, r }: { c: Ctl; r: J }) {
           : <StatTile label="Next run" value={next[0] ? rtIn(next[0], c.now) || 'now' : 'none'} sub={r.paused ? 'paused' : next[0] ? `${rtWhen(next[0], d.zone, true)} ${d.zone}` : ''} />}
       </div>
       <div className="grid gap-s4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-        <section className="rounded-lg border border-card-border bg-panel px-s6 py-s4 shadow-card">
+        <section className="rounded-lg border border-card-border bg-panel p-s4 shadow-card">
           <H2>Runs{hist && <><span className="n font-normal text-faint">{hist.length}</span><Note>newest first, times in {Intl.DateTimeFormat().resolvedOptions().timeZone}</Note></>}</H2>
           {hist ? <>
             {old.length > 0 && (

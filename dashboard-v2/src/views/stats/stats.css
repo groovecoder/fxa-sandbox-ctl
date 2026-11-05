@@ -14,8 +14,8 @@
 .st .unknown { color: var(--warn); font-size: var(--t-sub); font-weight: 600; }
 .st .emptybox { margin-top: var(--s4); }
 .st .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); margin: 0; }
-.st .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
-.st .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
+.st .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--stack-gap); }
+.st .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--stack-gap); }
 .st * + .charts, .st * + .three { margin-top: var(--s4); }
 /* Runners and Pipeline: the wide cards in the main column, the small summary in a 340 px side column (the Pipeline frame). */
 .st .st-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); align-items: start; }
@@ -24,7 +24,7 @@
   .st .st-cols > * { grid-column: 1; }
   .st .st-cols > :nth-child(2) { grid-column: 2; grid-row: 1 / span 3; }
 }
-.st-chart { min-width: 0; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
+.st-chart { min-width: 0; padding: var(--card-pad); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
 .st-card { min-width: 0; padding: var(--s4); }
 .st-card [data-new] { margin-top: var(--s4); }
 .st-toggle { display: flex; align-items: center; gap: var(--s1); margin-bottom: var(--s2); font-size: var(--t-label); color: var(--dim); }

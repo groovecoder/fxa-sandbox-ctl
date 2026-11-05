@@ -60,7 +60,7 @@ export function Meter({ pct, tone, label }: MeterProps) {
 export function Card({ children, sm, flat, tone, href, className }: CardProps) {
   const c = cx(
     'min-w-0 rounded-lg border',
-    sm ? 'px-s4 py-s3' : 'px-s6 py-s4',
+    sm ? 'px-s4 py-s3' : 'p-s4',
     tone === 'bad' ? 'border-bad' : flat ? 'border-line' : 'border-card-border',
     tone === 'warn' ? 'bg-warnbg' : 'bg-panel',
     !flat && 'shadow-card',

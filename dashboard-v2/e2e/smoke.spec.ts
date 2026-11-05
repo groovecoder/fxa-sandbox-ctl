@@ -32,3 +32,34 @@ test('the Terminal button opens the live terminal in its own window', async ({ p
   await expect(win.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(win.locator('.ttyw')).toContainText('agent@sandbox: agent-ex0001');
 });
+
+// One heading, card and title style on every view, so a view's own CSS cannot drift from the others.
+test('every view uses the shared heading, card padding and title position', async ({ page }) => {
+  const bad: string[] = [];
+  const tops = new Set<number>();
+  for (const hash of VIEWS.flatMap(([, h]) => h)) {
+    await page.goto(`/v2/${hash}`);
+    await expect(page.locator('#conn')).toHaveAttribute('data-mode', 'live');
+    const r = await page.evaluate(() => {
+      const out: string[] = [], px = (v: string) => Math.round(parseFloat(v));
+      const vis = (e: Element) => (e as HTMLElement).offsetParent && !e.closest('.sr-only,[hidden],dialog,[role=dialog]');
+      // A column head inside a frame (Pipeline belts, Answers) is an h2 at the card-head size.
+      const ok: Record<string, string[]> = { H2: ['16/700', '13/600'], H3: ['13/600'] };
+      for (const e of document.querySelectorAll('#main h2, #main h3')) {
+        if (!vis(e)) continue;
+        const s = getComputedStyle(e), v = `${px(s.fontSize)}/${s.fontWeight}`;
+        if (!ok[e.tagName]?.includes(v)) out.push(`${e.tagName} "${e.textContent?.trim().slice(0, 24)}" ${v}`);
+      }
+      for (const e of document.querySelectorAll('#main *')) {
+        const s = getComputedStyle(e);
+        if (!vis(e) || s.borderTopWidth === '0px' || px(s.borderRadius) !== 14 || e.getBoundingClientRect().height <= 90) continue;
+        if (!['16px', '12px 16px', '0px'].includes(s.padding)) out.push(`card .${String((e as HTMLElement).className).split(' ')[0]} padding ${s.padding}`);
+      }
+      return { out, top: Math.round(document.querySelector('.mh h1')!.getBoundingClientRect().top) };
+    });
+    bad.push(...r.out.map((x) => `${hash}: ${x}`));
+    tops.add(r.top);
+  }
+  expect(bad).toEqual([]);
+  expect([...tops]).toHaveLength(1);
+});

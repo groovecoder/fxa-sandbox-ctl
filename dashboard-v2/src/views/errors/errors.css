@@ -1,4 +1,4 @@
-.err-card { background: var(--panel); border: 1px solid var(--card-border); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: var(--s4) var(--s6); }
+.err-card { background: var(--panel); border: 1px solid var(--card-border); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: var(--card-pad); }
 .err-card h2 .n { margin-left: var(--s2); color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
 .err-card > * + * { margin-top: var(--s3); }
 .err-fail { color: var(--warn); }

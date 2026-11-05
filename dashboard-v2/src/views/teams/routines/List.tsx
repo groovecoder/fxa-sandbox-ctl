@@ -55,7 +55,7 @@ function RtCard({ c, r }: { c: Ctl; r: J }) {
   const s = c.sum?.routines?.[r.id], runOff = (r.live && !onpr) || c.busy === r.id, p = c.team.profile;
   const per = s?.runs_30d ? s.cost_30d / s.runs_30d : null;
   return (
-    <article className="rt rounded-lg border border-card-border bg-panel px-s6 py-s4 shadow-card" data-rt-row={r.id}>
+    <article className="rt rounded-lg border border-card-border bg-panel p-s4 shadow-card" data-rt-row={r.id}>
       <div className="flex flex-wrap items-start gap-s3">
         <Glyph tpl={onpr ? 'depfix' : d.template} />
         <div className="flex min-w-0 flex-1 flex-col gap-s1">

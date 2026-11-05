@@ -1,7 +1,7 @@
 /* The Overview layout, ported from the v1 Overview CSS: the same grid and breakpoints, tokens only. */
 .ov { display: grid; gap: var(--s4); grid-template-columns: minmax(0, 1fr); align-items: start; }
 /* One padding for every card, so the card titles line up. */
-.ov .card { position: relative; border: 1px solid var(--card-border); box-shadow: var(--shadow); border-radius: var(--r-lg); background: var(--panel); padding: var(--s4); min-width: 0; }
+.ov .card { position: relative; border: 1px solid var(--card-border); box-shadow: var(--shadow); border-radius: var(--r-lg); background: var(--panel); padding: var(--card-pad); min-width: 0; }
 /* One gap between the blocks of a card, so no block sets its own. */
 .ov section.card { display: flex; flex-direction: column; gap: var(--s3); }
 .ov section.card > :not(.mtabs) { margin-top: 0; margin-bottom: 0; }
@@ -28,16 +28,16 @@
 .seg button[aria-pressed="true"] { color: var(--link); border-color: var(--link); background: var(--infobg); }
 
 .ov > .ovgrid + * { margin-top: calc(var(--s3) - var(--s4)); }
-.ovgrid { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); align-items: start; }
+.ovgrid { display: grid; gap: var(--stack-gap); grid-template-columns: minmax(0, 1fr); align-items: start; }
 /* Two columns on a wide screen: the metrics and Activity on the left; the month, LLM spend and the hours on the right. The last card of each stretches, so both end on one line above Teams. */
 @media (min-width: 1100px) {
   .ovgrid { grid-template-columns: minmax(0, 1fr) 360px; align-items: stretch; }
   .ovgrid > .ovcol, .ovgrid > .ovrail { display: flex; flex-direction: column; }
   .ovgrid > .ovcol > :last-child, .ovgrid > .ovrail > :last-child { flex: 1; }
 }
-.ovcol { display: grid; gap: var(--s3); min-width: 0; align-content: start; }
+.ovcol { display: grid; gap: var(--stack-gap); min-width: 0; align-content: start; }
 /* One column below 1100 px, in DOM order: cards of unequal height side by side left holes. */
-.ovrail { display: grid; gap: var(--s3); grid-template-columns: minmax(0, 1fr); align-content: start; min-width: 0; }
+.ovrail { display: grid; gap: var(--stack-gap); grid-template-columns: minmax(0, 1fr); align-content: start; min-width: 0; }
 .ov details { overflow-x: auto; }
 
 #ov-main { container-type: inline-size; }

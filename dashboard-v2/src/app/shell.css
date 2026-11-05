@@ -10,7 +10,10 @@ button { font: 600 var(--t-sub) var(--head); color: var(--ink); background: var(
   border-radius: var(--r-sm); padding: 6px var(--s4); cursor: pointer; }
 button:hover:not(:disabled) { background: var(--hover); }
 h1, h2, h3, h4 { font-family: var(--head); }
+/* One card padding and one gap between stacked cards, for every view. Not in :root, which keeps the v1 token set. */
+html { --card-pad: var(--s4); --stack-gap: var(--s4); }
 h2 { font-size: var(--t-heading); font-weight: 700; font-family: var(--head); margin: 0; }
+h3 { font: 600 var(--t-sub)/1.3 var(--head); color: var(--ink); margin: 0; }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .empty { color: var(--faint); font-size: var(--t-sub); }
 .hint { color: var(--dim); font-size: var(--t-sub); }
@@ -75,7 +78,8 @@ kbd { font: 600 var(--t-label) var(--mono); color: var(--dim); border: 1px solid
 
 .main { grid-area: main; overflow: auto; min-width: 0; }
 .mh { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: var(--s4) var(--s6) 0; }
-.mh .row { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+/* The row is as tall as its icon buttons on every view, so the title sits at the same height with or without them. */
+.mh .row { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; min-height: 36px; }
 .mh h1 { margin: 0; font: 700 var(--t-page)/1.2 var(--sans); }
 .mh .vsub { color: var(--faint); }
 .mh .acts { margin-left: auto; display: flex; gap: 6px; }

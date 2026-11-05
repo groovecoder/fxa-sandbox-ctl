@@ -16,7 +16,7 @@
 .bgh .why { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--faint); }
 .bgh .cnt { font-size: var(--t-tiny); font-weight: 700; background: var(--sunk); color: var(--ink); border-radius: var(--r-pill); padding: 0 6px; line-height: 18px; letter-spacing: 0; }
 /* One heading style for the list groups and the side cards: 13/650, 12px above and 8px below. */
-.bsub, .ph { margin: 0; padding: var(--s3) var(--s3) var(--s2); display: flex; align-items: center; gap: 6px; font-size: var(--t-sub); font-weight: 650; color: var(--ink); }
+.bsub, .ph { margin: 0; padding: var(--s3) var(--s3) var(--s2); display: flex; align-items: center; gap: 6px; font-size: var(--t-sub); font-weight: 600; color: var(--ink); }
 .ph { padding: 0 0 var(--s2); }
 .bsub .hint { font-size: var(--t-label); }
 .bsub .who { font-size: var(--t-tiny); border: 1px solid var(--line2); border-radius: var(--r-pill); padding: 0 7px; color: var(--dim); }
@@ -100,7 +100,7 @@
 #s-queue > .bsub { padding-left: 0; padding-right: 0; }
 #s-queue details { margin-top: var(--s3); }
 #s-queue details > summary { cursor: pointer; font-size: var(--t-sub); font-weight: 650; color: var(--dim); }
-#s-queue .sgroup { padding: var(--s3) 0 var(--s2); font-size: var(--t-label); font-weight: 650; color: var(--dim); }
+#main h3.sgroup { font: 600 var(--t-sub)/1.3 var(--head); color: var(--ink); padding: var(--s3) 0 var(--s2); }
 #s-queue .unknown { color: var(--warn); font-weight: 600; }
 .ppass { vertical-align: middle; margin-left: var(--s2); }
 .pwait { display: grid; gap: var(--s4); grid-template-columns: minmax(0, 1fr); margin-top: var(--s4); }
