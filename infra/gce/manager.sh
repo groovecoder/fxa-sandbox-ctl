@@ -139,7 +139,8 @@ done
 # ${VAR} references filled from Secret Manager, so a literal one stops here.
 # _literal_cred <file>   True when the file holds a credential, not a ${VAR} reference.
 _literal_cred() {
-  grep -qE 'Bearer [^$"]|xox[abpr]-|ghp_|github_pat_|sk-ant-|sntry[a-z]_|glsa_|CCIPAT_|"Circle-Token"[[:space:]]*:[[:space:]]*"[^$]' "$1"
+  # A token character after each prefix, so a redact pattern such as CCIPAT_\\w+ is not a credential.
+  grep -qE 'Bearer [^$"]|(xox[abpr]-|ghp_|github_pat_|sk-ant-|sntry[a-z]_|glsa_|CCIPAT_)[A-Za-z0-9]|"Circle-Token"[[:space:]]*:[[:space:]]*"[^$]' "$1"
 }
 G="${HOME}/.config/fxa/mcp-gateway.json"
 if [ -f "$G" ]; then

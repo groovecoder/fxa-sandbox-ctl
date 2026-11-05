@@ -22,4 +22,7 @@ eval "$(sed -n '/^_literal_cred() {/,/^}/p' "$here/../infra/gce/manager.sh")"
 lc() { printf '%s\n' "$1" > "$tmp/gw.json"; _literal_cred "$tmp/gw.json" && echo stop || echo ship; }
 check "the gateway JSON: a reference ships, a literal Circle-Token or CCIPAT_ stops" "ship|ship|stop|stop|stop" \
   "$(lc '{"headers": {"Circle-Token": "${CIRCLECI_TOKEN}"}}')|$(lc '{"headers": {"Authorization": "Bearer ${X}"}}')|$(lc '{"headers": {"Circle-Token": "abc123"}}')|$(lc '{"t": "CCIPAT_abc"}')|$(lc '{"a": "Bearer abc"}')"
+# The example's redact patterns (CCIPAT_\\w+, sk-ant-[\\w-]+) are not credentials.
+check "the example connectors JSON, with its redact patterns, ships" "ship" \
+  "$(_literal_cred "$here/../infra/mcp-gateway/connectors.example.json" && echo stop || echo ship)"
 exit "$fail"
