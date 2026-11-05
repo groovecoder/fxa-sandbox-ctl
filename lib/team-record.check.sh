@@ -53,6 +53,12 @@ check "profile_file finds a record's prompt, and a folder team's own file first"
 # The validator: each rule refuses, and a refused record never loads.
 bad() { printf '%s' "$2" > "$T/$1.json"; py validate "$T/$1.json" "$1" 2>&1; }
 check "a host key in a record is refused" "1" "$(bad hk '{ "schema": 1, "repos": [ { "slug": "example/x", "role": "work" } ], "name": "hk", "state_uri": "gs://x" }' | grep -c 'state_uri is not a known key')"
+# A work repo's aliases: words the bot matches in a plain @mention. Each names one repo.
+al='{ "schema": 1, "name": "al", "repos": [ { "slug": "mozilla/fxa", "role": "work" }, { "slug": "mozilla/ecosystem-platform", "role": "work", "aliases": ["docs", "documentation"] } ], "stack": { "kind": "fxa" } }'
+check "repo aliases load into PIPE_REPO_ALIASES; a bad, repeated or shared alias is refused" "mozilla/ecosystem-platform=docs,documentation|1|1|1" \
+  "$(printf '%s' "$al" > "$T/al.json"; py env "$T/al.json" al | awk -F'\t' '$1 == "PIPE_REPO_ALIASES" {print $2}')|$(bad al "$(jq -c '.repos[1].aliases = ["Docs!"]' <<< "$al")" | grep -c "aliases: 'Docs!' is not valid")|$(bad al "$(jq -c '.repos[1].aliases = ["docs", "docs"]' <<< "$al")" | grep -c 'aliases lists an item twice')|$(bad al "$(jq -c '.repos[0].aliases = ["docs"]' <<< "$al")" | grep -c "'docs' names two repos")"
+check "pipeline_load takes the aliases from the allowlist" "mozilla/ecosystem-platform=docs,documentation" \
+  "$(printf '%s' "$al" > "$T/al.json"; loaded al | sed -n "s/^PIPE_REPO_ALIASES=//p" | tr -d "'"; rm -f "$T/al.json"; rm -rf "$T/al")"
 check "a name that is not the file's is refused" "1" "$(bad n1 '{ "schema": 1, "repos": [ { "slug": "example/x", "role": "work" } ], "name": "other" }' | grep -c 'does not match')"
 check "a folder team's name is refused, but fxa may be a record while its folder exists" "1|" \
   "$(bad monitor '{ "schema": 1, "repos": [ { "slug": "mozilla/fxa", "role": "work" } ], "stack": { "kind": "fxa" }, "name": "monitor" }' | grep -c 'reserved')|$(bad fxa '{ "schema": 1, "status": "active", "repos": [ { "slug": "mozilla/fxa", "role": "work" } ], "stack": { "kind": "fxa" }, "name": "fxa" }')"

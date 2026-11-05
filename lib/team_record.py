@@ -32,6 +32,8 @@ GH_LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._:/-]{0,49}$")
 DESKTOP = re.compile(r"^http://localhost:[0-9]{2,5}/$")
 STAMP = re.compile(r"^[0-9T:.Z+-]{10,32}$")
 BOARD = re.compile(r"^[0-9]{1,9}$")
+# A repo's other names in a plain @mention ("docs"): one word each, which the bot matches as a whole word.
+ALIAS = re.compile(r"^[a-z0-9][a-z0-9-]{1,29}$")
 # The sprint name is read with jq test() and an infra rule's log part with grep -E: no regex is compiled
 # here, so both take only a literal subset that means the same in every dialect and cannot be slow.
 SPRINT = re.compile(r"^\^?[A-Za-z0-9 ._:/()-]{1,60}$")
@@ -161,9 +163,14 @@ def check(rec, name=None):
     if not isinstance(repos, list) or not 1 <= len(repos) <= 8:
         bad.append("repos must list 1 to 8 repos")
         repos = []
-    slugs, paths, work = set(), set(), set()
+    slugs, paths, work, names = set(), set(), set(), set()
     for i, r in enumerate(repos):
-        r = obj(r, f"repos[{i}]", {"slug", "path", "role", "base", "default"})
+        r = obj(r, f"repos[{i}]", {"slug", "path", "role", "base", "default", "aliases"})
+        if "aliases" in r:
+            for a in strs(r["aliases"], f"repos[{i}].aliases", ALIAS, 5):
+                if a in names:
+                    bad.append(f"repos[{i}].aliases: {a!r} names two repos")
+                names.add(a)
         s = r.get("slug")
         if not isinstance(s, str) or not SLUG.fullmatch(s) or any(x in (".", "..") for x in s.split("/")):
             bad.append(f"repos[{i}].slug must be owner/name")
@@ -349,6 +356,9 @@ def env(rec):
     default = " ".join(r["slug"] for r in repos if r.get("default"))
     if default:
         yield "PIPE_STACK_DEFAULT", default
+    alias = " ".join(f"{r['slug']}={','.join(r['aliases'])}" for r in work if r.get("aliases"))
+    if alias:
+        yield "PIPE_REPO_ALIASES", alias
     if rec.get("stack", {}).get("kind") == "fxa":
         want = str(rec["stack"].get("repo", "mozilla/fxa")).lower()
         fxa = next(r for r in repos if r["slug"].lower() == want)  # check() compares lowercase too

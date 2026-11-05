@@ -143,6 +143,8 @@ curl() { echo "call" >> "$tmp/ghcalls"; local u="${*: -1}"
   case "$u" in *installation) case " $* " in *" -K - "*) [ "$(cat)" = 'header = "Authorization: Bearer jwt"' ] || { echo 401; return; } ;; *) echo 401; return ;; esac ;; esac
   case "$u" in */repos/mozilla/fxa/installation) echo 200 ;; *) echo 404 ;; esac; }
 pj() { PIPE_PROFILE="$1" PIPE_REPO_SLUG="$2" PIPE_DEP_REPOS="$3" PIPE_PR_OPEN="$4" pipeline_profile_json | jq -c '[.read_only, (.repos[] | "\(.slug):\(.role):\(.write)")]'; }
+check "a work repo's aliases reach the profile JSON; a repo with none has []" '[[],["docs","documentation"]]' \
+  "$(PIPE_REPOS=("mozilla/fxa /home/agent/fxa work" "mozilla/ecosystem-platform /home/agent/ecosystem-platform work"); PIPE_WORK_ROWS=("mozilla/fxa /home/agent/fxa" "mozilla/ecosystem-platform /home/agent/ecosystem-platform"); trees_allowed() { printf '%s\n' "${PIPE_WORK_ROWS[@]}"; }; PIPE_REPO_ALIASES="mozilla/Ecosystem-Platform=docs,documentation" PIPE_PROFILE=x PIPE_REPO_SLUG=mozilla/fxa PIPE_PR_OPEN=1 pipeline_profile_json | jq -c '[.repos[].aliases]')"
 check "fxa can write to its repo" '[false,"mozilla/fxa:work:true"]' "$(pj fxa mozilla/fxa '' 1)"
 check "a read-only profile writes nowhere, deps included" '[true,"mozilla/blurts-server:work:false","mozilla/fxa:dep:false"]' "$(pj monitor mozilla/blurts-server mozilla/fxa 0)"
 check "PRs off: the work repo's reason says where to turn them on" '"PRs are off for this team; a team admin turns them on in Settings, PR rules"' \

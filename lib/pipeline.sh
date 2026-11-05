@@ -94,7 +94,7 @@ _pipeline_load_record() {
   while IFS=$'\t' read -r k v; do
     case "$k" in
       REPO) PIPE_REPOS+=("$v") ;;
-      PIPE_LABEL|PIPE_BASE_BRANCH|PIPE_STACK_DEFAULT|PIPE_STACK_DIR|PIPE_VM_BACKEND|PIPE_ANDROID|PIPE_DESKTOP_URL|PIPE_EGRESS_EXTRA|PIPE_MCP|PIPE_JIRA_PROJECT|PIPE_PR_OPEN|PIPE_PR_TEAM|PIPE_PR_LABELS|PIPE_MAX_LAUNCHES_PER_DAY|PIPE_TEAM_SKILLS|PIPE_BOOT_SCRIPT|PIPE_BOOT_SHA256|PIPE_JIRA_SECRET|PIPE_TEAM_USD_DAY|PIPE_TEAM_USD_MONTH|PIPE_RUNTIME_SECRETS|PIPE_SECRET_TICKETS|PIPE_QUEUE_LABEL|PIPE_LABEL_PREFIX|PIPE_MERGE_USAGE|PIPE_JIRA_BOARD|PIPE_JIRA_SPRINT_MATCH|PIPE_INFRA_CHECKS|PIPE_MAX_LAUNCHES_GCE)
+      PIPE_LABEL|PIPE_BASE_BRANCH|PIPE_STACK_DEFAULT|PIPE_REPO_ALIASES|PIPE_STACK_DIR|PIPE_VM_BACKEND|PIPE_ANDROID|PIPE_DESKTOP_URL|PIPE_EGRESS_EXTRA|PIPE_MCP|PIPE_JIRA_PROJECT|PIPE_PR_OPEN|PIPE_PR_TEAM|PIPE_PR_LABELS|PIPE_MAX_LAUNCHES_PER_DAY|PIPE_TEAM_SKILLS|PIPE_BOOT_SCRIPT|PIPE_BOOT_SHA256|PIPE_JIRA_SECRET|PIPE_TEAM_USD_DAY|PIPE_TEAM_USD_MONTH|PIPE_RUNTIME_SECRETS|PIPE_SECRET_TICKETS|PIPE_QUEUE_LABEL|PIPE_LABEL_PREFIX|PIPE_MERGE_USAGE|PIPE_JIRA_BOARD|PIPE_JIRA_SPRINT_MATCH|PIPE_INFRA_CHECKS|PIPE_MAX_LAUNCHES_GCE)
         printf -v "$k" '%s' "$v" ;;
       *) echo "ERROR: team record ${name}: unexpected key ${k}" >&2; return 1 ;;
     esac
@@ -902,9 +902,10 @@ pipeline_profile_json() {
     github_repo_private "$r" && { priv=true; break; }
   done
   jq -nc --arg p "${PIPE_PROFILE:-}" --argjson private "$priv" --arg label "${PIPE_LABEL:-}" --arg works "$works" --arg deps "${PIPE_DEP_REPOS:-}" \
-    --arg defaults "${PIPE_STACK_DEFAULT:-}" --arg ro "${PIPE_PR_OPEN:-1}" --arg app "$app" --argjson ok "$ok" \
+    --arg defaults "${PIPE_STACK_DEFAULT:-}" --arg aliases "${PIPE_REPO_ALIASES:-}" --arg ro "${PIPE_PR_OPEN:-1}" --arg app "$app" --argjson ok "$ok" \
     --arg mcp "${PIPE_MCP:-}" --argjson android "$([ "${PIPE_ANDROID:-}" = 1 ] && echo true || echo false)" --argjson mcp_set "$([ -n "${PIPE_MCP+x}" ] && echo true || echo false)" '
     ($ro == "0") as $read_only | ($app | split("\n") | map(ascii_downcase)) as $installed |
+    ($aliases | split(" ") | map(select(. != "") | split("=") | {key: (.[0] | ascii_downcase), value: (.[1] | split(","))}) | from_entries) as $alias |
     { profile: $p, label: (if $label == "" then $p else $label end), read_only: $read_only, private: $private, android: $android,
       mcp: (if $mcp_set then ($mcp | split(",") | map(select(. != ""))) else null end),
       defaults: ($defaults | split(" ") | map(select(. != ""))),
@@ -912,7 +913,7 @@ pipeline_profile_json() {
                  why: (if $read_only then "PRs are off for this team; a team admin turns them on in Settings, PR rules"
                        elif ($ok == 0) then "the GitHub App check failed"
                        elif ($installed | index($s | ascii_downcase)) == null then "the agent'"'"'s GitHub App is not installed on this repo"
-                       else null end) } | . + { write: (.why == null) }))
+                       else null end) } | . + { write: (.why == null), aliases: ($alias[$s | ascii_downcase] // []) }))
               + ($deps | split(" ") | map(select(. != "")) | map({ slug: ., role: "dep", write: false, why: "it runs beside the work repo" }))) }'
 }
 
