@@ -605,7 +605,8 @@ _session_turn() {
   ( umask 077
     printf '%s\n' "$msg" > "${tmp}/.fxa-steer-msg.txt"
     # The session's own connectors: an empty --mcp stays off.
-    FXA_LLM_RUN_CAP_USD="$runcap" _FXA_SESSION_MCP="$(session_get "$key" mcp)" _claude_auth_line "$name" > "${tmp}/.fxa-auto-token" || [ "$(session_get "$key" runtime)" = codex ] \
+    FXA_LLM_RUN_CAP_USD="$runcap" _FXA_SESSION_MCP="$(session_get "$key" mcp)" _FXA_MCP_WORK_ONLY="$(session_get "$key" fix_pr)" \
+      _claude_auth_line "$name" > "${tmp}/.fxa-auto-token" || [ "$(session_get "$key" runtime)" = codex ] \
       || { echo "ERROR: set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN on the host" >&2; exit 1; }
     if [ "$(session_get "$key" runtime)" = codex ]; then
       # Codex keeps its login in ~/.codex/auth.json on the runner; no token ships.

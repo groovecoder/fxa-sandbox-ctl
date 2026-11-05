@@ -164,7 +164,7 @@ PIPELINE COMMANDS:
   slots                        Pool slots, and any VM running on each
   launchcap                    Launches this pass may make: 1 on tart, one per free slot on gce
   freeslots                    Slots a ticket can claim (use this, not `slots`)
-  launch <KEY> <slot> [ctx] [--rebase]  WRITE: start an agent VM in the background (--rebase: conflict round)
+  launch <KEY> <slot> [ctx] [--ci <file>] [--rebase]  WRITE: start an agent VM in the background (--ci: a fix round's ci-cause output, fenced as untrusted; --rebase: conflict round)
   launch-times <KEY>           When each step of the last launch happened (boot, agent, push, PR, CI)
   alive <ISSUE-KEY>            Exit 0 if a live claude process runs in the VM
   progress <ISSUE-KEY>         What the launcher did (read this first)
@@ -183,7 +183,7 @@ PIPELINE COMMANDS:
   tokens <ISSUE-KEY>           Token and model usage (run BEFORE the VM stops)
   record <ISSUE-KEY>           Append the run to the telemetry log
   costs [--reprice]            Rebuild the per-issue cost rollup; --reprice prices old runs from the LLM proxy
-  ci-cause <KEY|PR>            The failed CircleCI jobs on the open PR: failed tests and each failed step's end
+  ci-cause <KEY|PR>            The failed checks on the open PR (name and link), then the failed CircleCI jobs: failed tests and each failed step's end
   skip <KEY> [kind] [reason]   Record an admission skip (kind: needs_decision underspecified depends_on already_done); prints comment|silent <n>
   hold <KEY> <BLOCKER> [reason] A skip that waits for BLOCKER to merge; quiet until then
   skipped [KEY]                List recorded skips
@@ -322,6 +322,12 @@ check_prerequisites() {
 
 # ── Command: jira ──────────────────────────────────────────────
 
+# _ci_fence <file> <nonce>   A fix round's CI failure (ci-cause), fenced as untrusted: check names and
+# logs come from the PR branch, which the agent writes.
+_ci_fence() {
+  printf '\n\n## CI failure (untrusted, CI output the host fetched)\n\n<<<UNTRUSTED-%s>>>\n%s\n<<</UNTRUSTED-%s>>>' "$2" "$(head -c 60000 "$1")" "$2"
+}
+
 cmd_jira() {
   local key=""
   local name=""
@@ -337,6 +343,7 @@ cmd_jira() {
   local android="false"
   local private="false"
   local guardrails_file=""
+  local ci_file=""
   local rebase="false"
 
   while [ $# -gt 0 ]; do
@@ -348,6 +355,7 @@ cmd_jira() {
       --worktree)   worktree_slot="$2"; shift 2 ;;
       --private)    private="true"; shift ;;
       --guardrails) guardrails_file="$2"; shift 2 ;;
+      --ci)         ci_file="$2"; shift 2 ;;
       --dry-run)    dry_run="true"; shift ;;
       --watch)      watch="true"; shift ;;
       --no-watch)   watch="false"; shift ;;
@@ -440,6 +448,10 @@ $(cat "$guardrails_file")
 <<<UNTRUSTED-${nonce}>>>
 ${context}
 <<</UNTRUSTED-${nonce}>>>"
+  if [ -n "$ci_file" ]; then
+    [ -f "$ci_file" ] || { echo "ERROR: --ci file not found: ${ci_file}" >&2; return 1; }
+    context="${context}$(_ci_fence "$ci_file" "$nonce")"
+  fi
 
   local branch shared_path
   branch="$(worktree_branch_for "$key")"
@@ -535,6 +547,8 @@ EOF
   echo "Wrote Jira context to ${context_file}" >&2
 
   check_prerequisites
+  # A pipeline run reads CI only, on its work repos (mcp-token.sh); Codex runs get no MCP.
+  export _FXA_SESSION_MCP="$(mcp_ci_only "${PIPE_MCP:-}")" _FXA_MCP_WORK_ONLY=1
   agent_run "$worktree_path" "$name" "$prompt" "$cpu" "$memory" || { _jira_launch_failed "$key" "$name"; return 1; }
 
   # Start the stack now so the functional-test step does not pay the cold start.
@@ -1674,9 +1688,9 @@ cmd_state() {
   esac
 }
 cmd_skip()      { pipeline_skip "$(_key "$1")" "${@:2}"; }
-# ci-cause KEY|PR   The failed CircleCI jobs on the ticket's open PR: failed tests and each failed step's end,
-# so a red PR is judged on its real failure and not on the first line that says "error".
-# ponytail: CircleCI only; a failed GitHub Actions check prints nothing here.
+# ci-cause KEY|PR   The failed checks on the ticket's open PR, name and link, then the failed CircleCI jobs:
+# failed tests and each failed step's end, so a red PR is judged on its real failure and not on the first
+# line that says "error". A GitHub Actions failure gets its name and link only.
 cmd_ci_cause() {
   local a="${1:-}" pr links
   [ -n "$a" ] || { echo "ERROR: ci-cause takes <KEY> or <PR number>" >&2; return 1; }
@@ -1684,9 +1698,10 @@ cmd_ci_cause() {
   else pr="$(gh pr list --repo "$PIPE_REPO_SLUG" --state open --head "$(worktree_branch_for "$(_key "$a")")" --json number -q '.[0].number' 2>/dev/null || true)"; fi
   [ -n "$pr" ] || { echo "ERROR: no open PR for ${a}" >&2; return 1; }
   # gh exits 1 when a check failed, which is the case this command is for.
-  links="$(gh pr checks "$pr" --repo "$PIPE_REPO_SLUG" 2>/dev/null | awk -F'\t' '$2 == "fail" { print $4 }' || true)"
+  links="$(gh pr checks "$pr" --repo "$PIPE_REPO_SLUG" 2>/dev/null | awk -F'\t' '$2 == "fail" { print $1 "\t" $4 }' || true)"
   [ -n "$links" ] || { echo "PR #${pr}: no failed check"; return 0; }
-  circleci_digests "$links" "$(openssl rand -hex 6)"
+  printf 'PR #%s failed checks:\n%s\n' "$pr" "$links"
+  circleci_digests "$(cut -f2 <<< "$links")" "$(openssl rand -hex 6)"
 }
 # cmd_comment <KEY> <text>   Post the text as it is: jira_comment renders its Markdown subset.
 cmd_comment() {
@@ -2036,15 +2051,22 @@ _launch_slot_for() {
 # WRITE: start an agent VM in the background. The launcher polls CI, so a pass must not block on it.
 cmd_launch() {
   # --rebase comes through here to get the launch log, the ledger, and the telemetry.
-  local rebase="" a pos=()
-  for a in "$@"; do [ "$a" = --rebase ] && rebase=1 || pos+=("$a"); done
+  local rebase="" ci="" pos=()
+  while [ $# -gt 0 ]; do
+    case "$1" in --rebase) rebase=1 ;; --ci) ci="${2:-}"; shift ;; *) pos+=("$1") ;; esac
+    shift
+  done
   local key="${pos[0]:-}" slot="${pos[1]:-}" ctx="${pos[2]:-}"
   if [ -z "$key" ] || [ -z "$slot" ]; then
-    echo "ERROR: launch needs <KEY> <slot> [context-file] [--rebase]" >&2
+    echo "ERROR: launch needs <KEY> <slot> [context-file] [--ci <file>] [--rebase]" >&2
     return 1
   fi
   if [ -n "$ctx" ] && [ ! -f "$ctx" ]; then
     echo "ERROR: context file '$ctx' not found" >&2
+    return 1
+  fi
+  if [ -n "$ci" ] && [ ! -f "$ci" ]; then
+    echo "ERROR: CI file '$ci' not found" >&2
     return 1
   fi
   slot="$(_launch_slot_for "$key" "$slot")" || return 1
@@ -2083,6 +2105,7 @@ cmd_launch() {
   local args=(--pipeline "$PIPE_NAME" jira "$key" --create-pr --worktree "$slot" ${rebase:+--rebase})
   [ -n "${FXA_AGENT_RUNTIME:-${PIPE_AGENT_RUNTIME:-}}" ] && args+=(--runtime "${FXA_AGENT_RUNTIME:-$PIPE_AGENT_RUNTIME}")
   [ -n "$ctx" ] && args+=(--guardrails "$ctx")
+  [ -n "$ci" ] && args+=(--ci "$ci")
   # One line in the context asks for the full stack, the only route to a flow video.
   [ -n "$ctx" ] && grep -q '^Launch with --functional-tests' "$ctx" && args+=(--functional-tests)
   # And one asks for the Android emulator with Fenix beside them (the fxa-android runner).
@@ -2431,9 +2454,10 @@ cmd_task() {
   if [ "$runtime" = codex ] && trees_on "$key"; then echo "ERROR: a session with several repos runs on Claude only" >&2; _task_abort "$key"; return 1; fi
   session_set "$key" runtime "$runtime"
   # MCP connectors: a new session takes its team profile's (PIPE_MCP) or --mcp; a resume keeps its
-  # session's. Sessions only: pipeline runs never get them.
-  # A fix run gets no connectors: its context holds untrusted PR and CI text.
+  # session's. Pipeline runs set their own in cmd_jira.
+  # A fix run gets the CI connectors only: its context holds untrusted PR and CI text.
   [ -z "$resume_from" ] && [ -z "$fix" ] && [ -n "${PIPE_MCP+x}" ] && { mcp="$(pipeline_mcp "$mcp")"; mcp_set=1; }
+  [ -z "$fix" ] || { mcp="$(mcp_ci_only "${PIPE_MCP:-}")"; mcp_set=1; }
   [ -z "$mcp_set" ] && [ -n "$resume_from" ] && mcp="$(session_get "$resume_from" mcp)"
   if [ -n "$mcp" ]; then
     [[ "$mcp" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]] || { echo "ERROR: --mcp must look like jira,github" >&2; _task_abort "$key"; return 1; }
@@ -2455,7 +2479,9 @@ _cmd_session_boot() {
   [ -z "$fixh" ] || [ -n "${FXA_LLM_PROXY_URL:-}" ] || { echo "ERROR: a fix run needs the LLM proxy" >&2; session_set "$key" state failed; return 1; }
   FXA_AGENT_RUNTIME="$(session_get "$key" runtime)"; FXA_AGENT_RUNTIME="${FXA_AGENT_RUNTIME:-claude}"
   export FXA_SESSION_MODE=1 # Codex: stream JSON events into the transcript
-  export _FXA_SESSION_MCP="$(session_get "$key" mcp)" # only a session sets this
+  export _FXA_SESSION_MCP="$(session_get "$key" mcp)" # a session's own; a fix run's are CI only
+  # A fix run reads only its work repos, as a pipeline run does.
+  [ -z "$(session_get "$key" fix_pr)" ] || export _FXA_MCP_WORK_ONLY=1
   runtime_load || { session_set "$key" state failed; return 1; }
   # The run's cap reaches the token minted below (D21).
   FXA_LLM_RUN_CAP_USD="$(_session_run_cap "$key")" || { echo "ERROR: ${key} has a cost limit that is not a number" >&2; session_set "$key" state failed; return 1; }

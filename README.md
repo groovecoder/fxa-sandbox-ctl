@@ -567,7 +567,9 @@ Set it up:
    but loopback.
 3. Run `bash infra/gce/firewall.sh plan`, then `apply`. It opens 8788 and 8789 from the runner subnets to the manager only, and ssh and 6080 to the `fxa-runner` tag only.
 4. Pick connectors with the bot's `MCP_CONNECTORS`, which passes `task --mcp`.
-   Only Slack sessions get connectors; ai-fixme pipeline runs never do. The
+   Slack sessions get the team's connectors. Pipeline runs, fix rounds and dependency
+   fix runs get only `github-ci` and `circleci`, when the team's `mcp` list has them,
+   on the team's work repos (`mcp_ci_only`). The
    pipeline's grounding pass on the host reads Figma and Bugzilla links instead.
 
 Each call is a line in `~/.claude/state/mcp-gateway/calls.jsonl` with its run,

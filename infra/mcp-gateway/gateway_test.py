@@ -513,6 +513,10 @@ class TeamScope(unittest.TestCase):
         out = self.g.apply_rules(self.g.team_rules(self.jira, None), "searchJiraIssuesUsingJql", {}, {"jql": "status = Open"})
         self.assertTrue(out["jql"].startswith("project = FXA AND level IS EMPTY"))
 
+    def test_fxa_with_repos_and_no_project_keeps_its_jira_rules(self):
+        out = self.g.apply_rules(self.g.team_rules(self.jira, {"jira_projects": [], "repos": ["mozilla/fxa"]}), "searchJiraIssuesUsingJql", {}, {"jql": "x = 1"})
+        self.assertTrue(out["jql"].startswith("project = FXA AND level IS EMPTY AND (labels IS EMPTY OR labels NOT IN"))
+
     def test_a_team_searches_its_own_projects_and_keeps_the_label_and_security_rules(self):
         rules = self.g.team_rules(self.jira, {"jira_projects": ["PAY", "ENT"]})
         out = self.g.apply_rules(rules, "searchJiraIssuesUsingJql", {}, {"jql": "status = Open"})

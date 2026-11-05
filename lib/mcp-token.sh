@@ -6,10 +6,16 @@
 _FXA_MCP_TOKEN_LOADED=1
 FXA_MCP_GATEWAY_DIR="${FXA_MCP_GATEWAY_DIR:-$HOME/.claude/state/mcp-gateway}"
 
+# mcp_ci_only <connectors>   The CI connectors of the list, the only ones a pipeline run, fix round or
+# dependency fix run gets: their context holds untrusted text, so no jira, slack or github (PR comments).
+mcp_ci_only() { tr ',' '\n' <<< "${1:-}" | grep -xE 'github-ci|circleci' | paste -sd, - || true; }
+
 # mcp_token_for <run> [connectors]   The run's token. The first call makes it
 # with the comma-separated connectors; later calls (a session's next turn)
-# reuse it and ignore the argument. Fails, printing nothing, when the run has
-# no token and asks for no connectors.
+# reuse it while they ask for the same list or none. Another list revokes it
+# and makes a new one, so a crashed run's token never lends its connectors.
+# Fails, printing nothing, when the run has no token and asks for no connectors.
+# With _FXA_MCP_WORK_ONLY set (a pipeline run), the token reads only the work-role repos.
 mcp_token_for() {
   local run="$1" connectors="${2:-}" map tok
   [[ "$run" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "ERROR: bad run name for a token" >&2; return 1; }
@@ -18,6 +24,9 @@ mcp_token_for() {
   # A GCE runner's deadline (llm-token.sh run_tokens_deadline); claude-job.sh loads only this file.
   local dl; dl="$(tr -dc 0-9 2>/dev/null < "${map}.deadline" || true)"; [ -n "$dl" ] && [ "$dl" -gt "$(date +%s)" ] || dl=""
   local f="${FXA_MCP_GATEWAY_DIR}/tokens/${tok}.json"
+  if [ -n "$tok" ] && [ -n "$connectors" ] && ! jq -e --arg c "$connectors" '(.connectors | join(",")) == $c' "$f" >/dev/null 2>&1; then
+    mcp_token_revoke "$run"; tok=""
+  fi
   if [ -n "$tok" ] && jq -e '.expires > now' "$f" >/dev/null 2>&1; then
     [ -z "$dl" ] || { jq --argjson e "$dl" '.expires = $e' "$f" > "$f.tmp" && mv -f "$f.tmp" "$f"; }
     printf '%s\n' "$tok"; return 0
@@ -27,14 +36,16 @@ mcp_token_for() {
   mkdir -p "${FXA_MCP_GATEWAY_DIR}/tokens" "${FXA_MCP_GATEWAY_DIR}/runs" || return 1
   # A bounded read: with SIGPIPE ignored (a GitHub runner, a systemd unit) BSD tr on an endless stream never stops.
   tok="fxm_$(head -c 96 /dev/urandom | base64 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-32)"
-  # Another team reads its own Jira project and repos, not FxA's (the gateway's team_rules); FxA keeps the rules as written.
+  # A team reads its own repos, FxA too, and another team its own Jira project (the gateway's team_rules).
+  # FxA keeps its Jira rules as written; a team with no project keeps FxA's, by design (PRODUCT.md, decisions taken).
   local projects="" repos="" row
-  if [ "${PIPE_PROFILE:-fxa}" != fxa ]; then
-    # No project of its own: the connector keeps FxA's Jira scope, by design (PRODUCT.md, decisions taken).
-    projects="${PIPE_JIRA_PROJECT:-}"
-    for row in ${PIPE_REPOS[@]+"${PIPE_REPOS[@]}"}; do repos="${repos} ${row%% *}"; done
-    [ -n "$repos" ] || repos="${PIPE_REPO_SLUG:-}"
-  fi
+  [ "${PIPE_PROFILE:-fxa}" = fxa ] || projects="${PIPE_JIRA_PROJECT:-}"
+  for row in ${PIPE_REPOS[@]+"${PIPE_REPOS[@]}"}; do
+    # A pipeline run writes PR text on its work repos, so it never reads a more private dependency's CI.
+    [ -z "${_FXA_MCP_WORK_ONLY:-}" ] || [ "$(awk '{print $3}' <<< "$row")" = work ] || continue
+    repos="${repos} ${row%% *}"
+  done
+  [ -n "$repos" ] || repos="${PIPE_REPO_SLUG:-}"
   ( umask 077
     jq -n --arg r "$run" --arg c "$connectors" --argjson now "$(date +%s)" \
       --argjson ttl "${FXA_MCP_TOKEN_TTL:-86400}" --argjson cap "${FXA_MCP_RUN_CAP_CALLS:-200}" \
@@ -59,7 +70,7 @@ mcp_token_revoke() {
 # nothing when there is no gateway or the run has no connectors.
 mcp_auth_lines() {
   [ -n "${FXA_MCP_GATEWAY_URL:-}" ] && [ -n "${1:-}" ] || return 0
-  # Set only by a Slack session's boot and turns, never from .env, so pipeline runs get no MCP.
+  # Set by a Slack session's boot and turns, and by a pipeline or fix run to its CI connectors (mcp_ci_only); never from .env.
   local tok; tok="$(mcp_token_for "$1" "${_FXA_SESSION_MCP:-}")" || return 0
   printf 'export FXA_MCP_URL=%s/mcp\nexport FXA_MCP_TOKEN=%s\n' "${FXA_MCP_GATEWAY_URL%/}" "$tok"
 }

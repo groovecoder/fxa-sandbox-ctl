@@ -17,7 +17,7 @@ check "a bad connector list is refused" "1" "$(mcp_token_for fxa-1 'jira;rm' >/d
 t1="$(mcp_token_for fxa-1 jira,github)"
 check "the token has the gateway's form" "yes" "$([[ "$t1" =~ ^fxm_[A-Za-z0-9]{32}$ ]] && echo yes)"
 check "it holds the connectors" '["jira","github"]' "$(jq -c .connectors "$tmp/gw/tokens/$t1.json")"
-check "a later turn reuses it, whatever it asks" "$t1" "$(mcp_token_for fxa-1)"
+check "a later turn reuses it, asking for none or the same list" "$t1|$t1" "$(mcp_token_for fxa-1)|$(mcp_token_for fxa-1 jira,github)"
 check "the token file is private" "600" "$(perl -e 'printf "%o", (stat shift)[2] & 0777' "$tmp/gw/tokens/$t1.json")"
 
 ANTHROPIC_API_KEY=sk-real
@@ -44,6 +44,33 @@ check "the config is private" "600" "$(perl -e 'printf "%o", (stat shift)[2] & 0
 check "no MCP exports: no flags" "" "$(bash -c "$snippet
 printf '%s\n' ${_MCP_CLAUDE_FLAGS}")"
 check "the snippet has no single quote" "no" "$(printf '%s%s' "$_MCP_LAUNCH_SNIPPET" "$_MCP_CLAUDE_FLAGS" | grep -q "'" && echo yes || echo no)"
+
+# Pipeline runs, fix rounds and dependency fix runs: the CI connectors only.
+check "the CI connectors of a list, in its order; none when it has none" "github-ci,circleci||" \
+  "$(mcp_ci_only jira,github,github-ci,slack,circleci)|$(mcp_ci_only jira,github)|$(mcp_ci_only '')"
+check "a pipeline run whose PIPE_MCP has no CI connector gets no token" "export ANTHROPIC_API_KEY=sk-real|no token" \
+  "$(_FXA_SESSION_MCP="$(mcp_ci_only jira,github)" _claude_auth_line fxa-p0 | paste -sd'|' -)|$([ -e "$tmp/gw/runs/fxa-p0" ] && echo token || echo 'no token')"
+_FXA_SESSION_MCP="$(mcp_ci_only jira,github,github-ci,circleci)" _claude_auth_line fxa-p1 >/dev/null
+check "a pipeline run with jira,github,github-ci,circleci gets exactly github-ci,circleci" '["github-ci","circleci"]' \
+  "$(jq -c .connectors "$tmp/gw/tokens/$(cat "$tmp/gw/runs/fxa-p1").json")"
+_FXA_SESSION_MCP=jira,github,github-ci,circleci _claude_auth_line agent-p1 >/dev/null
+check "a session with the same list keeps all four" '["jira","github","github-ci","circleci"]' \
+  "$(jq -c .connectors "$tmp/gw/tokens/$(cat "$tmp/gw/runs/agent-p1").json")"
+t3="$(mcp_token_for fxa-r jira,github)"; t4="$(mcp_token_for fxa-r github-ci,circleci)"
+check "a token made with jira,github, then asked for with github-ci,circleci: a new token with only those, the old one expired" \
+  'yes|["github-ci","circleci"]|0' "$([ "$t3" != "$t4" ] && echo yes)|$(jq -c .connectors "$tmp/gw/tokens/$t4.json")|$(jq .expires "$tmp/gw/tokens/$t3.json")"
+scope() { jq -c '.scope // "none"' "$tmp/gw/tokens/$1.json"; }
+check "an FxA token reads FxA's repos from its record and keeps FxA's Jira rules" '{"jira_projects":[],"repos":["mozilla/fxa","mozilla/ecosystem-platform"]}' \
+  "$(PIPE_PROFILE=fxa PIPE_JIRA_PROJECT=FXA; PIPE_REPOS=("mozilla/fxa /home/agent/fxa work" "mozilla/ecosystem-platform /home/agent/ecosystem-platform work"); scope "$(_FXA_MCP_WORK_ONLY=1 mcp_token_for fxa-s1 github-ci,circleci)")"
+check "FxA from its conf: the repo it names" '{"jira_projects":[],"repos":["mozilla/fxa"]}' "$(PIPE_PROFILE=fxa PIPE_REPO_SLUG=mozilla/fxa; scope "$(mcp_token_for fxa-s2 github)")"
+deps() { PIPE_PROFILE=pay PIPE_JIRA_PROJECT=PAY; PIPE_REPOS=("mozilla/pay /home/agent/pay work" "mozilla/fxa-private /home/agent/fxa dep"); scope "$("$@")"; }
+check "a pipeline token of a team with a dep repo reads only its work repo; a session reads both" \
+  '{"jira_projects":["PAY"],"repos":["mozilla/pay"]}|{"jira_projects":["PAY"],"repos":["mozilla/pay","mozilla/fxa-private"]}' \
+  "$(_FXA_MCP_WORK_ONLY=1 deps mcp_token_for pay-1 github-ci)|$(deps mcp_token_for agent-pay-1 github)"
+ctl="$(dirname "$0")/../fxa-sandbox-ctl"
+check "cmd_jira gives a pipeline run its CI connectors, work repos only, before the runner starts" "1" \
+  "$(sed -n '/^cmd_jira() {/,/^}/p' "$ctl" | grep -B1 '  agent_run ' | grep -c 'export _FXA_SESSION_MCP="$(mcp_ci_only "${PIPE_MCP:-}")" _FXA_MCP_WORK_ONLY=1')"
+check "a dependency fix run gets the CI connectors only" "1" "$(grep -c '^  \[ -z "$fix" \] || { mcp="$(mcp_ci_only "${PIPE_MCP:-}")"; mcp_set=1; }$' "$ctl")"
 
 mcp_token_revoke fxa-1
 check "revoke expires the token and keeps its count" "0 0" "$(jq -r '"\(.expires) \(.calls)"' "$tmp/gw/tokens/$t1.json")"

@@ -208,12 +208,12 @@ check "team pay cannot name a secret of team pay-x" "1" \
   "$(printf '{ "schema": 1, "name": "pay", "repos": [ { "slug": "mozilla/fxa", "role": "work" } ], "stack": { "kind": "fxa" }, "secrets": { "jira": "fxa-team-pay-x--jira" } }' > "$T/pay.json"; py validate "$T/pay.json" pay 2>&1 | grep -c 'secrets.jira')"
 rm -f "$T/pay.json" "$T/n--x.json"
 
-# MCP: another team's token carries its own Jira project and repos; FxA's carries none (the rules as written).
+# MCP: another team's token carries its own Jira project and repos; FxA's carries its repos and no Jira project (its Jira rules as written).
 mt() { ( source "$root/lib/mcp-token.sh"; FXA_MCP_GATEWAY_DIR="$tmp/mcp" PIPE_PROFILE="$1" PIPE_JIRA_PROJECT="$2"; PIPE_REPOS=(); [ -z "$3" ] || eval "PIPE_REPOS=($3)"
   t="$(mcp_token_for "mt-$1" jira,github)" && jq -c '.scope // "none"' "$tmp/mcp/tokens/$t.json" ); }
-check "an MCP token names the team's Jira project and repos; FxA's names none" \
-  '{"jira_projects":["PAY"],"repos":["mozilla/fxa","mozilla/PyFxA"]}|"none"' \
-  "$(mt ent PAY '"mozilla/fxa /home/agent/fxa work" "mozilla/PyFxA /home/agent/pyfxa dep"')|$(mt fxa '' '')"
+check "an MCP token names the team's Jira project and repos; FxA's names its repos only" \
+  '{"jira_projects":["PAY"],"repos":["mozilla/fxa","mozilla/PyFxA"]}|{"jira_projects":[],"repos":["mozilla/fxa"]}' \
+  "$(mt ent PAY '"mozilla/fxa /home/agent/fxa work" "mozilla/PyFxA /home/agent/pyfxa dep"')|$(mt fxa '' '"mozilla/fxa /home/agent/fxa work"')"
 
 # A folder profile may not set a host key, or name another team.
 f="$tmp/r/profiles/evil"; mkdir -p "$f"
