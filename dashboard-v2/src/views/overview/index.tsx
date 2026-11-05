@@ -87,7 +87,6 @@ function Main() {
         <div className="ovcol">
           <Boundary><MainCard {...p} metric={metric} /></Boundary>
           <Boundary><Activity {...p} /></Boundary>
-          <Boundary><Teams {...p} /></Boundary>
         </div>
         <div className="ovrail">
           <Boundary><Budget {...p} /></Boundary>
@@ -95,6 +94,7 @@ function Main() {
           <Boundary><Hours {...p} /></Boundary>
         </div>
       </div>
+      <Boundary><Teams {...p} /></Boundary>
     </div>
   );
 }
@@ -334,7 +334,7 @@ function Activity({ range, note, team }: P) {
     <Sec id="ov-runs" sm>
       <Hd t="Activity"><a className="note" href="#sessions">All sessions<Go /></a></Hd>
       {note && <div className="ovknote">{note}</div>}
-      {runs.runs.length ? runs.runs.map((r) => <RunRow key={`${r.key}:${r.at}`} r={r} site={site} sessions={sessions} fresh={fresh} />) : <EmptyBox>No run in the last {rangeName(range)}.</EmptyBox>}
+      {runs.runs.length ? <div>{runs.runs.map((r) => <RunRow key={`${r.key}:${r.at}`} r={r} site={site} sessions={sessions} fresh={fresh} />)}</div> : <EmptyBox>No run in the last {rangeName(range)}.</EmptyBox>}
     </Sec>
   );
 }
@@ -424,12 +424,12 @@ function Teams({ range, note, now, team }: P) {
                     <td className="num">{on ?? '?'}</td>
                     <td className="num">{st ? u.runs.toLocaleString() : '—'}</td>
                     <td className="num">{st ? u.prs : '—'}</td>
-                    <td className="bud">
+                    <td className="bud"><div className="budc">
                       <b>{st ? usd(u.usd) : '—'}</b>
                       <span className="hint">{t.budget_error ? 'budget unknown' : cap ? `${usd(b.month_usd)} of ${usd(cap)} this month` : anyCap ? 'no cap' : ''}</span>
                       {cap ? <Meter pct={(100 * b.month_usd) / cap} tone={b.month_usd >= cap ? 'bad' : b.month_usd >= 0.9 * cap ? 'warn' : undefined} label={`${teamName(t)}: ${Math.round((100 * b.month_usd) / cap)}% of this month's cap`} /> : null}
                       {st && spark[t.profile] && <span className="tspark"><Spark label={`${teamName(t)} spend per day, last 30 days: the top day ${usd(spark[t.profile]!.reduce((a, b) => Math.max(a, b), 0))}`} values={spark[t.profile]!} format={usd} /></span>}
-                    </td>
+                    </div></td>
                   </tr>
                 );
               })}

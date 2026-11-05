@@ -125,7 +125,7 @@ export function Frame({ title, summary, table, children, note, keys, tip = null 
   const id = useId();
   return (
     <figure aria-labelledby={id} className="m-0 min-w-0">
-      <figcaption id={id} className="mb-s2 font-head text-sub font-bold text-ink">{title}</figcaption>
+      <figcaption id={id} className="mb-s2 font-head text-sub font-semibold text-ink">{title}</figcaption>
       <div className="relative">
         <div role="img" aria-label={summary} {...keys}>
           {children}

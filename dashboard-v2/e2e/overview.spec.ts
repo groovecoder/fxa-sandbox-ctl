@@ -20,10 +20,10 @@ async function open(page: Page, hash = '#overview') {
   return asked;
 }
 
-test('the metrics come first after the head, then Activity and Teams, then the month, LLM spend and the hours', async ({ page }) => {
+test('the metrics come first after the head, then Activity, then the month, LLM spend and the hours, and Teams across both columns', async ({ page }) => {
   await open(page);
   const ids = await page.locator('.ov section[id]').evaluateAll((s) => s.map((x) => x.id));
-  expect(ids).toEqual(['ov-head', 'ov-main', 'ov-runs', 'ov-teams', 'ov-budget', 'ov-llm', 'ov-hours']);
+  expect(ids).toEqual(['ov-head', 'ov-main', 'ov-runs', 'ov-budget', 'ov-llm', 'ov-hours', 'ov-teams']);
   await expect(page.locator('#ov-head')).toContainText(/\d+ at work now/);
   await expect(page.locator('#ov-head')).toContainText(/\d agents? and \d sessions?/);
   await expect(page.locator('#ov-head .ovkpi')).toHaveText(/^LLM, last hour \$\d+\.\d\d$/);
