@@ -445,7 +445,7 @@ function SideList(p: { title: string; groups: SideGroup[] | null; q: string; set
                 <li key={it.id}>
                   <button type="button" className="si" data-id={it.id} aria-current={it.id === sel ? 'true' : undefined} title={it.tip} onClick={() => p.onSelect(it.id)}>
                     <span className={`dot ${it.d === 'live' ? 'info live' : it.d === 'fix' ? 'bad' : it.d}`} aria-hidden="true" />
-                    <span className="t">{it.t}</span>
+                    <span className="t" title={it.t}>{it.t}</span>
                     <span className="m">{it.m.filter(Boolean).join(' · ')}</span>
                   </button>
                 </li>

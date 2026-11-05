@@ -53,7 +53,7 @@ kbd { font: 600 var(--t-label) var(--mono); color: var(--dim); border: 1px solid
 
 .side { grid-area: side; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .side .sh { padding: var(--s4) var(--s4) var(--s2); }
-.side .sh h2 { margin: 0; font-size: var(--t-body); }
+.side .sh h2 { margin: 0; font: 700 var(--t-heading) var(--head); }
 .side .sh h2 .n { color: var(--faint); font-weight: 500; }
 .search { margin-top: var(--s3); display: flex; align-items: center; gap: 6px; border: 1px solid var(--line2); border-radius: var(--r-md);
   padding: 0 10px; background: var(--panel); color: var(--dim); }
@@ -70,7 +70,7 @@ kbd { font: 600 var(--t-label) var(--mono); color: var(--dim); border: 1px solid
 .si[aria-current] { background: var(--infobg); box-shadow: inset 3px 0 0 var(--info); }
 .si.cur { outline: 2px solid var(--link); outline-offset: -2px; }
 .si .dot { align-self: center; }
-.si .t { font-size: var(--t-body); font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
+.si .t { font-size: var(--t-sub); font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.35; }
 .si .m { grid-column: 2; font-size: var(--t-label); color: var(--faint); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .main { grid-area: main; overflow: auto; min-width: 0; }
@@ -84,9 +84,9 @@ kbd { font: 600 var(--t-label) var(--mono); color: var(--dim); border: 1px solid
 .iconbtn[aria-pressed="true"] { background: var(--sunk); color: var(--ink); }
 .iconbtn.tlist-btn { display: none; }
 .tabs { display: flex; gap: var(--s1); margin-top: var(--s3); border-bottom: 1px solid var(--line); overflow-x: auto; }
-.tabs a { padding: var(--s2) var(--s3); color: var(--dim); font-weight: 500; font-family: var(--head); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a { flex: none; white-space: nowrap; padding: var(--s2) var(--s3); color: var(--dim); font-weight: 600; font-family: var(--head); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs a:hover { text-decoration: none; color: var(--ink); }
-.tabs a[aria-current] { color: var(--link); font-weight: 700; border-bottom-color: var(--link); }
+.tabs a[aria-current] { color: var(--ink); border-bottom-color: var(--info); }
 .tabs a .n { font-size: var(--t-label); color: var(--faint); margin-left: var(--s1); font-variant-numeric: tabular-nums; }
 .mc { padding: var(--s4) var(--s6) var(--s6); }
 .pteam { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
