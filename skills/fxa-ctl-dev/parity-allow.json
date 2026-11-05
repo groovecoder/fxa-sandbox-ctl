@@ -8,8 +8,8 @@
  {
   "key": "pipe.queue.heads",
   "fixture": "page-fixture-pipeline",
-  "v1": "2 | 3 | 3",
-  "v2": "2 | 3 | 2",
+  "v1": "3",
+  "v2": "2",
   "why": "v1 index.html 3901 vs 4181: the queue head counted held tickets and the tab count did not; v2 leaves held tickets out of both"
  },
  {
@@ -103,5 +103,40 @@
   "key": "badges.overview",
   "v2": "!",
   "why": "v1 index.html railBadges: the Overview badge counted Needs you items; v2 has no Needs you card, so the badge shows only '!' for a page alert"
+ },
+ {
+  "key": "pipe.belts.phases",
+  "v2": "",
+  "why": "v1 index.html Belts: phase groups (PR, Agent run, Queue) with counts; the v2 Belts frame groups by who acts (Agent, You), with no phase heads"
+ },
+ {
+  "key": "pipe.belts.stops",
+  "v2": "",
+  "why": "v1 index.html Belts: a row of tickets per stop above the belts; v2 names the stops under each belt instead"
+ },
+ {
+  "key": "pipe.queue.tiles.Stuck in review",
+  "v2": null,
+  "why": "v1 index.html Queue: review tiles on the Queue tab; v2 shows PRs that wait on a review on Belts, under You, Review and merge"
+ },
+ {
+  "key": "pipe.queue.tiles.Waiting on a reviewer",
+  "v2": null,
+  "why": "v1 index.html Queue: review tiles on the Queue tab; v2 shows PRs that wait on a review on Belts, under You, Review and merge"
+ },
+ {
+  "key": "pipe.queue.tiles.Held",
+  "v1": null,
+  "why": "v1 index.html Queue: no such tile; the v2 Queue frame adds it beside Launchable and Waits on a person"
+ },
+ {
+  "key": "pipe.queue.tiles.Launches, 24 h",
+  "v1": null,
+  "why": "v1 index.html Queue: no such tile; the v2 Queue frame adds it beside Launchable and Waits on a person"
+ },
+ {
+  "key": "pipe.done.tiles.Merged by",
+  "v1": null,
+  "why": "v1 index.html Done: no such tile; the v2 Done frame adds it beside Tickets merged, Merged 7 days and Median days to merge"
  }
 ]

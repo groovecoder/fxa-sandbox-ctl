@@ -71,26 +71,29 @@ for (const v of ["overview", "pipeline", "sessions", "errors", "runners", "teams
 // Pipeline: the tiles, stop counts, phases, sub-groups, belt keys, outside list, queue heads and the Done line of each tab.
 const wait = async (sel) => { for (let i = 0; i < 15 && !document.querySelector(sel); i++) await sleep(100); };
 const own = (e) => [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
-const tiles = (id) => Object.fromEntries([...document.querySelectorAll(`#${id} .stat, #${id} [data-stat]`)].map((t) =>
+// v2 puts the Queue tiles above the list, in .ptiles, not inside #s-review.
+const tiles = (id) => Object.fromEntries([...document.querySelectorAll(`#${id} .stat, #${id} [data-stat]${id === "s-review" ? ", .ptiles [data-stat]" : ""}`)].map((t) =>
   [t.dataset.stat ?? t.querySelector(".lbl")?.textContent.trim(), (t.querySelector(".big, .text-kpi")?.textContent ?? "").trim()]));
 const all = (sel, f) => [...document.querySelectorAll(sel)].map(f).join(" | ");
 out.pipe = {};
 for (const [tab, id] of [["belts", "s-lanes"], ["queue", "s-review"], ["done", "s-done"]]) {
-  location.hash = "#pipeline/" + tab; await sleep(400); await wait(`#${id} .stat, #${id} [data-stat], #${id} .emptybox`);
+  location.hash = "#pipeline/" + tab; await sleep(400); await wait(`#${id} .stat, #${id} [data-stat], #${id} .emptybox, .ptiles [data-stat]`);
   out.pipe[tab] = { tiles: tiles(id) };
 }
 location.hash = "#pipeline/belts"; await sleep(400); await wait("#s-lanes .stat, #s-lanes [data-stat], #s-lanes .emptybox");
 Object.assign(out.pipe.belts, {
   stops: all("#s-lanes .bstops .cols span", (e) => e.textContent.trim()),
   phases: all("#s-lanes .bgh[id^=bp-]", (e) => `${own(e)} ${e.querySelector(".cnt")?.textContent}`),
-  subs: all("#s-lanes .bsub", (e) => `${e.querySelector(".who")?.textContent} ${own(e)} ${e.querySelector(".cnt")?.textContent}`),
-  keys: all("#s-lanes [data-belt]", (e) => e.dataset.belt),
+  // Sorted: v2 lists the work of the agent first, so only the groups and the tickets must match, not their order.
+  subs: [...document.querySelectorAll("#s-lanes .bsub")].map((e) => `${e.querySelector(".who")?.textContent} ${own(e)} ${e.querySelector(".cnt")?.textContent}`).sort().join(" | "),
+  keys: [...document.querySelectorAll("#s-lanes [data-belt]")].map((e) => e.dataset.belt).sort().join(" | "),
   outside: document.querySelector("#s-lanes details.bout > summary")?.textContent.trim() ?? "",
 });
 location.hash = "#pipeline/queue"; await sleep(400); await wait("#s-review [data-stat], #s-review .stat");
-out.pipe.queue.heads = all("#s-review h2 .n, #s-queue h2 .n", (e) => e.textContent.trim());
+// The review list moved to Belts in v2, so only the Queue head compares.
+out.pipe.queue.heads = all("#s-queue h2 .n, #s-queue h2 .cnt", (e) => e.textContent.trim());
 location.hash = "#pipeline/done"; await sleep(400); await wait("#s-done [data-stat], #s-done .stat, #s-done .emptybox, #s-done [class*=dashed]");
-out.pipe.done.line = document.querySelector("#s-done .bwhere")?.textContent.trim() ?? document.querySelector("#s-done")?.textContent.trim() ?? "";
+out.pipe.done.line = document.querySelector("#s-done .bwhere, #s-done #dline")?.textContent.trim() ?? document.querySelector("#s-done")?.textContent.trim() ?? "";
 out.pipe.done.rows = document.querySelectorAll("#s-done .dtab tbody tr").length;
 // Teams: the side list, the All teams tiles and table cells by column name, and each team page head and tabs.
 const norm = (e) => (e?.textContent ?? "").replace(/\s+/g, " ").trim();
