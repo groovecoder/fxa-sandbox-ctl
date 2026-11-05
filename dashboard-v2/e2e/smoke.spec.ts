@@ -24,3 +24,11 @@ for (const [h1, hashes] of VIEWS) {
     }
   });
 }
+
+test('the Terminal button opens the live terminal in its own window', async ({ page, context }) => {
+  await page.goto('/v2/#sessions/live/agent-ex0001');
+  const [win] = await Promise.all([context.waitForEvent('page'), page.getByRole('link', { name: /^Terminal/ }).click()]);
+  await expect(win).toHaveURL(/#term\/agent-ex0001$/);
+  await expect(win.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(win.locator('.ttyw')).toContainText('agent@sandbox: agent-ex0001');
+});

@@ -1,12 +1,13 @@
 /* The Sessions view, ported from the v1 .sx, .thread, .tmsg and .media rules: tokens only. */
 .sx .sxbar { display: flex; align-items: center; gap: var(--s2); min-height: 36px; padding-bottom: var(--s2); border-bottom: 1px solid var(--line); }
-.sx .sxt { font: 600 var(--t-body) var(--sans); margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sx .sxt { font: 700 var(--t-heading) var(--head); margin: 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sx .sxm { color: var(--dim); font-size: var(--t-sub); white-space: nowrap; }
 .sx .sp { flex: 1; }
 .sx .lnk { font-size: var(--t-sub); color: var(--link); white-space: nowrap; } .sx .lnk a { color: var(--link); }
 .sx .key, .chain .key { color: var(--info); font-weight: 600; }
 .tgl { border: 1px solid transparent; background: transparent; color: var(--dim); padding: 4px 8px; border-radius: var(--r-md); font: 500 var(--t-sub) var(--sans); }
 .tgl:hover:not(:disabled) { background: var(--sunk); color: var(--ink); }
+.sx a.tgl { color: var(--link); text-decoration: none; white-space: nowrap; }
 .tgl[aria-pressed="true"] { color: var(--link); border-color: var(--link); background: var(--infobg); }
 .tgl.sm { padding: 1px 6px; font-size: var(--t-label); margin-top: var(--s2); white-space: nowrap; }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--link); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
@@ -20,18 +21,19 @@
 .sxout .kvs a { color: var(--link); }
 .sxout .notes { margin-top: var(--s2); white-space: pre-wrap; color: var(--dim); font-size: var(--t-sub); }
 .sxbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); align-items: start; }
-.withterm .sxbody { grid-template-columns: minmax(0, 1fr) minmax(380px, 44%); }
+
 /* The shell's button rule is not in a layer, so it wins over the terminal's own classes: set them again here. */
 .ttyw button { background: transparent; border-color: var(--tty-line); color: var(--tty-dim); padding: 0 var(--s2); font: 400 var(--t-label) var(--mono); white-space: nowrap; }
 .ttyw button:hover:not(:disabled) { background: var(--tty-line); }
 .ttyw button[aria-pressed="true"] { color: var(--tty-prompt); }
 .sx a:not(.key), .kvl a:not(.key), .answers a, .emptybox a { color: var(--link); }
 .table.figures.answers :is(th, td):nth-child(2) { text-align: left; }
-.ttyw { position: sticky; top: var(--s4); margin-top: var(--s3); height: calc(100vh - 150px); min-height: 320px; }
-@media (max-width: 1200px) {
-  .sxbody, .withterm .sxbody { grid-template-columns: minmax(0, 1fr); }
-  .ttyw { position: static; height: clamp(240px, 45vh, 480px); min-height: 0; }
-}
+.termpage { display: flex; flex-direction: column; gap: var(--s3); height: 100vh; padding: var(--s3) var(--s4); background: var(--bg); }
+.termbar { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.termbar h1 { flex: 1; min-width: 0; margin: 0; font: 700 var(--t-heading) var(--head); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.termbar .key { color: var(--info); font-weight: 600; }
+.termbar .sxm { color: var(--dim); font-size: var(--t-sub); white-space: nowrap; }
+.termpage .ttyw { flex: 1; min-height: 0; }
 @media (max-width: 640px) { .sx .sxbar { flex-wrap: wrap; } .sx .sxt { order: -1; flex: 1 1 100%; white-space: normal; } }
 
 .thread { display: flex; flex-direction: column; gap: var(--s4); padding: var(--s3) 0; }
@@ -42,7 +44,7 @@
 .tmsg .av { width: 36px; height: 36px; flex: none; border-radius: var(--r-md); background: var(--sunk); color: var(--dim); display: flex; align-items: center; justify-content: center; }
 .tmsg img.av { background: transparent; }
 .tmsg .who { display: flex; gap: var(--s2); align-items: baseline; font-size: var(--t-label); color: var(--dim); white-space: nowrap; }
-.tmsg .who b { white-space: nowrap; font-size: var(--t-body); color: var(--ink); }
+.tmsg .who b { white-space: nowrap; font-size: var(--t-sub); font-weight: 600; color: var(--ink); }
 .tmsg .txt { overflow-wrap: anywhere; font-size: var(--t-body); }
 .tmsg.agent .txt { background: var(--sunk); padding: var(--s2) var(--s3); border-radius: var(--r-sm) var(--r-lg) var(--r-lg) var(--r-lg); }
 .tmsg .more { margin-top: 4px; margin-right: var(--s3); font-size: var(--t-sub); }
@@ -81,4 +83,12 @@
 .answers td .key { color: var(--dim); margin-left: var(--s1); }
 .answers td.mono { font-family: var(--mono); }
 .anshead { color: var(--dim); font-size: var(--t-sub); margin-bottom: var(--s3); }
-.anscharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s4); margin-bottom: var(--s4); }
+.anstiles { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); margin-bottom: var(--s4); }
+.anscols { display: grid; gap: var(--s4); grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 1200px) { .anscols { grid-template-columns: minmax(0, 1fr) 340px; } }
+.ansh { margin: 0 0 var(--s1); display: flex; align-items: center; gap: 6px; font: 600 var(--t-sub) var(--head); color: var(--ink); }
+.ansh .cnt { color: var(--dim); font-weight: 500; }
+.anscharts { display: flex; flex-direction: column; gap: var(--s4); min-width: 0; }
+.answers td:nth-child(2) { max-width: 28rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.answers .linkbtn.toggle { color: var(--ink); text-decoration: none; }
+.answers .linkbtn.toggle:hover { text-decoration: underline; }

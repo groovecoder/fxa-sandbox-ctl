@@ -9,6 +9,9 @@ import './styles/theme.css';
 
 // The #__ds example page exists only in the dev build: the build drops this branch and the page's chunk.
 const DsPage = import.meta.env.DEV && location.hash === '#__ds' ? lazy(() => import('./ui/DsPage')) : null;
+// The Terminal button of a live session opens #term/<key> in its own window.
+const termKey = /^#term\/(agent-[a-z0-9]{4,12})$/.exec(location.hash)?.[1];
+const TermPage = termKey ? lazy(() => import('./views/sessions/TermPage')) : null;
 
 // The e2e sets a hand-made store and fixed selector results here, before the page loads. Then no stream opens.
 const fx = (window as { __V2_FIXTURE__?: { store: Omit<Store, 'prefs' | 'route'>; sel: FixedSel } }).__V2_FIXTURE__;
@@ -25,6 +28,10 @@ createRoot(document.getElementById('root')!).render(
     {DsPage ? (
       <Suspense>
         <DsPage />
+      </Suspense>
+    ) : TermPage ? (
+      <Suspense>
+        <TermPage sessKey={termKey!} />
       </Suspense>
     ) : (
       <App store={store} sel={fx ? fixedSel(fx.sel) : modelSel} poll={fx ? undefined : poll} />

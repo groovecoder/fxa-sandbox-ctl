@@ -1,5 +1,11 @@
 [
  {
+  "key": "sessions.live.bar",
+  "v1": ["agent-ex0001", "makethesamplepagefaster", "working", "Terminal"],
+  "v2": ["agent-ex0001", "makethesamplepagefaster", "working", "Terminal↗(opensanewwindow)"],
+  "why": "v1 index.html renderSess: Terminal toggled an inline pane; v2 opens the terminal in its own window, so the link says so"
+ },
+ {
   "key": "badges.pipeline",
   "v1": "",
   "v2": "?",

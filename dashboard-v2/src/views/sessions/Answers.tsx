@@ -4,7 +4,7 @@ import { usd } from '../../format';
 import type { State } from '../../live/reducers';
 import { type J, STATS } from '../../model/base';
 import { threadUrl } from '../../model/sessions';
-import { EmptyBox, Tag, type Tone } from '../../ui';
+import { Card, EmptyBox, StatTile, Tag, type Tone } from '../../ui';
 import { answersIn } from './data';
 import { type Col, Columns } from './charts';
 import { Usage } from './Details';
@@ -21,12 +21,25 @@ export function Answers({ s }: { s: State }) {
   if (!STATS(s)) return <div id="s-sess"><EmptyBox>Loading the quick answers…</EmptyBox></div>;
   const rows = answersIn(s, now * 1000);
   const flip = (k: string) => setOpen((o) => { const n = new Set(o); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const n = (k: string) => rows.filter((r) => r.kind === k).length, up = n('upgraded');
+  const secs = rows.map((r) => r.secs).filter((x): x is number => typeof x === 'number').sort((a, b) => a - b);
+  const med = secs.length ? secs[Math.floor(secs.length / 2)]! : null, cost = rows.reduce((a, r) => a + (r.usd ?? 0), 0);
   return (
     <div id="s-sess">
+      {rows.length > 0 && (
+        <div className="anstiles">
+          <StatTile label="Quick answers" value={rows.length} sub="in the Stats range" />
+          <StatTile label="Upgraded to a session" value={up} sub={`${Math.round((up / rows.length) * 100)}% of the answers`} />
+          <StatTile label="Median time to answer" value={med == null ? '—' : `${med} s`} sub={`of ${secs.length} timed answers`} />
+          <StatTile label="Cost" value={usd(cost)} sub={`${usd(cost / rows.length)} for each answer`} />
+        </div>
+      )}
+      <div className="anscols">
+      <Card flat className="anscard">
+      <h2 className="ansh">Quick answers <span className="cnt">{rows.length}</span></h2>
       <div className="anshead">{rows.length} quick answers in the Stats range: read-only, no sandbox. Upgraded ones continue as a session.</div>
       {rows.length ? (
         <>
-          <Charts rows={rows} />
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Quick answers">
             <table className="table figures dense answers">
               <thead><tr><th>When</th><th>Answer</th><th>Outcome</th><th>Time</th><th>Turns</th><th>Cost</th><th>Thread</th></tr></thead>
@@ -38,7 +51,7 @@ export function Answers({ s }: { s: State }) {
                       <tr>
                         <td>{when(r.at)}</td>
                         <td className={r.q ? undefined : 'mono'}>
-                          <button type="button" className="linkbtn toggle" aria-expanded={on} aria-controls={`ans-${k}`} aria-label={`${on ? 'Hide' : 'Show'} the cost breakdown of ${name}`} onClick={() => flip(k)}>{name}</button>
+                          <button type="button" className="linkbtn toggle" title={name} aria-expanded={on} aria-controls={`ans-${k}`} aria-label={`${on ? 'Hide' : 'Show'} the cost breakdown of ${name}`} onClick={() => flip(k)}>{name}</button>
                           {r.q && <span className="key">{k}</span>}
                         </td>
                         <td><Tag label={String(r.kind ?? 'unknown')} tone={TONE[r.kind] ?? 'dim'} /></td>
@@ -56,6 +69,9 @@ export function Answers({ s }: { s: State }) {
           </div>
         </>
       ) : <EmptyBox>No quick answer in this range.</EmptyBox>}
+      </Card>
+      {rows.length > 0 && <Charts rows={rows} />}
+      </div>
     </div>
   );
 }
@@ -74,11 +90,15 @@ function Charts({ rows }: { rows: J[] }) {
   const hist: Col[] = BUCKETS.map(([hi, label], i) => ({ label, parts: [{ tone: 'info', label: 'answers', value: timed.filter((r) => r.secs < hi && r.secs >= (BUCKETS[i - 1]?.[0] ?? 0)).length }] }));
   const n = (k: string) => rows.filter((r) => r.kind === k).length;
   return (
-    <div className="anscharts">
-      <Columns title="Outcome per day" cols={by}
-        summary={`${rows.length} answers on ${by.length} days: ${n('answered')} answered, ${n('upgraded')} upgraded, ${n('failed')} failed. Most on ${peak?.label ?? 'no day'}.`} />
-      <Columns title="Time to answer" cols={hist}
-        summary={`${timed.length} timed answers. ${hist.map((c) => `${c.parts[0]!.value} ${c.label}`).join(', ')}.`} />
-    </div>
+    <aside className="anscharts" aria-label="Answer charts">
+      <Card flat sm>
+        <Columns title="Outcome per day" cols={by}
+          summary={`${rows.length} answers on ${by.length} days: ${n('answered')} answered, ${n('upgraded')} upgraded, ${n('failed')} failed. Most on ${peak?.label ?? 'no day'}.`} />
+      </Card>
+      <Card flat sm>
+        <Columns title="Time to answer" cols={hist}
+          summary={`${timed.length} timed answers. ${hist.map((c) => `${c.parts[0]!.value} ${c.label}`).join(', ')}.`} />
+      </Card>
+    </aside>
   );
 }

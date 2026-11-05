@@ -1,25 +1,21 @@
-// The session frame: the bar, the outcome card, the thread and the terminal (v1 renderSess).
+// The session frame: the bar, the outcome card, and the thread (v1 renderSess); the terminal opens in its own window.
 import { useEffect, useMemo, useState } from 'react';
-import { Terminal, type TerminalState } from '../../charts';
 import { mdHtml, short, stamp } from '../../format';
 import type { State } from '../../live/reducers';
 import { SS } from '../../model/base';
 import { chainOf, convTitle, fixGated, sessStatus } from '../../model/sessions';
-import { readHistory, setPref } from '../../store';
+import { readHistory } from '../../store';
 import type { Session } from '../../store/types';
 import { Dot, EmptyBox, Tag } from '../../ui';
 import { cx } from '../../ui/tone';
-import { useTail } from '../shared/tails';
 import { barLink, type HistMsg, TONE_OF, isLive, isVideo, mediaUrl, outcome, pauseIn, pick, sharedWhat, threadItems, type ThreadItem } from './data';
 import { useNow } from './hooks';
 
-const NO_LINES: string[] = [];
-
 export function SessFrame({ s }: { s: State }) {
   const x = pick(s), tab = s.route.tab;
-  const gated = !!x && fixGated(s, x), showTerm = !!x && isLive(x) && s.prefs.sx.term && !gated;
+  const gated = !!x && fixGated(s, x);
   return (
-    <div className={cx('sx', showTerm && 'withterm')} id="s-sess">
+    <div className="sx" id="s-sess">
       <div className="sxbar" id="sx-bar">{x && <Bar s={s} x={x} gated={gated} />}</div>
       <div className="sxbody">
         <div className="convo">
@@ -27,7 +23,7 @@ export function SessFrame({ s }: { s: State }) {
             : x ? <><Outcome s={s} x={x} /><Thread s={s} x={x} /></>
             : <EmptyBox>No {tab} session.{tab !== 'stopped' && <> <a className="text-link" href="#sessions/stopped">See stopped sessions</a></>}</EmptyBox>}
         </div>
-        {showTerm && <Tty s={s} x={x} />}
+
       </div>
     </div>
   );
@@ -47,7 +43,7 @@ function Bar({ s, x, gated }: { s: State; x: Session; gated: boolean }) {
       <span className="sp" />
       {!!x.slack_url && <a className="lnk" href={String(x.slack_url)} target="_blank" rel="noopener noreferrer">Slack ↗</a>}
       {link && <span className="lnk">{link.href ? <a href={link.href} target="_blank" rel="noopener noreferrer">{link.text}</a> : link.text}</span>}
-      {isLive(x) && <button type="button" className="tgl" aria-pressed={s.prefs.sx.term} onClick={() => setPref('sx', { term: !s.prefs.sx.term })}>Terminal</button>}
+      {isLive(x) && <a className="tgl" href={`#term/${x.key}`} target={`term-${x.key}`} rel="noopener" onClick={(e) => { e.preventDefault(); window.open(`#term/${x.key}`, `term-${x.key}`, 'popup,width=820,height=520'); }}>Terminal ↗<span className="sr-only"> (opens a new window)</span></a>}
     </>
   );
 }
@@ -148,11 +144,3 @@ function Msg({ it, rt }: { it: Extract<ThreadItem, { text: string }>; rt: string
     </div>
   );
 }
-
-function Tty({ s, x }: { s: State; x: Session }) {
-  useTail(x.key);
-  const t = s.tails[x.key];
-  const state: TerminalState = t?.state === 'error' ? 'output unavailable' : x.agent_alive ? 'running' : t?.lines.length ? 'waiting on you' : 'connecting…';
-  return <div className="ttyw"><Terminal title={`agent@sandbox: ${x.key}`} lines={t?.lines ?? NO_LINES} state={state} /></div>;
-}
-
