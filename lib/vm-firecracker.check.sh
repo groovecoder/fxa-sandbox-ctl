@@ -107,6 +107,10 @@ for f in refresh.sh make-snapshot.sh; do
   check "$f: a failed agent-init gives up and says which unit" "yes|yes" \
     "$(grep -q 'not done after 300s: failed active' <<< "$out" && echo yes)|$(grep -q 'rc=' <<< "$out" || echo yes)"
 done
+# refresh.sh skips only when fxa main, both pins and the toolchain script are all unchanged.
+skip="$(grep '^\[ "\$new" = "\$cur" \]' "$SANDBOX_ROOT/infra/firecracker/refresh.sh")"
+skips() { ( new=a cur=a cur_cc=1 CLAUDE_CODE_VERSION=1 cur_cx=2 CODEX_VERSION=2 ts=t cur_ts="$1"; eval "$skip"; echo build ) 2>/dev/null | tail -1; }
+check "a changed toolchain script makes a new snapshot; an unchanged one skips" "build|snapshot is at main (a)" "$(skips old)|$(skips t)"
 # refresh.sh keeps only plain versions from the guest's output, which it does not trust.
 tc="$(printf '%s\n' 'claude 2.1.5' 'claude 1.0 $(touch x)' 'codex 0.9.1; rm -rf /' 'codex 0.20.0')"
 eval "$(grep '^cc="$(sed' "$SANDBOX_ROOT/infra/firecracker/refresh.sh")"

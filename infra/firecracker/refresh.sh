@@ -22,9 +22,11 @@ CODEX_VERSION="$(sed -n 's/^CODEX_VERSION=//p' "$toolchain")"
 cur="$(cat /fc/snap/latest/commit 2>/dev/null || echo none)"
 cur_cc="$(cat /fc/snap/latest/claude-code 2>/dev/null || echo none)"
 cur_cx="$(cat /fc/snap/latest/codex 2>/dev/null || echo none)"
+# Any change to the toolchain script (a new tool or pin) needs a new snapshot, not only the two pins.
+ts="$(sha256sum "$toolchain" | cut -c1-16)"; cur_ts="$(cat /fc/snap/latest/toolchain 2>/dev/null || echo none)"
 new="$(git ls-remote https://github.com/mozilla/fxa.git refs/heads/main | cut -f1)"
 [[ "$new" =~ ^[0-9a-f]{40}$ ]] || { echo "ERROR: could not read main" >&2; exit 1; }
-[ "$new" = "$cur" ] && [ "$cur_cc" = "$CLAUDE_CODE_VERSION" ] && [ "$cur_cx" = "$CODEX_VERSION" ] && [ "${1:-}" != --force ] && { echo "snapshot is at main (${new:0:10})"; exit 0; }
+[ "$new" = "$cur" ] && [ "$cur_cc" = "$CLAUDE_CODE_VERSION" ] && [ "$cur_cx" = "$CODEX_VERSION" ] && [ "$cur_ts" = "$ts" ] && [ "${1:-}" != --force ] && { echo "snapshot is at main (${new:0:10})"; exit 0; }
 echo "main moved: ${cur:0:10} -> ${new:0:10}"
 
 # Start from the newest snapshot's disk: it was synced just before the snapshot,
@@ -120,6 +122,7 @@ name="$(date -u +%Y%m%d-%H%M)"
 echo "$new" > "/fc/snap/${name}/commit"
 echo "$cc" > "/fc/snap/${name}/claude-code"
 echo "$cx" > "/fc/snap/${name}/codex"
+echo "$ts" > "/fc/snap/${name}/toolchain"
 # Keep the two newest; a slot already restored keeps its memory and disk copy.
 ls -1dt /fc/snap/2*/ 2>/dev/null | tail -n +3 | xargs -r rm -rf
 [ -d /fc/snap/v1 ] && [ "$(readlink /fc/snap/latest)" != /fc/snap/v1 ] && rm -rf /fc/snap/v1
