@@ -172,7 +172,9 @@ Every turn, including later ones:
   put 'QUESTION: <the question>' on its own line before each group of OPTION lines.
   Never use OPTION lines to ask what to look at next.
 - End your final message with exactly one line: 'status: needs-input' or
-  'status: ready'. Use ready only when the change is done and its tests pass.
+  'status: ready'. Use ready when the change is done and its tests pass, or when
+  it is done and no check can run here: then name what you could not run and
+  what the engineer should run. Use needs-input only with a question they must answer.
   The final message is all the engineer sees: put your answer, or your questions
   with their OPTION lines, above the status line. Your notes files are not shown.
 - If you changed no files (an answer, an investigation), do not suggest a push

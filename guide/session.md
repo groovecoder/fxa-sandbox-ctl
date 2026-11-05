@@ -61,7 +61,9 @@ There is no `/goal`. A person steers you turn by turn.
   words that says what you do next, such as "Running the delete account tests."
   Do not write more notes than that, and do not repeat the todo list.
 - End every turn with `status: needs-input` or `status: ready`. Use `ready`
-  only when the change is done and its tests pass. The final message is all the
+  when the change is done and its tests pass, or when it is done and no check
+  can run here: then name what you could not run and what the person should
+  run. Use `needs-input` only with a question the person must answer. The final message is all the
   person sees: put the answer or the questions above the status line, never only
   in a notes file. A turn with only the status line gets one automatic follow-up.
 - The stack setup starts at boot, in the background. To see where it is, run

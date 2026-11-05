@@ -287,6 +287,17 @@ reset 0; CHANGES=0; RUNNING=0
 RUNNER='{"type":"result","result":"Answered.\nstatus: ready"}
 '
 check "ready turn carries the count" "0" "$(cmd_events agent-t2 --since 0 | jq -r '.events[] | select(.type == "turn_end") | .changes')"
+# needs-input with changed files and no question: a finished change the runner could not check ships like ready.
+ev_end() { reset 0; CHANGES="$1"; RUNNER="$(jq -nc --arg r "$2" '{type: "result", result: $r}')
+"; cmd_events agent-t2 --since 0 | jq -r '.events[] | select(.type == "turn_end") | "\(.status)|\(.untested // false)|\(.changes // "")"'; }
+check "a needs-input end with changes and no question becomes ready and untested; a code span's ? does not count" "ready|true|1" \
+  "$(ev_end 1 $'I changed the image. Run `curl localhost:8000/x?y` to check it.\nstatus: needs-input')"
+check "with a question it stays needs-input; with no changed file too" "needs-input|false||needs-input|false|" \
+  "$(ev_end 1 $'Which tag do you want?\nstatus: needs-input')|$(ev_end 0 $'I looked. Run it yourself.\nstatus: needs-input')"
+reset 0; CHANGES=0; RUNNING=0
+RUNNER='{"type":"result","result":"Answered.\nstatus: ready"}
+'
+cmd_events agent-t2 --since 0 >/dev/null
 session_set agent-t2 state active turn_open 0
 check "no changed file: Open PR refuses" "nothing to push" "$(_finish_session agent-t2 2>&1 | grep -o 'nothing to push' || true)"
 check "--repo with no value is refused, not a loop" "ERROR: --repo needs a repo" "$(_finish_session agent-t2 --repo 2>&1)"
