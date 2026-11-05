@@ -159,6 +159,8 @@ check "the test checks each repo, the boot, the stack, each approved host, a blo
   "$(probe | grep -c "^r 'repo ")|$(probe | grep -c 'the boot script finished ready')|$(probe | grep -c ':9000/__heartbeat__.;')|$(probe | grep -c 'egress to static.crates.io')|$(probe | grep -c 'example.com')|$(probe | grep -c 'skill fxa-stack')"
 check "the probe script is valid shell, and a host it did not approve counts as blocked only when the request fails" "0" \
   "$(probe | bash -n; echo $?)"
+check "a second work repo, which a session clones only when it picks it, is not probed at boot" "1|0|1" \
+  "$( ( PIPE_REPOS=("mozilla/fxa /home/agent/fxa work" "mozilla/docs /home/agent/docs work master" "mozilla/ref /home/agent/ref ref"); _teams_probe_script ) | grep -c "repo mozilla/fxa ")|$( ( PIPE_REPOS=("mozilla/fxa /home/agent/fxa work" "mozilla/docs /home/agent/docs work master" "mozilla/ref /home/agent/ref ref"); _teams_probe_script ) | grep -c "repo mozilla/docs ")|$( ( PIPE_REPOS=("mozilla/fxa /home/agent/fxa work" "mozilla/docs /home/agent/docs work master" "mozilla/ref /home/agent/ref ref"); _teams_probe_script ) | grep -c "repo mozilla/ref ")"
 
 # Secrets the dashboard sets: only names the record uses, written as the writer account, value on stdin.
 teams_create "$(rec sx Sx ', "secrets": { "jira": "fxa-team-sx--jira", "runtime": [ { "secret": "fxa-team-sx--db", "path": "/home/agent/sx/.env" } ] }')" >/dev/null 2>&1 \

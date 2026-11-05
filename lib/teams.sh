@@ -280,11 +280,14 @@ _teams_runner_keys() {
 # _teams_probe_script   The checks a test runs on the runner as agent, from the loaded team; one
 # "ok <what>" or "FAIL <what>" line each. Every value went through the loader's checks.
 _teams_probe_script() {
-  local row s p r b h k
+  local row s p r b h k work=""
   echo 'r() { if eval "$2" >/dev/null 2>&1; then echo "ok   $1"; else echo "FAIL $1"; fi; }'
   echo 'wait_for() { local i; for i in $(seq "$1"); do eval "$2" >/dev/null 2>&1 && return 0; sleep 5; done; return 1; }'
   for row in ${PIPE_REPOS[@]+"${PIPE_REPOS[@]}"}; do
-    read -r s p r b <<< "$row"; echo "r 'repo ${s} is checked out at ${p}' 'git -C ${p} rev-parse --verify HEAD'"
+    read -r s p r b <<< "$row"
+    # Only the first work repo is there at boot; a session clones another work repo when it picks it.
+    if [ "$r" = work ]; then [ -z "$work" ] || continue; work=1; fi
+    echo "r 'repo ${s} is checked out at ${p}' 'git -C ${p} rev-parse --verify HEAD'"
   done
   if [ -n "${PIPE_BOOT_SCRIPT:-}" ] || [ -f "${SANDBOX_ROOT}/profiles/${PIPE_PROFILE}/boot.sh" ]; then
     echo "wait_for 120 '[ -f /run/fxa-profile/ready ] || [ -f /run/fxa-profile/failed ]'; r 'the boot script finished ready' '[ -f /run/fxa-profile/ready ]'"
