@@ -108,6 +108,9 @@ Design for the owner first, and for the teammate second. Every other role is a g
    the routine's channel: the draft PR link or the report, or why it skipped or failed, and the next run
    time. A routine with no channel posts nothing in Slack; its results are only in the dashboard History.
    Slack cannot create, change or start a routine, and shows no cost; the dashboard History does.
+   A PR that a routine opened gets the same automatic rounds as a session's PR: a Copilot review or a
+   failed CI run starts a round in the routine's thread, within the team's `pr.review_rounds` and the
+   routine's cost limit. A person still cannot steer it there.
 
 ### The dashboard Overview
 
