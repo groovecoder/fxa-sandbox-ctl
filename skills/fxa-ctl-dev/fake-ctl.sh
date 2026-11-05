@@ -8,8 +8,8 @@
 #   finish     wrap-up 12 s, then a draft PR event (a PR number that does not exist)
 #   pr-status  CI running for FAKE_CI_S seconds (default 60), then passed
 #   answer     busy (exit 3), so the bot starts a session at once
-#   stacks     --repos gives each turn_end a row per repo; finish --repo opens that repo's fake PR
-#              (mozilla/fxa ships a PR, others a diff); find-pr and --resume-from carry the PRs
+#   stacks     --repos gives each turn_end a row per repo; finish --repo opens that repo's fake PR, each
+#              --repo in turn (FAKE_PR_REPOS ship a PR, default mozilla/fxa; others a diff); find-pr and --resume-from carry the PRs
 #   profile    passed to the real controller, unless FAKE_PROFILES is set
 #
 # For the e2e harness (fxa-agent-bot/e2e), all opt-in:
@@ -80,7 +80,7 @@ script() {
   [ -n "${FAKE_TAPE:-}" ] && [ -n "$(get "$k" tape_idx)" ] && tape="$(jq -c --argjson i "$(get "$k" tape_idx)" '.sessions[$i] // null' "$FAKE_TAPE")"
   jq -n --argjson now "$t" --argjson t0 "$(get "$k" t0)" --arg turns "$(get "$k" turns)" --argjson tape "$tape" \
     --arg fins "$(get "$k" fins)" --arg repos "$(get "$k" repos)" --arg over "$(get "$k" over)" --arg pr "$PR_URL" \
-    --argjson ch "${FAKE_CHANGES:-1}" --arg ferr "${FAKE_FINISH_FAIL:-}" --arg failat "${FAKE_FAIL_S:-}" --arg stopat "${FAKE_STOP_S:-}" --arg wr "${FAKE_WRAP_REPLY:-}" '
+    --argjson ch "${FAKE_CHANGES:-1}" --arg prs "${FAKE_PR_REPOS:-mozilla/fxa}" --arg ferr "${FAKE_FINISH_FAIL:-}" --arg failat "${FAKE_FAIL_S:-}" --arg stopat "${FAKE_STOP_S:-}" --arg wr "${FAKE_WRAP_REPLY:-}" '
     def url($s): if $s == "" then $pr else "https://github.com/\($s)/pull/999999" end;
     ($turns | split("\n") | map(select(. != "") | tonumber)) as $ts
     | ($fins | split("\n") | map(select(. != "") | split(" ") | {at: (.[0] | tonumber), mode: .[1], slug: (if .[2] == "-" then "" else .[2] end)})) as $fs
@@ -97,7 +97,7 @@ script() {
             text: "Fake turn \($n + 1): I changed one file and the test passes. Tap Open PR, or reply to steer."} end
             + (if ($rs | length) == 0 then (if any($fs[]; .slug == "" and .at < $T and (.mode | startswith("pr"))) then {pr: $pr} else {} end)
                else {trees: [$rs[] as $s | {name: ($s | split("/")[1] | ascii_downcase), slug: $s, changes: 1,
-                 out: (if $s == "mozilla/fxa" then "pr" else "diff" end),
+                 out: (if $prs | split(",") | index($s) then "pr" else "diff" end),
                  pr: (if any($fs[]; .slug == $s and .at < $T and (.mode | startswith("pr"))) then url($s) else null end)}]} end)
             | if .type != "turn_end" then del(.changes, .pr, .trees) else . end)} ]
       + [$fs[] | select(.mode == "fail") | {at: (.at + 12), ev: {type: "error", text: $ferr}}]
@@ -195,9 +195,13 @@ case "$cmd" in
   finish) k="$(opt --session "$@")"; [ -f "$DIR/$k/t0" ] || { echo "ERROR: no session $k" >&2; exit 1; }
     if [ "$(cat "$DIR/$k/refused" 2>/dev/null | wc -l)" -lt "${FAKE_FINISH_REFUSE:-0}" ]; then
       echo x >> "$DIR/$k/refused"; echo "ERROR: $k is busy; try again in a moment" >&2; exit 1; fi
-    s="$(opt --repo "$@")"; s="${s:--}"; m=pr; case " $* " in *" --no-pr "*) m=push ;; esac; [ -z "${FAKE_FINISH_FAIL:-}" ] || m=fail
-    get "$k" fins | awk -v s="$s" '$3 == s && $2 != "fail" {f=1} END {exit !f}' && { echo "ERROR: the fake opens one PR per repo" >&2; exit 1; }
-    echo "$AT $m $s" >> "$DIR/$k/fins" ;;
+    m=pr; case " $* " in *" --no-pr "*) m=push ;; esac; [ -z "${FAKE_FINISH_FAIL:-}" ] || m=fail
+    ss="$(a=("$@"); for i in "${!a[@]}"; do [ "${a[$i]}" = --repo ] && echo "${a[$((i + 1))]:-}"; done; true)"; ss="${ss:--}"
+    # Several --repo: each repo's wrap-up takes 12 s, one after another, as the real job does.
+    n=0; for s in $ss; do
+      get "$k" fins | awk -v s="$s" '$3 == s && $2 != "fail" {f=1} END {exit !f}' && { echo "ERROR: the fake opens one PR per repo" >&2; exit 1; }
+      echo "$(( AT + 12 * n )) $m $s" >> "$DIR/$k/fins"; n=$((n + 1))
+    done ;;
   stop) echo stopped > "$DIR/$1/over" ;;
   # FAKE_INTERRUPT_FAILS=1: the interrupt fails, as when the runner does not answer.
   interrupt) [ -n "${FAKE_INTERRUPT_FAILS:-}" ] && exit 1; k="$1"; last="$(sort -n "$DIR/$k/turns" 2>/dev/null | tail -1)"

@@ -296,6 +296,31 @@ _tree_changes() {
   _session_sh "$(worktree_branch_for "$1")" "cd ${FXA_TREE_PATH} && ${_SESSION_COUNT}" 2>/dev/null | tr -dc '0-9'
 }
 
+# trees_link_prs <key>   With PRs in 2 or more trees, each PR body gets a "Related PRs:" line with the others.
+# It never fails: the PRs are up already.
+trees_link_prs() { trees_each "$1" _tree_link_pr "$1" >&2 || true; return 0; }
+
+# _tree_link_pr <key>   The selected tree's PR (run by trees_each, with its repo's App token).
+# REST, not gh pr edit, which fails on FxA's Projects-classic field.
+_tree_link_pr() {
+  local me="" others="" want="" body="" new="" rp=""
+  me="$(session_get "$1" pr_url)"
+  rp='^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$'
+  [[ "$me" =~ $rp ]] || return 0
+  others="$(jq -r --arg me "$me" --arg rp "$rp" '[(.trees // [])[].pr_url // empty | select(test($rp) and . != $me)] | unique | join(", ")' "$(_session_file "$1")")"
+  [ -n "$others" ] || return 0
+  want="Related PRs: ${others}"
+  if github_app_enabled; then local GH_TOKEN; GH_TOKEN="$(github_app_token)" || return 0; export GH_TOKEN; fi
+  local api; api="repos/$(sed -E 's#^https://github\.com/([^/]+/[^/]+)/pull/([0-9]+)$#\1/pulls/\2#' <<< "$me")"
+  body="$(gh api "$api" --jq '.body // ""')" || { echo "WARN: could not read ${me} to link its related PRs" >&2; return 0; }
+  grep -qxF "$want" <<< "$body" && return 0
+  new="$(grep -v '^Related PRs: ' <<< "$body" || true)"; new="$(printf '%s\n\n%s' "$new" "$want")"
+  # One write, no retry: the body is read back instead.
+  printf '%s' "$new" | command gh api -X PATCH "$api" -F body=@- >/dev/null 2>&1 || true
+  gh api "$api" --jq '.body // ""' 2>/dev/null | grep -qxF "$want" || echo "WARN: ${me} did not take its Related PRs line" >&2
+  return 0
+}
+
 # _checkout_consent <PR URL> <author>   The PR's author commented "push ok" on it.
 _checkout_consent() {
   [[ "$2" =~ ^[A-Za-z0-9-]+$ ]] || return 1

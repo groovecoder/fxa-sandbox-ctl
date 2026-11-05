@@ -2870,21 +2870,25 @@ cmd_diff() {
 # finish --session: start the wrap-up in the background and return. The job
 # reports through events (a pr event, or an error), so a bot restart loses nothing.
 _finish_session() {
-  local key="${1:-}" mode="" repo="" idx=""; shift || true
+  local key="${1:-}" mode="" repo="" repos="" idx="" i=""; shift || true
   _session_key "$key" || return 1
   while [ $# -gt 0 ]; do
     case "$1" in
       --no-pr) mode=--no-pr; shift ;;
-      --repo) [ $# -ge 2 ] || { echo "ERROR: --repo needs a repo" >&2; return 1; }; repo="$2"; shift 2 ;;
+      --repo) [ $# -ge 2 ] || { echo "ERROR: --repo needs a repo" >&2; return 1; }; repos="${repos:+${repos} }$2"; shift 2 ;;
       *) echo "ERROR: Unknown option: $1" >&2; return 1 ;;
     esac
   done
-  # A team stack ships one repo at a time, and only one the App can push to.
+  # A team stack ships each named repo (--repo again for more), in turn, and only ones the App can push to.
   if trees_on "$key"; then
-    idx="$(trees_idx "$key" "$repo")" || { echo "ERROR: name the repo to ship with --repo (one of: $(trees_rows "$key" | cut -f3 | tr '\n' ' '))" >&2; return 1; }
-    [ "$(jq -r --argjson i "$idx" '.trees[$i].out' "$(_session_file "$key")")" = pr ] \
-      || { echo "ERROR: ${repo} ships as a diff: the GitHub App cannot push to it. Use Diff." >&2; return 1; }
-  elif [ -n "$repo" ]; then echo "ERROR: --repo is for a session with several repos" >&2; return 1; fi
+    [ -n "$repos" ] || { echo "ERROR: name the repo to ship with --repo (one of: $(trees_rows "$key" | cut -f3 | tr '\n' ' '))" >&2; return 1; }
+    for repo in $repos; do
+      i="$(trees_idx "$key" "$repo")" || { echo "ERROR: name the repo to ship with --repo (one of: $(trees_rows "$key" | cut -f3 | tr '\n' ' '))" >&2; return 1; }
+      [ "$(jq -r --argjson i "$i" '.trees[$i].out' "$(_session_file "$key")")" = pr ] \
+        || { echo "ERROR: ${repo} ships as a diff: the GitHub App cannot push to it. Use Diff." >&2; return 1; }
+      idx="${idx:+${idx},}${i}"
+    done
+  elif [ -n "$repos" ]; then echo "ERROR: --repo is for a session with several repos" >&2; return 1; fi
   _session_lock "$key" || { echo "ERROR: ${key} is busy; try again in a moment" >&2; return 1; }
   case "$(session_get "$key" state)" in
     paused|stopped) _session_unlock "$key"; echo "ERROR: ${key} is $(session_get "$key" state); reply in the thread to resume it, then try again" >&2; return 1 ;;
@@ -2897,9 +2901,17 @@ _finish_session() {
   fi
   # A wrap-up turn costs minutes and dollars, and with no changed file it can
   # only end in "nothing to ship".
-  local nch; if [ -n "$idx" ]; then nch="$( { _tree_enter "$key" "$idx" && _tree_changes "$key"; } || true)"; else nch="$(_session_changes "$key" || true)"; fi
-  if [ "$nch" = 0 ]; then
-    echo "ERROR: nothing to push: no files changed in ${key}${repo:+ (${repo})}" >&2
+  # Of several repos, one with no change is left out; the others ship.
+  local nch="" ships=""
+  if [ -n "$idx" ]; then
+    for i in ${idx//,/ }; do
+      nch="$( { _tree_enter "$key" "$i" && _tree_changes "$key"; } || true)"
+      [ "$nch" = 0 ] || ships="${ships:+${ships},}${i}"
+    done
+    [ -n "$ships" ] || nch=0
+  else nch="$(_session_changes "$key" || true)"; fi
+  if [ "$nch" = 0 ] && [ -z "$ships" ]; then
+    echo "ERROR: nothing to push: no files changed in ${key}${repos:+ (${repos})}" >&2
     _session_unlock "$key"; return 1
   fi
   # Refuse before the wrap-up turn what the job would refuse after it. A stack's repo has its own out.
@@ -2907,9 +2919,12 @@ _finish_session() {
     echo "ERROR: the ${PIPE_PROFILE:-} profile is read-only: it pushes nothing and opens no PR. Use Diff." >&2
     _session_unlock "$key"; return 1
   fi
-  local author; author="$( { [ -z "$idx" ] || _tree_enter "$key" "$idx"; } && _checkout_gate_on "$key" \
-    && ! _checkout_consent "$(session_get "$key" checkout)" "$(session_get "$key" checkout_author)" \
-    && session_get "$key" checkout_author || true)"
+  local author=""
+  for i in $(tr , ' ' <<< "${ships:--}"); do
+    [ -n "$author" ] || author="$( { [ "$i" = - ] || _tree_enter "$key" "$i"; } && _checkout_gate_on "$key" \
+      && ! _checkout_consent "$(session_get "$key" checkout)" "$(session_get "$key" checkout_author)" \
+      && session_get "$key" checkout_author || true)"
+  done
   if [ -n "$author" ]; then
     echo "ERROR: ${author} made this PR. I push to it only after they comment 'push ok' on it." >&2
     _session_unlock "$key"; return 1
@@ -2918,7 +2933,7 @@ _finish_session() {
   # job_pid "" in the same write: until the new pid lands, the boot job's dead pid read as a died finish.
   session_set "$key" state wrapping wrap_mode "$( [ "$mode" = --no-pr ] && echo push || echo pr )" job_pid ""
   _session_unlock "$key"
-  nohup "$0" --backend gce session-finish "$key" "${mode:--}" ${idx:+"$idx"} > "${SESSION_DIR}/${key}.finish.log" 2>&1 &
+  nohup "$0" --backend gce session-finish "$key" "${mode:--}" ${ships:+"$ships"} > "${SESSION_DIR}/${key}.finish.log" 2>&1 &
   session_set "$key" job_pid "$!"
   echo "${key} wrapping"
 }
@@ -2944,11 +2959,17 @@ _session_finish_fail() {
 }
 
 # One wrap-up turn, then the normal host finish in a throwaway worktree. A team stack
-# ships the one repo at <idx>, with that tree selected (lib/trees.sh).
+# ships each repo of <idx,idx...> in turn, with that tree selected (lib/trees.sh).
 _cmd_session_finish() {
-  local key="$1" mode="${2:-}"; [ "$mode" = - ] && mode=""
-  if [ -n "${3:-}" ]; then ( _tree_enter "$key" "$3" && _session_finish_one "$key" "$mode" ); return; fi
-  _session_finish_one "$key" "$mode"
+  local key="$1" mode="${2:-}" i="" rc=0 n=0; [ "$mode" = - ] && mode=""
+  [ -n "${3:-}" ] || { _session_finish_one "$key" "$mode"; return; }
+  for i in ${3//,/ }; do
+    # Each finish leaves the session active: the next repo's wrap-up is still part of this ship.
+    [ "$n" = 0 ] || session_set "$key" state wrapping
+    n=$((n + 1))
+    ( _tree_enter "$key" "$i" && _session_finish_one "$key" "$mode" ) || rc=1
+  done
+  return "$rc"
 }
 
 _session_finish_one() {
@@ -3070,6 +3091,8 @@ $(grep '^handoff check:' <<<"$chk" | head -20)" || { _session_finish_fail "$key"
   [ -n "$pushed" ] && session_set "$key" push_lease "$pushed"
   _session_record_summary "$key" || true
   session_set "$key" state active pr_url "$pr_url" pr_updated "$updated" pr_announced 0
+  # A stack's PRs link each other. Best effort: the PR is already up.
+  [ -z "${FXA_TREE_PATH:-}" ] || ( trees_link_prs "$key" ) || true
   local tid; tid="$(session_get "$key" thread)"
   _thread_ok "$tid" && thread_set "$tid" pr_url "$pr_url" pr_session "$key" branch "$(session_get "$key" branch)"
   _session_history_add "$key" action "$( [ "$updated" = 1 ] && echo "Updated" || echo "Opened" ) ${pr_url}"
