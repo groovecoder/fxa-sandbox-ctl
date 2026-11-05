@@ -10,7 +10,7 @@ button { font: 600 var(--t-sub) var(--head); color: var(--ink); background: var(
   border-radius: var(--r-sm); padding: 6px var(--s4); cursor: pointer; }
 button:hover:not(:disabled) { background: var(--hover); }
 h1, h2, h3, h4 { font-family: var(--head); }
-h2 { font-size: var(--t-head); margin: 0; }
+h2 { font-size: var(--t-heading); font-weight: 700; font-family: var(--head); margin: 0; }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .empty { color: var(--faint); font-size: var(--t-sub); }
 .hint { color: var(--dim); font-size: var(--t-sub); }

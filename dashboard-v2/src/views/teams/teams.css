@@ -1,11 +1,11 @@
 /* The Teams pages, ported from the v1 .tpage rules: tokens only, each rule inside .tpage so no other view sees it. */
 .tpage { display: flex; flex-direction: column; gap: var(--s4); max-width: 1100px; }
-.tpage h3 { margin: 0 0 var(--s2); font-size: var(--t-body); font-weight: 700; }
+.tpage h3 { margin: 0 0 var(--s2); font: 600 var(--t-sub) var(--head); color: var(--ink); }
 .tpage .lnk { color: var(--link); font-weight: 600; }
 /* The heading takes the focus after a navigation, for a screen reader; it is not a control. */
 .tpage .th:focus { outline: none; }
 .tpage h2 .n, .tpage .ttabs .n { margin-left: var(--s2); color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
-.tpage .th { font-size: var(--t-page); margin: 0; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+.tpage .th { font-size: var(--t-page); font-weight: 700; margin: 0; display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .tpage .thead-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
 .tpage .tsub, .tpage .readback { margin: 0; color: var(--dim); font-size: var(--t-sub); }
 .tpage .tkey { font: var(--t-label) var(--mono); color: var(--dim); }

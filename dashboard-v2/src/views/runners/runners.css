@@ -1,6 +1,6 @@
 /* The Sandboxes view, scoped to .sbv: the v1 class names, so the parity probe reads both pages the same way. */
 .sbv { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); min-width: 0; }
-.sbv h2 { margin: 0 0 var(--s2); font: 700 var(--t-body) var(--head); }
+.sbv h2 { margin: 0 0 var(--s2); font: 700 var(--t-heading) var(--head); }
 .sbv #sb-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
 @media (max-width: 900px) { .sbv #sb-cards { grid-template-columns: 1fr; } }
 .sb-card { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -42,7 +42,7 @@
 .sbl .mt { display: inline-block; width: 60px; vertical-align: middle; margin-right: 4px; }
 .sbl .over { color: var(--bad); white-space: nowrap; }
 .sbl code { display: block; width: max-content; max-width: 100%; margin-top: 4px; font: var(--t-label) var(--mono); background: var(--sunk); padding: 2px 6px; border-radius: var(--r-sm); overflow-wrap: anywhere; user-select: all; }
-.sbh { margin: var(--s4) 0 var(--s1); font: 700 var(--t-body) var(--head); }
+.sbh { margin: var(--s4) 0 var(--s1); font: 600 var(--t-sub) var(--head); }
 .sbfree, .sbage, .sbstale { font-size: var(--t-sub); color: var(--dim); margin: var(--s2) 0; overflow-wrap: anywhere; }
 .sbfree { font-family: var(--mono); } .sbstale { color: var(--warn); }
 #sb-list:focus { outline: none; }
