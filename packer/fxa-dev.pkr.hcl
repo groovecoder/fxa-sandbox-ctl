@@ -202,6 +202,16 @@ build {
     expect_disconnect = false
   }
 
+  # Firefox desktop source as an artifact build, as the Firecracker snapshot has it. As agent; the
+  # android image skips it, since its ~/firefox is the Fenix tree.
+  provisioner "shell" {
+    only              = ["googlecompute.ubuntu"]
+    script            = "${path.root}/scripts/15-firefox.sh"
+    environment_vars  = ["FXA_ANDROID=${var.android}"]
+    execute_command   = "chmod a+rx {{ .Path }} && sudo -u agent -H env {{ .Vars }} bash {{ .Path }}"
+    expect_disconnect = false
+  }
+
   # The android image only; the script exits at once without FXA_ANDROID=true.
   provisioner "shell" {
     only              = ["googlecompute.ubuntu"]

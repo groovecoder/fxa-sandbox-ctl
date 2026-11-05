@@ -22,8 +22,8 @@ CODEX_VERSION="$(sed -n 's/^CODEX_VERSION=//p' "$toolchain")"
 cur="$(cat /fc/snap/latest/commit 2>/dev/null || echo none)"
 cur_cc="$(cat /fc/snap/latest/claude-code 2>/dev/null || echo none)"
 cur_cx="$(cat /fc/snap/latest/codex 2>/dev/null || echo none)"
-# Any change to the toolchain script (a new tool or pin) needs a new snapshot, not only the two pins.
-ts="$(sha256sum "$toolchain" | cut -c1-16)"; cur_ts="$(cat /fc/snap/latest/toolchain 2>/dev/null || echo none)"
+# Any change to the guest scripts (a new tool or pin, fxa-start, the Firefox build) needs a new snapshot, not only the two pins.
+ts="$(cat "$toolchain" /usr/local/share/fxa/09-fxa-services.sh /usr/local/share/fxa/15-firefox.sh | sha256sum | cut -c1-16)"; cur_ts="$(cat /fc/snap/latest/toolchain 2>/dev/null || echo none)"
 new="$(git ls-remote https://github.com/mozilla/fxa.git refs/heads/main | cut -f1)"
 [[ "$new" =~ ^[0-9a-f]{40}$ ]] || { echo "ERROR: could not read main" >&2; exit 1; }
 [ "$new" = "$cur" ] && [ "$cur_cc" = "$CLAUDE_CODE_VERSION" ] && [ "$cur_cx" = "$CODEX_VERSION" ] && [ "$cur_ts" = "$ts" ] && [ "${1:-}" != --force ] && { echo "snapshot is at main (${new:0:10})"; exit 0; }
@@ -93,31 +93,9 @@ fxa_start="$(sed -n "/^cat > \/usr\/local\/bin\/fxa-start <<'FXASTART'$/,/^FXAST
 # then installs dnsmasq itself (about 30 s).
 "$fc" ssh 0 'sudo bash -c "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq make perl unzip watchman dnsmasq-base" > /dev/null 2>&1' \
   || echo "WARN: the snapshot's packages did not install; each boot installs dnsmasq itself"
-# Firefox, so a session can change it and hand back a diff: an artifact build
-# (prebuilt C++, local front end), rebuilt when Firefox main moved. A failure
-# keeps the snapshot's earlier build and never blocks the FxA refresh.
-"$fc" ssh 0 'sudo -u agent bash -s' <<'GUEST' || echo "WARN: the Firefox build failed; the snapshot keeps the earlier one"
-set -euo pipefail
-cd /home/agent
-# Depth 200: CI builds artifacts an hour or more after a push, so mach looks back
-# for the nearest commit that has them; a depth-1 clone has none to look at.
-[ -d firefox ] || git clone -q --depth 200 https://github.com/mozilla-firefox/firefox firefox
-cd firefox
-printf '%s\n' 'ac_add_options --enable-artifact-builds' 'mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-artifact' 'mk_add_options AUTOCLOBBER=1' > mozconfig
-old="$(git rev-parse HEAD)"
-git fetch -q --depth 200 origin main && git checkout -q FETCH_HEAD
-if [ ! -x obj-artifact/dist/bin/firefox ] || [ "$old" != "$(git rev-parse HEAD)" ]; then
-  [ -d ~/.mozbuild ] || ./mach --no-interactive bootstrap --no-system-changes \
-    --application-choice "Firefox for Desktop Artifact Mode" > /tmp/refresh-firefox.log 2>&1
-  # A stale objdir can fail where a clean one builds (a generated file whose rule missed a changed input):
-  # build once more from a clean objdir, about 30 s, and keep the old one if that fails too.
-  ./mach build >> /tmp/refresh-firefox.log 2>&1 || { rm -rf obj-old && mv obj-artifact obj-old && ./mach build >> /tmp/refresh-firefox.log 2>&1 && rm -rf obj-old; } \
-    || { rm -rf obj-artifact; mv obj-old obj-artifact 2>/dev/null || true; git checkout -q "$old"; tail -30 /tmp/refresh-firefox.log; exit 1; }
-fi
-# fxa-dev-launcher sets the Nightly prefs only when FIREFOX_BIN has "Nightly" in it.
-ln -sfn /home/agent/firefox/obj-artifact/dist/bin /home/agent/Nightly
-echo "firefox at $(git rev-parse --short HEAD)"
-GUEST
+# Firefox, so a session can change it and hand back a diff (15-firefox.sh, which the GCE image runs too).
+# A failure keeps the snapshot's earlier build and never blocks the FxA refresh.
+"$fc" ssh 0 'sudo -u agent bash -s' < /usr/local/share/fxa/15-firefox.sh || echo "WARN: the Firefox build failed; the snapshot keeps the earlier one"
 "$fc" ssh 0 'sudo sync; sudo systemctl poweroff' || true
 sleep 8
 
