@@ -933,7 +933,7 @@ What trips agents most often:
 - The network is an allowlist (Anthropic, npm and yarn, PyPI, GitHub, Playwright).
   Any other host is refused.
 - Run only the tests for what you changed, never a whole suite: it can run the
-  16GB machine out of memory.
+  16GB machine out of memory. Exception: a shared-layer change, see /fxa-test-plan.
 - For a change a person can see (a page, a style, a string, an email, a loading or
   error state), save a screenshot or a short video of it in `/workspace/.fxa-auto-media/`
   before the handoff: `/fxa-page-shot`, `/fxa-storybook-capture` or `/fxa-functional-local`.

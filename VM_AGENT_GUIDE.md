@@ -10,9 +10,13 @@ Chat sessions do not have it; do not report that it is missing.
 - **Machine:** Ubuntu 24.04, 4 vCPU, 16GB RAM. GCE and Tart are ARM64 with a 50GB
   disk; Firecracker is x86-64 with a 60GB disk. Memory is still
   the tight resource: the stack with functional tests ran an 8GB runner out of
-  memory, so keep `PLAYWRIGHT_WORKERS=2` and never run a whole suite.
-- **Backend:** one of two. The rest of this guide notes where they differ.
-  - **GCE** (Slack sessions, most pipeline runs): a `c4a-standard-4` instance.
+  memory, so keep `PLAYWRIGHT_WORKERS=2` and never run a whole suite. The one
+  exception: `/fxa-test-plan` runs the affected integration suites for a shared-layer change.
+- **Backend:** one of three. The rest of this guide notes where they differ.
+  - **Firecracker** (Slack sessions): a slot restored from a snapshot, with the
+    FxA stack already running. When the Firecracker host cannot start, a Slack
+    session runs on GCE.
+  - **GCE** (pipeline runs, and Slack sessions as a fallback): a `c4a-standard-4` instance.
     `/workspace` is a symlink to a clone in the image, `/home/agent/fxa`,
     pinned to the commit the host chose. `node_modules` is native Linux.
     Google deletes the instance after its run limit (90 minutes for a

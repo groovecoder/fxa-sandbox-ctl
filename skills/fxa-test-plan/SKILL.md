@@ -57,6 +57,20 @@ sandbox:
   `functional` line when a user flow uses it. For an auth-server route, also plan
   each `test/remote/*.in.spec.ts` that calls the route's path: those specs import
   no route file, so the import search below misses them.
+- A shared-layer change (a project tagged `scope:shared:*`, such as the database
+  layer in `libs/shared/db`): plan the full affected integration suites, as CI runs
+  them. Spec picks miss callers here: a driver swap passed its own specs and then
+  failed 4 CI jobs in auth and libraries (#21709). Add one `check` line for each
+  `run` below, with `"expect": "^SUITE OK$"`. A check reads only the output, so the
+  `&& echo` turns the exit code into output:
+
+  ```bash
+  npx nx affected --base=origin/main --parallel=1 -t test-integration-v2 test-integration-jest --exclude '*,!tag:scope:server:auth' && echo 'SUITE OK'
+  npx nx affected --base=origin/main --parallel=1 -t test-integration --exclude '*,!tag:scope:shared:*,entitlements-metering' && echo 'SUITE OK'
+  ```
+
+  On a Firecracker slot, auth took 3 min and 9 libraries took 1 min, with 3.5 GB of
+  memory left. `entitlements-metering` needs ClickHouse, which is not here: plan it as `ci`.
 
 ## Step 3: Find the specs and write the checks
 
@@ -153,7 +167,8 @@ also written to `/workspace/.fxa-verify-verdict.txt`.
   run with 2 workers used 6.85GB of 7.9GB, so nothing else runs beside them.
 - `signIn.spec.ts` "servicesWithEmailVerification RP gets exactly one
   verifyLoginCode email" fails here on main. Pick another test from that spec.
-- Never plan a whole suite.
+- Do not plan a whole suite, except the affected integration suites for a
+  shared-layer change (Step 2).
 
 ## In the PR body
 

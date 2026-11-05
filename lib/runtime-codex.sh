@@ -63,7 +63,7 @@ What trips agents most often:
 - The host refuses changes to CI and tooling files and to frozen paths.
 - The network is an allowlist (OpenAI, npm and yarn, PyPI, GitHub, Playwright).
 - Run only the tests for what you changed, never a whole suite: it can run the
-  machine out of memory.
+  machine out of memory. Exception: a shared-layer change, see /fxa-test-plan.
 - Skills are in ~/.codex/skills (also reachable as ~/.claude/skills, the path the
   guides use). The skills of the repo are in /workspace/.claude/skills/<name>/SKILL.md:
   read the file to use one. If /workspace/CLAUDE.md exists, read it first.' | _vm_session_git_rule)"
