@@ -25,5 +25,8 @@ done
 # x86_64 only (03b-toolchain.sh sync_tools); absent on arm64.
 cpu spanner-emulator "$OPT/spanner-emulator/gateway_main"
 cpu fake-gcs "$OPT/fake-gcs/fake-gcs-server"
+# FxA's Sync server (03b-toolchain.sh syncserver): its build only warns, so a missing one fails here.
+[ -e "$OPT/syncserver/syncserver" ] || { echo "FAIL syncserver: $OPT/syncserver/syncserver is missing"; fail=1; }
+cpu syncserver "$OPT/syncserver/syncserver"
 [ "$fail" = 0 ] || echo "==> ERROR: a runner tool does not run on this image"
 exit "$fail"

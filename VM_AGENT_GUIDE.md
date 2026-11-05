@@ -254,6 +254,17 @@ fxa-start --stop     # stop the services and nginx
 | mail_helper (captured email) | 9001 | `curl -s localhost:9001/mail/<address>` waits until mail arrives |
 | Cloud Tasks emulator | 8123 | `pm2 describe cloud-tasks-emulator` |
 
+The runner has no Docker, on purpose: the Docker daemon is root, and container
+traffic skips the egress firewall. Each service here is a native process. Do
+not install Docker, and do not ask for it.
+
+FxA's Sync server (syncstorage-rs, storage and token server) is in the image
+but does not run until you start it: `sudo systemctl start syncserver` (about
+1 s). It listens on 8000 and checks tokens against the auth server on 9000, so
+start `fxa-start` first. Check it with `curl -sf localhost:8000/__heartbeat__`.
+For a Firefox that syncs to it, set `identity.sync.tokenserver.uri` to
+`http://localhost:8000/1.0/sync/1.5`. Logs: `journalctl -u syncserver`.
+
 The stack uses about 2.8GB: `settings-react` alone is 1.2GB. Logs are in
 `~/.pm2/logs/<name>-out.log` and `-error.log`, or `pm2 logs <name> --lines 50
 --nostream`.

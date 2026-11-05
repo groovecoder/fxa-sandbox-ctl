@@ -576,7 +576,7 @@ _restrict_sudo() {
     # Replace blanket NOPASSWD:ALL with specific allowed commands
     cat > /etc/sudoers.d/agent <<'SUDOERS'
 # Agent user: restricted sudo access
-Cmnd_Alias FXA_UNITS = /usr/bin/systemctl start mysql, /usr/bin/systemctl stop mysql, /usr/bin/systemctl restart mysql, /usr/bin/systemctl status mysql, /usr/bin/systemctl start redis-server, /usr/bin/systemctl stop redis-server, /usr/bin/systemctl restart redis-server, /usr/bin/systemctl status redis-server, /usr/bin/systemctl start firestore-emulator, /usr/bin/systemctl stop firestore-emulator, /usr/bin/systemctl restart firestore-emulator, /usr/bin/systemctl status firestore-emulator, /usr/bin/systemctl start goaws, /usr/bin/systemctl stop goaws, /usr/bin/systemctl restart goaws, /usr/bin/systemctl status goaws
+Cmnd_Alias FXA_UNITS = /usr/bin/systemctl start mysql, /usr/bin/systemctl stop mysql, /usr/bin/systemctl restart mysql, /usr/bin/systemctl status mysql, /usr/bin/systemctl start redis-server, /usr/bin/systemctl stop redis-server, /usr/bin/systemctl restart redis-server, /usr/bin/systemctl status redis-server, /usr/bin/systemctl start firestore-emulator, /usr/bin/systemctl stop firestore-emulator, /usr/bin/systemctl restart firestore-emulator, /usr/bin/systemctl status firestore-emulator, /usr/bin/systemctl start goaws, /usr/bin/systemctl stop goaws, /usr/bin/systemctl restart goaws, /usr/bin/systemctl status goaws, /usr/bin/systemctl start syncserver, /usr/bin/systemctl stop syncserver, /usr/bin/systemctl restart syncserver, /usr/bin/systemctl status syncserver
 agent ALL=(ALL) NOPASSWD: FXA_UNITS
 agent ALL=(ALL) NOPASSWD: /usr/bin/tee /etc/hosts
 SUDOERS

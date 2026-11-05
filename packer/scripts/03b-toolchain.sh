@@ -55,6 +55,85 @@ sync_tools() {
     "https://dl.google.com/dl/cloudsdk/channels/rapid/components/${PUBSUB_EMULATOR_COMPONENT}.tar.gz"
 }
 
+# FxA's Sync server (syncstorage-rs: storage and token server) as a native binary, no Docker:
+# a Docker daemon gives root, and its containers skip the agent's egress and metadata rules.
+# Built once for each pin, with no Python verifier (the native one asks FxA's :9000). The unit
+# is not enabled: port 8000 is free for other teams, and the agent starts it in about a second.
+SYNCSTORAGE_TAG=0.24.1
+SYNCSTORAGE_SHA=741f609cf2e2e0fe0a812bf093e85e694098a1ce
+SYNC=/opt/syncserver SYNC_CONF=/etc/syncserver.toml
+syncserver_build() {
+  local t; t="$(mktemp -d /tmp/syncserver.XXXXXX)" || return 1
+  local env="RUSTUP_HOME=$t/rustup CARGO_HOME=$t/cargo"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -q libmysqlclient-dev > /dev/null || { rm -rf "$t"; return 1; }
+  git clone -q --filter=blob:none https://github.com/mozilla-services/syncstorage-rs "$t/src" \
+    && git -C "$t/src" checkout -q "$SYNCSTORAGE_SHA" || { rm -rf "$t"; return 1; }
+  local rv; rv="$(sed -n 's/^rust-version *= *"\([0-9.]*\)".*/\1/p' "$t/src/Cargo.toml" | head -1)"
+  curl -sSf https://sh.rustup.rs | env $env sh -s -- -y -q --no-modify-path --profile minimal --default-toolchain "${rv:-stable}" > /dev/null \
+    && (cd "$t/src" && env $env "$t/cargo/bin/cargo" build -q --release --locked --bin syncserver --no-default-features --features=mysql) > "$t/build.log" 2>&1 \
+    && rm -rf "$SYNC.new" && mkdir -p "$SYNC.new" && install -m 755 -s "$t/src/target/release/syncserver" "$SYNC.new/syncserver" \
+    && echo "$SYNCSTORAGE_TAG" > "$SYNC.new/.version" && rm -rf "$SYNC" && mv "$SYNC.new" "$SYNC" \
+    || { tail -20 "$t/build.log" >&2 2>/dev/null; rm -rf "$t" "$SYNC.new"; return 1; }
+  rm -rf "$t"
+}
+# The databases, the migrations and the token server's node, so a start serves at once.
+syncserver_setup() {
+  local up=1 my="mysql -uroot -h127.0.0.1 -Nse" pid ok=""
+  systemctl is-active -q mysql || { up=""; systemctl start mysql; }
+  [ -f "$SYNC_CONF" ] || cat > "$SYNC_CONF" <<TOML
+# FxA's Sync server for the sandbox, on :8000; tokens are checked against FxA's auth server on :9000.
+master_secret = "$(openssl rand -hex 32)"
+host = "127.0.0.1"
+port = 8000
+human_logs = 1
+syncstorage.database_url = "mysql://sync:test@127.0.0.1:3306/syncstorage"
+syncstorage.enabled = true
+syncstorage.enable_quota = 0
+syncstorage.run_migrations = true
+tokenserver.database_url = "mysql://sync:test@127.0.0.1:3306/tokenserver"
+tokenserver.enabled = true
+tokenserver.node_type = "mysql"
+tokenserver.run_migrations = true
+tokenserver.fxa_email_domain = "api-accounts.stage.mozaws.net"
+tokenserver.fxa_oauth_server_url = "http://localhost:9000"
+tokenserver.fxa_metrics_hash_secret = "$(openssl rand -hex 16)"
+TOML
+  chmod 644 "$SYNC_CONF"
+  $my "CREATE USER IF NOT EXISTS 'sync'@'localhost' IDENTIFIED BY 'test'; CREATE USER IF NOT EXISTS 'sync'@'%' IDENTIFIED BY 'test';
+    CREATE DATABASE IF NOT EXISTS syncstorage; CREATE DATABASE IF NOT EXISTS tokenserver;
+    GRANT ALL PRIVILEGES ON \`syncstorage%\`.* TO 'sync'@'localhost'; GRANT ALL PRIVILEGES ON \`tokenserver%\`.* TO 'sync'@'localhost';
+    GRANT ALL PRIVILEGES ON \`syncstorage%\`.* TO 'sync'@'%'; GRANT ALL PRIVILEGES ON \`tokenserver%\`.* TO 'sync'@'%';" || return 1
+  # One run as nobody makes the tables; the token server then needs its service and node rows.
+  setpriv --reuid=nobody --regid=nogroup --clear-groups "$SYNC/syncserver" --config "$SYNC_CONF" > /tmp/syncserver-setup.log 2>&1 < /dev/null & pid=$!
+  for _ in $(seq 60); do curl -sf -m 2 -o /dev/null localhost:8000/__heartbeat__ && { ok=1; break; }; sleep 1; done
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null || true
+  [ -n "$ok" ] || { tail -20 /tmp/syncserver-setup.log >&2; return 1; }
+  [ "$($my "select count(*) from tokenserver.services where service = 'sync-1.5'")" -gt 0 ] \
+    || $my "INSERT INTO tokenserver.services (service, pattern) VALUES ('sync-1.5', '{node}/1.5/{uid}')" || return 1
+  [ "$($my "select count(*) from tokenserver.nodes where node = 'http://localhost:8000'")" -gt 0 ] \
+    || $my "INSERT INTO tokenserver.nodes (service, node, available, capacity, current_load, backoff, downed)
+       VALUES ((select id from tokenserver.services where service = 'sync-1.5'), 'http://localhost:8000', 100, 100, 0, 0, 0)" || return 1
+  cat > /etc/systemd/system/syncserver.service <<UNIT
+[Unit]
+Description=FxA Sync server (syncstorage-rs $SYNCSTORAGE_TAG) on :8000
+After=mysql.service
+Requires=mysql.service
+[Service]
+User=agent
+ExecStart=$SYNC/syncserver --config $SYNC_CONF
+Environment=RUST_LOG=info
+Restart=on-failure
+UNIT
+  systemctl daemon-reload
+  [ -n "$up" ] || systemctl stop mysql
+  echo "$SYNCSTORAGE_TAG" > "$SYNC/.setup"
+}
+syncserver() {
+  [ "$(cat "$SYNC/.version" 2>/dev/null)" = "$SYNCSTORAGE_TAG" ] \
+    || syncserver_build || { echo "WARN: syncserver $SYNCSTORAGE_TAG did not build; the earlier copy stays" >&2; return 0; }
+  [ "$(cat "$SYNC/.setup" 2>/dev/null)" = "$SYNCSTORAGE_TAG" ] || syncserver_setup || echo "WARN: the syncserver setup failed" >&2
+}
+
 # The one pin for each runtime: manager.sh reads them for the manager, and refresh.sh
 # for the snapshot (lib/claude-pin.check.sh).
 CLAUDE_CODE_VERSION=2.1.304
@@ -98,3 +177,5 @@ nightly
 echo "nightly $(sed -n 's/^Version=//p' "$NIGHTLY/application.ini" | head -1)"
 sync_tools
 echo "spanner-emulator $(cat /opt/spanner-emulator/.version 2>/dev/null || echo none)"
+syncserver
+echo "syncserver $(cat "$SYNC/.setup" 2>/dev/null || echo none)"

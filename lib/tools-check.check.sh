@@ -19,10 +19,14 @@ printf '#!/bin/sh\necho "Mozilla Firefox 161.0a1"\n' > "$t/opt/firefox-nightly/f
 cp "$t/opt/firefox-nightly/firefox" "$t/pw/firefox-1/firefox/firefox"
 chmod +x "$t"/bin/* "$t/opt/firefox-nightly/firefox" "$t/pw/firefox-1/firefox/firefox"
 printf '%18s\x3e' '' > "$t/opt/spanner-emulator/gateway_main"
+mkdir -p "$t/opt/syncserver" && printf '%18s\x3e' '' > "$t/opt/syncserver/syncserver"
 go() { PATH="$t/bin:$PATH" OPT="$t/opt" PW="$t/pw" bash "$sc" > "$t/out" 2>&1; echo $?; }
 
 check "every tool runs: the build goes on" 0 "$(go)"
-check "it names each tool it ran" 6 "$(grep -c '^ok ' "$t/out")"
+check "it names each tool it ran" 7 "$(grep -c '^ok ' "$t/out")"
+mv "$t/opt/syncserver/syncserver" "$t/syncserver"
+check "a missing Sync server fails the build" "1|1" "$(go)|$(grep -c '^FAIL syncserver: .* is missing' "$t/out")"
+mv "$t/syncserver" "$t/opt/syncserver/syncserver"
 printf '#!/bin/sh\necho "libgtk-3.so.0: cannot open shared object file" >&2; exit 255\n' > "$t/opt/firefox-nightly/firefox"
 check "a Firefox that does not start fails the build, with its error" "1|1" "$(go)|$(grep -c '^FAIL firefox nightly: libgtk-3' "$t/out")"
 printf '#!/bin/sh\necho "Mozilla Firefox 161.0a1"\n' > "$t/opt/firefox-nightly/firefox"

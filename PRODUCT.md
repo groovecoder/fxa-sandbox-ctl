@@ -223,6 +223,13 @@ runs only while its file matches the pinned hash.
 a team image, and a generic pass skill for a team that is not FxA. Do not
 fake these with prompt text; say that the team needs phase 3.
 
+**No Docker on runners.** A team's services run as native processes or system units, never as
+containers. The Docker daemon is root: a user who can use it owns the runner. Container traffic
+also skips the egress firewall and the metadata block, because those rules match the `agent`
+user, so a container on GCE can read the runner's service account token. A team that needs a
+server builds it natively in its boot script (as sync-storage does), or the image bakes it (as
+FxA's Sync server, `03b-toolchain.sh`).
+
 ---
 
 ## 6. Principles
