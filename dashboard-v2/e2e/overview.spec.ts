@@ -72,3 +72,21 @@ test('the team picker: in the hash, the figures, the runs and the Teams row of o
 });
 
 
+
+test('the Activity card fills the height of the right column and shows only whole rows', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const many = { ...RUNS, runs: [...Array(30)].map((_, i) => ({ ...RUNS.runs[i % RUNS.runs.length], key: `EX-${900 + i}` })) };
+  await page.route('**/api/runs/recent*', (r) => r.fulfill({ json: rel(many) }));
+  await page.goto('/v2/#overview');
+  await expect(page.locator('#ov-runs .ovrun').first()).toBeVisible();
+  const m = await page.evaluate(() => {
+    const box = (s: string) => document.querySelector(s)!.getBoundingClientRect();
+    const list = box('#ov-runs .ovruns');
+    const shown = [...document.querySelectorAll('#ov-runs .ovrun')].map((e) => e.getBoundingClientRect()).filter((r) => r.left < list.right);
+    return { card: box('#ov-runs').bottom, right: box('#ov-hours').bottom, shown: shown.length, cut: shown.some((r) => r.bottom > list.bottom + 1) };
+  });
+  expect(Math.abs(m.card - m.right)).toBeLessThan(2);
+  expect(m.shown).toBeGreaterThan(4);
+  expect(m.shown).toBeLessThan(30);
+  expect(m.cut).toBe(false);
+});

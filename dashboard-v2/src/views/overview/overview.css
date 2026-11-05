@@ -88,6 +88,13 @@
 #ov-runs, #ov-teams { container-type: inline-size; }
 #ov-runs > .sub { color: var(--dim); margin-bottom: var(--s1); }
 #ov-runs h2 a { white-space: nowrap; }
+/* Two columns: the card takes the height the right column gives it, and a row that does not fit wraps out of view. */
+@media (min-width: 1100px) {
+  #ov-runs { display: flex; flex-direction: column; }
+  .ovruns { flex: 1 1 0; min-height: 240px; contain: size; display: flex; flex-flow: column wrap; align-content: flex-start; overflow: hidden; }
+  .ovruns > .ovrun { width: 100%; }
+}
+@media (max-width: 1099px) { .ovruns > .ovrun:nth-child(n+9) { display: none; } }
 .ovrun { display: grid; grid-template-columns: 62px 28px minmax(0, 1fr) auto; gap: 2px var(--s3); align-items: center; padding: var(--s2) 0; border-top: 1px solid var(--line); }
 .ovrun time { font-size: var(--t-label); color: var(--dim); grid-row: span 2; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ovrun .ic { width: 28px; height: 28px; border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; grid-row: span 2; }

@@ -319,11 +319,11 @@ function Activity({ range, note, team }: P) {
     const d = { '7d': 7, '30d': 30, '90d': 90 }[range], at = `${range}:${team}`, wait = last.current === at ? 5000 : 0;
     const id = setTimeout(async () => {
       last.current = at;
-      // The API has no team filter: one team reads more runs and keeps its own 4.
-      const g = await latest<J>('ov-runs', `/api/runs/recent?limit=${team ? 40 : 4}&days=${d}`);
+      // The API has no team filter: one team reads more runs and keeps its own.
+      const g = await latest<J>('ov-runs', `/api/runs/recent?limit=${team ? 100 : 30}&days=${d}`);
       if (!g) return;
       const j = 'data' in g ? g.data : null, err = !('data' in g) ? g.error : !j || !Array.isArray(j.runs) ? 'the answer has no runs' : j.error || null;
-      setRuns(err ? { runs: null, err } : { runs: team ? j.runs.filter((r: J) => r.team === team).slice(0, 4) : j.runs, err: null });
+      setRuns(err ? { runs: null, err } : { runs: team ? j.runs.filter((r: J) => r.team === team).slice(0, 30) : j.runs, err: null });
     }, wait);
     return () => clearTimeout(id);
   }, [range, team, tick]);
@@ -334,7 +334,7 @@ function Activity({ range, note, team }: P) {
     <Sec id="ov-runs" sm>
       <Hd t="Activity"><a className="note" href="#sessions">All sessions<Go /></a></Hd>
       {note && <div className="ovknote">{note}</div>}
-      {runs.runs.length ? <div>{runs.runs.map((r) => <RunRow key={`${r.key}:${r.at}`} r={r} site={site} sessions={sessions} fresh={fresh} />)}</div> : <EmptyBox>No run in the last {rangeName(range)}.</EmptyBox>}
+      {runs.runs.length ? <div className="ovruns">{runs.runs.map((r) => <RunRow key={`${r.key}:${r.at}`} r={r} site={site} sessions={sessions} fresh={fresh} />)}</div> : <EmptyBox>No run in the last {rangeName(range)}.</EmptyBox>}
     </Sec>
   );
 }
