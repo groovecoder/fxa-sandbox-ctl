@@ -63,9 +63,14 @@ check "the probe misses and GCE cannot say: the stop fails" "1" "$(UP=0 vm_stop 
 SANDBOX_ROOT="$(cd "$here/.." && pwd)"; sent="$tmp/sent"; : > "$sent"
 _fc_ssh() { printf '%s %s\n' "$(grep -o '/usr/local/[a-z/.0-9-]*' <<< "$1" | head -1)" "$(cksum | cut -d' ' -f1)" >> "$sent"; }
 fc_install
-check "fc install sends both scripts to their paths" \
-  "/usr/local/sbin/fc-refresh $(cksum < "$SANDBOX_ROOT/infra/firecracker/refresh.sh" | cut -d' ' -f1)|/usr/local/share/fxa/03b-toolchain.sh $(cksum < "$SANDBOX_ROOT/packer/scripts/03b-toolchain.sh" | cut -d' ' -f1)" \
+check "fc install sends the three scripts to their paths" \
+  "/usr/local/sbin/fc-refresh $(cksum < "$SANDBOX_ROOT/infra/firecracker/refresh.sh" | cut -d' ' -f1)|/usr/local/share/fxa/03b-toolchain.sh $(cksum < "$SANDBOX_ROOT/packer/scripts/03b-toolchain.sh" | cut -d' ' -f1)|/usr/local/share/fxa/09-fxa-services.sh $(cksum < "$SANDBOX_ROOT/packer/scripts/09-fxa-services.sh" | cut -d' ' -f1)" \
   "$(paste -sd'|' "$sent")"
+# refresh.sh puts the repo's fxa-start on the guest: the text 09-fxa-services.sh writes, with the auth server's oauth/token fix.
+out="$( fc=fc; fc() { cat > "$tmp/fxa-start.sent"; }
+  eval "$(grep -E '^fxa_start=|^\[ -n "\$fxa_start" \]|^"\$fc" ssh 0 .*fxa-start' "$SANDBOX_ROOT/infra/firecracker/refresh.sh" | sed "s#/usr/local/share/fxa/09-fxa-services.sh#$SANDBOX_ROOT/packer/scripts/09-fxa-services.sh#g")"; echo "rc=$?" )"
+check "refresh installs the repo's fxa-start on the guest" "rc=0|yes|yes|yes" \
+  "${out}|$(head -1 "$tmp/fxa-start.sent" | grep -q '^#!/bin/bash' && echo yes)|$(grep -q 'JWT_ACCESS_TOKENS_ENABLED: "false"' "$tmp/fxa-start.sent" && echo yes)|$(grep -qx 'FXASTART' "$tmp/fxa-start.sent" || echo yes)"
 # fc status with the host off shows the last read, which the alerts also use.
 SESSION_DIR="$tmp/s"; mkdir -p "$SESSION_DIR"; printf 'refresh=success\n' > "$SESSION_DIR/.fc-status"
 _fc_up() { return 1; }

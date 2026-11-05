@@ -85,6 +85,10 @@ export FIREFOX_BINARY=/opt/firefox-nightly/firefox
 export MOZ_REMOTE_ALLOW_SYSTEM_ACCESS=1
 ENV
 GUEST
+# The guest's fxa-start is the image build's: put the repo's on it, so a later fix reaches the snapshot.
+fxa_start="$(sed -n "/^cat > \/usr\/local\/bin\/fxa-start <<'FXASTART'$/,/^FXASTART$/p" /usr/local/share/fxa/09-fxa-services.sh | sed '1d;$d')"
+[ -n "$fxa_start" ] || { echo "ERROR: no fxa-start in /usr/local/share/fxa/09-fxa-services.sh: run fxa-sandbox-ctl fc install" >&2; exit 1; }
+"$fc" ssh 0 'sudo tee /usr/local/bin/fxa-start > /dev/null && sudo chmod 755 /usr/local/bin/fxa-start' <<< "$fxa_start"
 # The image has no apt lists: without the update, the install finds no package, and each boot
 # then installs dnsmasq itself (about 30 s).
 "$fc" ssh 0 'sudo bash -c "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq make perl unzip watchman dnsmasq-base" > /dev/null 2>&1' \
