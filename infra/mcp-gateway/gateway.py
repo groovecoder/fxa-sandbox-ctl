@@ -20,7 +20,8 @@ Config (MCP_GATEWAY_CONFIG), see connectors.example.json:
   {"connectors": {"<name>": {"url", "headers", "tools", "rules", "deny_result", "redact", "redact_keys",
                              "prune_keys", "prune_items", "max_result_bytes", "max_result_hint", "tool_note"}}}
 A connector with "type": "github-app" has no upstream: the gateway serves GitHub read tools itself
-with the controller's GitHub App (GitHubApp below).
+with the controller's GitHub App (GitHubApp below). "type": "circleci" serves CircleCI read tools the
+same way, with the token in its Circle-Token header (CircleCI below).
 Header values expand ${VAR} from the environment, so secrets stay in .env.
 ${RUNLAYER_OAUTH_TOKEN} is an access token renewed from the refresh token in
 MCP_GATEWAY_OAUTH {token_endpoint, client_id, refresh_tokens: {url: token},
@@ -729,6 +730,142 @@ class GitHubApp(Upstream):
         return {"content": [{"type": "text", "text": json.dumps(out, indent=1)}]}
 
 
+# The read tools of a "circleci" connector: (description, its arguments besides owner and repo). No rerun,
+# cancel, approve or config call exists here: the shared token can do all of them.
+CI_TOOLS = {
+    "get_workflow_jobs": ("A CircleCI workflow's jobs: name, status and job_number of each (for get_job).", {"workflow_id": "string"}),
+    "get_job": ("A CircleCI job: its name and status, up to 50 failed tests, and the end of up to 3 failed steps "
+                "(tail_lines, default 200).", {"job_number": "integer", "tail_lines": "integer"}),
+    "get_job_artifacts": ("The paths of a CircleCI job's artifacts (for get_artifact_text).", {"job_number": "integer"}),
+    "get_artifact_text": ("The text of one .md, .txt, .log, .xml or .json artifact of a CircleCI job, up to 40 KB, "
+                          "such as a Playwright error-context.md.", {"job_number": "integer", "path": "string"}),
+}
+CI_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+CI_TEXT_RE = re.compile(r"(?i).+\.(md|txt|log|xml|json)")
+CI_MAX = 20 << 20  # bytes of one download
+
+
+class CircleCI(Upstream):
+    """CircleCI read tools served here, with one API token (headers: {"Circle-Token": "${CIRCLECI_TOKEN}"}).
+    Every tool takes owner and repo, so the rules pin the project as for GitHub. The token goes only to
+    CircleCI's own https hosts and never across a redirect; an error names no URL."""
+    # The hosts that get the token; a test points this at its fake server.
+    TOKEN_URL = re.compile(r"https://(circleci\.com|([a-z0-9-]+\.)+circle-artifacts\.com)(/|$)")
+
+    def __init__(self, name, spec):
+        super().__init__(name, dict(spec, url=spec.get("api") or "https://circleci.com"))
+        self.api = self.resource.rstrip("/")
+        if "Circle-Token" not in self.headers:
+            raise ValueError("headers needs Circle-Token")
+
+    def _get(self, url, limit=CI_MAX, auth=True):
+        if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+            raise UpstreamError("%s: refused a link that is not http" % self.name)
+        auth = bool(auth and self.TOKEN_URL.match(url))
+        headers = {"accept": "application/json", "user-agent": "fxa-mcp-gateway"}
+        if auth:
+            headers["Circle-Token"] = expand(self.headers["Circle-Token"], live=True)
+        opener = urllib.request.build_opener(_NoRedirect) if auth else urllib.request.build_opener()
+        try:
+            with opener.open(urllib.request.Request(url, headers=headers), timeout=UPSTREAM_TIMEOUT) as r:
+                return r.read(limit)
+        except urllib.error.HTTPError as e:
+            loc = e.headers.get("location") if auth and e.code in (301, 302, 303, 307, 308) else None
+            e.close()
+            if loc:
+                # An artifact is on signed storage: fetch it without the token.
+                return self._get(urllib.parse.urljoin(url, loc), limit, auth=False)
+            raise UpstreamError("%s answered HTTP %d" % (self.name, e.code))
+        except (OSError, ValueError) as e:
+            raise UpstreamError("%s: %s" % (self.name, e.__class__.__name__))
+
+    def _pages(self, path, most=10):
+        """The items of a paged v2 list, at most `most` pages."""
+        items, token = [], None
+        for _ in range(most):
+            doc = json.loads(self._get(self.api + path + ("?page-token=" + urllib.parse.quote(token) if token else "")))
+            items += doc.get("items") or []
+            token = doc.get("next_page_token")
+            if not token:
+                break
+        return items
+
+    def list_tools(self):
+        if self.tools is None:
+            self.tools = {}
+            for n, (desc, extra) in CI_TOOLS.items():
+                if n in self.tools_allowed:
+                    props = {"owner": {"type": "string"}, "repo": {"type": "string"}, **{k: {"type": t} for k, t in extra.items()}}
+                    self.tools[n] = {"name": n, "description": desc, "inputSchema": {
+                        "type": "object", "properties": props, "required": ["owner", "repo"] + [k for k in extra if k != "tail_lines"]}}
+        return self.tools
+
+    def rpc(self, method, params):
+        if method != "tools/call" or params.get("name") not in self.list_tools():
+            raise UpstreamError("%s: no such tool" % self.name)
+        try:
+            return self._call(params["name"], params.get("arguments") or {})
+        except (ValueError, KeyError, TypeError, AttributeError):  # an answer not shaped as CircleCI documents
+            raise UpstreamError("%s: unexpected answer" % self.name)
+
+    def _call(self, tool, args):
+        owner, repo = args.get("owner"), args.get("repo")
+        if not all(isinstance(v, str) and GH_NAME_RE.match(v) for v in (owner, repo)):
+            raise UpstreamError("%s: owner and repo must be plain names" % self.name)
+        slug = "%s/%s" % (owner, repo)
+        if tool == "get_workflow_jobs":
+            wf = args.get("workflow_id")
+            if not isinstance(wf, str) or not CI_UUID_RE.fullmatch(wf):
+                raise UpstreamError("%s: workflow_id must be a workflow's UUID" % self.name)
+            # The path names no project, so the answer must: another team's workflow stops here.
+            doc = json.loads(self._get("%s/api/v2/workflow/%s" % (self.api, wf)))
+            if str(doc.get("project_slug") or "").lower() not in ("gh/" + slug.lower(), "github/" + slug.lower()):
+                raise UpstreamError("%s: that workflow is not in %s" % (self.name, slug))
+            out = {"name": doc.get("name"), "status": doc.get("status"),
+                   "jobs": [{"name": j.get("name"), "status": j.get("status"), "job_number": j.get("job_number")}
+                            for j in self._pages("/api/v2/workflow/%s/job" % wf)]}
+            return {"content": [{"type": "text", "text": json.dumps(out, indent=1)}]}
+        n = args.get("job_number")
+        if isinstance(n, str) and n.isdigit():
+            n = int(n)
+        if not isinstance(n, int) or isinstance(n, bool) or n <= 0:
+            raise UpstreamError("%s: job_number must be a positive number" % self.name)
+        v2 = "/api/v2/project/gh/%s" % slug
+        arts = lambda: [(a.get("path"), a.get("url")) for a in self._pages("%s/%d/artifacts" % (v2, n))]
+        if tool == "get_job_artifacts":
+            paths = [p for p, _ in arts()]
+            out = {"paths": paths[:300], **({"more": len(paths) - 300} if len(paths) > 300 else {})}
+            return {"content": [{"type": "text", "text": json.dumps(out, indent=1)}]}
+        if tool == "get_artifact_text":
+            path = args.get("path")
+            if not isinstance(path, str) or not CI_TEXT_RE.fullmatch(path):
+                raise UpstreamError("%s: path must be a .md, .txt, .log, .xml or .json artifact" % self.name)
+            # Only a link from this job's own list: never one the caller made up.
+            url = next((u for p, u in arts() if p == path and isinstance(u, str)), None)
+            if not url:
+                raise UpstreamError("%s: job %d has no artifact %s" % (self.name, n, path))
+            body = self._get(url, 40001)
+            text = body[:40000].decode("utf-8", "replace") + ("\n[cut at 40 KB]" if len(body) > 40000 else "")
+            return {"content": [{"type": "text", "text": text}]}
+        job = json.loads(self._get("%s%s/job/%d" % (self.api, v2, n)))
+        parts = ["Job %d: %s, %s" % (n, job.get("name"), job.get("status"))]
+        failed = [t for t in self._pages("%s/%d/tests" % (v2, n)) if t.get("result") == "failure"]
+        if failed:
+            parts.append("Failed tests:")
+            parts += ["- %s %s: %s" % (t.get("classname"), t.get("name"),
+                                       re.sub(r"\[\[ATTACHMENT\|[^]]*\]\]\s*", "", t.get("message") or "")[:300]) for t in failed[:50]]
+        # v2 has no step logs; v1.1 lists each step with a signed link to its output, read with no token.
+        build = json.loads(self._get("%s/api/v1.1/project/github/%s/%d" % (self.api, slug, n)))
+        steps = [(s.get("name"), a.get("output_url")) for s in build.get("steps") or [] for a in s.get("actions") or [] if a.get("failed") is True]
+        for name, url in steps[:3]:
+            parts.append('End of the failed step "%s":' % name)
+            if isinstance(url, str) and url:
+                msgs = json.loads(self._get(url, auth=False))
+                text = "".join(m.get("message") or "" for m in msgs if isinstance(m, dict))
+                parts += log_tail([re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", ln) for ln in text.splitlines()], args.get("tail_lines"))
+        return {"content": [{"type": "text", "text": "\n".join(parts)}]}
+
+
 def load_upstreams():
     try:
         with open(CONFIG) as f:
@@ -742,7 +879,7 @@ def load_upstreams():
         if not spec.get("tools"):
             sys.stderr.write("fxa-mcp-gateway: %s has no tools allowlist; it serves nothing\n" % name)
         try:
-            ups[name] = (GitHubApp if spec.get("type") == "github-app" else Upstream)(name, spec)
+            ups[name] = {"github-app": GitHubApp, "circleci": CircleCI}.get(spec.get("type"), Upstream)(name, spec)
         except (KeyError, ValueError, re.error) as e:
             sys.stderr.write("fxa-mcp-gateway: %s is off: %s\n" % (name, e))
     return ups

@@ -102,7 +102,7 @@ promote_tests() {
 secret_unit() {
   case "$1" in
     fxa-slack-bot-token|fxa-slack-app-token) echo fxa-agent-bot ;;
-    fxa-runlayer-agent-token|fxa-sentry-token|fxa-grafana-token) echo fxa-mcp-gateway ;;
+    fxa-runlayer-agent-token|fxa-sentry-token|fxa-grafana-token|fxa-circleci-token) echo fxa-mcp-gateway ;;
     fxa-anthropic-api-key) echo fxa-llm-proxy ;;
   esac
 }

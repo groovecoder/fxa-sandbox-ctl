@@ -668,5 +668,154 @@ class GitHubAppConnector(unittest.TestCase):
         self.assertEqual(self.g.apply_rules(scoped, "get_job_logs", schema, {"owner": "mozilla-services", "repo": "syncstorage-rs", "job_id": 1})["job_id"], 1)
 
 
+class CircleCIConnector(unittest.TestCase):
+    """The gateway's own CircleCI tools: one project per call, and the token only on CircleCI's own host."""
+    SEEN = []  # (host, path, Circle-Token header) of every request to either fake host
+    WF, WF_OTHER = "48a37f1d-c27d-4de2-af96-3b954c8b4be3", "0b6e0e8c-0000-4000-8000-000000000001"
+    KEY = "-----BEGIN RSA PRIVATE KEY-----\nMIIEfakefakefake\nAAAA\n-----END RSA PRIVATE KEY-----"
+    GHP = "ghp_" + "A1" * 18
+    DIGEST = "sha256:" + "ab" * 32
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, HERE)
+        import gateway
+        cls.g = gateway
+        seen, t = cls.SEEN, cls
+
+        def server(routes, host):
+            class H(http.server.BaseHTTPRequestHandler):
+                def log_message(self, *a):
+                    pass
+
+                def do_GET(self):
+                    seen.append((host, self.path, self.headers.get("circle-token")))
+                    code, body, loc = routes(self.path)
+                    body = body if isinstance(body, bytes) else json.dumps(body).encode()
+                    self.send_response(code)
+                    if loc:
+                        self.send_header("location", loc)
+                    self.send_header("content-length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+            srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+            threading.Thread(target=srv.serve_forever, daemon=True).start()
+            return "http://127.0.0.1:%d" % srv.server_port
+
+        def store(p):
+            if p == "/out/7":
+                log = "\n".join(["\x1b[31mFAILED\x1b[0m test_x"] + ["line %d" % i for i in range(300)] + ["image " + t.DIGEST, "token " + t.GHP, t.KEY])
+                return 200, [{"message": log}], None
+            if p == "/signed/ec":
+                return 200, b"# Error details: element(s) not found", None
+            return 404, {}, None
+        st = server(store, "store")
+
+        def cci(p):
+            if p == "/api/v2/workflow/%s" % t.WF:
+                return 200, {"project_slug": "gh/mozilla/fxa", "name": "test_pull_request", "status": "failed"}, None
+            if p == "/api/v2/workflow/%s" % t.WF_OTHER:
+                return 200, {"project_slug": "gh/mozilla/fxa-private", "name": "secret", "status": "failed"}, None
+            if p.startswith("/api/v2/workflow/%s/job" % t.WF):
+                return 200, {"items": [{"name": "unit", "status": "failed", "job_number": 7}], "next_page_token": None}, None
+            if p == "/api/v2/project/gh/mozilla/fxa/job/7":
+                return 200, {"name": "unit", "status": "failed"}, None
+            if p.startswith("/api/v2/project/gh/mozilla/fxa/7/tests"):
+                return 200, {"items": [{"result": "success", "classname": "a", "name": "ok"},
+                                       {"result": "failure", "classname": "b.spec.ts", "name": "shows x", "message": "Timeout 10000ms"}]}, None
+            if p == "/api/v1.1/project/github/mozilla/fxa/7":
+                return 200, {"steps": [{"name": "checkout", "actions": [{"failed": None}]},
+                                       {"name": "run tests", "actions": [{"failed": True, "output_url": st + "/out/7"}]}]}, None
+            if p.startswith("/api/v2/project/gh/mozilla/fxa/7/artifacts"):
+                return 200, {"items": [{"path": "artifacts/x/error-context.md", "url": base + "/art/ec"},
+                                       {"path": "artifacts/x/trace.zip", "url": base + "/art/tz"}]}, None
+            if p == "/art/ec":
+                return 302, b"", st + "/signed/ec"
+            return 404, {"message": "Not Found"}, None
+        base = server(cci, "cci")
+        os.environ["CIRCLECI_TOKEN"] = "cci-secret-token"
+        spec = dict(json.load(open(os.path.join(HERE, "connectors.example.json")))["connectors"]["circleci"], api=base)
+        cls.up = gateway.CircleCI("circleci", spec)
+        cls.up.TOKEN_URL = re.compile(re.escape(base) + "/")
+        # The whole call path, in process: rules, cap, redaction and the audit line.
+        cls.dir = tempfile.mkdtemp()
+        os.makedirs(os.path.join(cls.dir, "tokens"))
+        gateway.DIR, gateway.fxadb.PATH = cls.dir, os.path.join(cls.dir, "no.db")
+        gateway.UPSTREAMS = {"circleci": cls.up}
+
+    def call(self, tool, scope=None, **args):
+        tok = "fxm_" + "c" * 32
+        rec = {"run": "ci-run", "expires": time.time() + 60, "connectors": ["circleci"], "cap_calls": 100, "calls": 0}
+        if scope:
+            rec["scope"] = scope
+        with open(os.path.join(self.dir, "tokens", tok + ".json"), "w") as f:
+            json.dump(rec, f)
+        return self.g.call_tool(tok, rec, {"name": "circleci__" + tool, "arguments": dict({"owner": "mozilla", "repo": "fxa"}, **args)})
+
+    def test_a_job_gives_its_failed_tests_and_failed_steps_end(self):
+        text = self.call("get_job", job_number=7)["content"][0]["text"]
+        self.assertTrue(text.startswith("Job 7: unit, failed\nFailed tests:\n- b.spec.ts shows x: Timeout 10000ms"), text)
+        self.assertNotIn(" a ok", text)
+        self.assertIn('End of the failed step "run tests":', text)
+        self.assertIn("FAILED test_x", text.split("--- the end of the log:")[0])
+        self.assertNotIn("/out/7", text)  # no output_url
+
+    def test_a_log_loses_a_private_key_and_a_github_token_and_keeps_an_image_digest(self):
+        text = self.call("get_job", job_number=7)["content"][0]["text"]
+        self.assertNotIn("MIIEfake", text)
+        self.assertNotIn(self.GHP, text)
+        self.assertIn("[private key]", text)
+        self.assertIn(self.DIGEST, text)
+
+    def test_a_workflow_of_another_project_is_refused(self):
+        out = json.loads(self.call("get_workflow_jobs", workflow_id=self.WF)["content"][0]["text"])
+        self.assertEqual(out["jobs"], [{"name": "unit", "status": "failed", "job_number": 7}])
+        res = self.call("get_workflow_jobs", workflow_id=self.WF_OTHER)
+        self.assertTrue(res["isError"])
+        self.assertNotIn("secret", json.dumps(res))
+        self.assertTrue(self.call("get_workflow_jobs", workflow_id="../job/1")["isError"])
+
+    def test_an_artifact_comes_only_from_the_jobs_own_list_and_its_redirect_gets_no_token(self):
+        out = json.loads(self.call("get_job_artifacts", job_number=7)["content"][0]["text"])
+        self.assertEqual(out, {"paths": ["artifacts/x/error-context.md", "artifacts/x/trace.zip"]})
+        del self.SEEN[:]
+        self.assertEqual(self.call("get_artifact_text", job_number=7, path="artifacts/x/error-context.md")["content"][0]["text"],
+                         "# Error details: element(s) not found")
+        self.assertIn(("cci", "/art/ec", "cci-secret-token"), self.SEEN)
+        self.assertEqual([s for s in self.SEEN if s[0] == "store"], [("store", "/signed/ec", None)])
+        for path in ("artifacts/y/error-context.md", "artifacts/x/trace.zip", "../../etc/passwd.md"):
+            self.assertTrue(self.call("get_artifact_text", job_number=7, path=path)["isError"], path)
+        self.assertFalse(any(s[0] == "store" and s[1] != "/signed/ec" for s in self.SEEN))
+
+    def test_a_step_log_is_read_with_no_token(self):
+        del self.SEEN[:]
+        self.call("get_job", job_number=7)
+        self.assertEqual([s[2] for s in self.SEEN if s[0] == "store"], [None])
+        self.assertTrue(all(s[2] == "cci-secret-token" for s in self.SEEN if s[0] == "cci"))
+
+    def test_the_token_never_reaches_an_answer_an_error_or_the_audit_log(self):
+        outs = [self.call("get_job", job_number=7), self.call("get_job", job_number=99), self.call("get_artifact_text", job_number=7, path="nope.md"),
+                self.call("get_workflow_jobs", workflow_id=self.WF_OTHER)]
+        self.assertTrue(outs[1]["isError"])
+        self.assertIn("HTTP 404", outs[1]["content"][0]["text"])
+        with open(os.path.join(self.dir, "calls.jsonl")) as f:
+            audit = f.read()
+        for text in [json.dumps(o) for o in outs] + [audit]:
+            self.assertNotIn("cci-secret-token", text)
+            self.assertNotIn("127.0.0.1", text)  # no URL either
+
+    def test_a_team_scope_swaps_the_project_pin(self):
+        schema = self.up.list_tools()["get_job"]["inputSchema"]
+        rules = self.g.team_rules(self.up.rules, {"repos": ["mozilla-services/syncstorage-rs"]})
+        self.assertEqual(self.g.apply_rules(rules, "get_job", schema, {"owner": "mozilla-services", "repo": "syncstorage-rs", "job_number": 1})["repo"], "syncstorage-rs")
+        with self.assertRaises(self.g.Denied):
+            self.g.apply_rules(rules, "get_job", schema, {"owner": "mozilla", "repo": "fxa", "job_number": 1})
+        self.assertTrue(self.call("get_job", scope={"repos": ["mozilla/pyfxa"]}, job_number=7)["isError"])
+
+    def test_only_read_tools_exist(self):
+        self.assertEqual(sorted(self.up.list_tools()), ["get_artifact_text", "get_job", "get_job_artifacts", "get_workflow_jobs"])
+        self.assertFalse(re.search(r"rerun|cancel|approve|POST", open(os.path.join(HERE, "gateway.py")).read().split("class CircleCI")[1].split("def load_upstreams")[0]))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

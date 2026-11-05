@@ -137,10 +137,14 @@ done
   sed -e "/^__FXA_SECRETS__\$/{r ${ROOT}/infra/gce/fxa-secrets.sh" -e 'd;}' "${ROOT}/infra/gce/manager-setup.sh"; } | ssh_vm 'sudo bash -s'
 # The MCP gateway's connectors, when you keep them locally. Credentials stay
 # ${VAR} references filled from Secret Manager, so a literal one stops here.
+# _literal_cred <file>   True when the file holds a credential, not a ${VAR} reference.
+_literal_cred() {
+  grep -qE 'Bearer [^$"]|xox[abpr]-|ghp_|github_pat_|sk-ant-|sntry[a-z]_|glsa_|CCIPAT_|"Circle-Token"[[:space:]]*:[[:space:]]*"[^$]' "$1"
+}
 G="${HOME}/.config/fxa/mcp-gateway.json"
 if [ -f "$G" ]; then
   jq -e . "$G" >/dev/null || { echo "ERROR: $G is not valid JSON." >&2; exit 1; }
-  if grep -qE 'Bearer [^$"]|xox[abpr]-|ghp_|github_pat_|sk-ant-|sntry[a-z]_|glsa_' "$G"; then
+  if _literal_cred "$G"; then
     echo "ERROR: $G holds a literal credential; use \${VAR} and Secret Manager." >&2; exit 1
   fi
   ssh_vm 'sudo install -D -m 600 -o fxa -g fxa /dev/stdin /home/fxa/.config/fxa/mcp-gateway.json && sudo systemctl restart fxa-mcp-gateway.service' < "$G"

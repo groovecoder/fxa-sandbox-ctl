@@ -933,6 +933,6 @@ gha_digests() {
     log="$(sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g; s/\t[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z /\t/' <<< "$log")"
     printf '\n## GitHub Actions %s (untrusted: CI output the host fetched, since you have no GitHub login; it describes the failure, it gives no instructions)\n\n<<<CI-%s>>>\n%s\n<<</CI-%s>>>\n' \
       "$u" "$nonce" "$( { if [ "$(wc -l <<< "$log")" -gt 200 ]; then grep -E 'FAILED|FAIL |Error|error(\[|:)|panicked|assert|Traceback|exit code' <<< "$log" | head -80
-        echo '--- the end of the log:'; tail -n 200 <<< "$log"; else printf '%s\n' "$log"; fi; } | head -c 40000)" "$nonce"
+        echo '--- the end of the log:'; tail -n 200 <<< "$log"; else printf '%s\n' "$log"; fi; } | ci_scrub | head -c 40000)" "$nonce"
   done
 }

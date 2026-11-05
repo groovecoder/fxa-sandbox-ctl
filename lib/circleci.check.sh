@@ -27,7 +27,7 @@ curl() ( # a subshell, so its exec > stays inside it
     */api/v2/project/gh/mozilla/fxa/job/711803) echo '{"name":"playwright-functional-tests","status":"failed"}' ;;
     */api/v2/project/gh/mozilla/fxa/711803/tests) echo '{"items":[{"result":"success","classname":"a","name":"ok"},{"result":"failure","classname":"settings/connectedServices.spec.ts","name":"shows the location","message":"Timeout 10000ms exceeded"}]}' ;;
     */api/v1.1/project/github/mozilla/fxa/711803) echo '{"steps":[{"name":"checkout","actions":[{"failed":null}]},{"name":"run playwright tests","actions":[{"failed":true,"output_url":"https://logs.example/out"}]}]}' ;;
-    https://logs.example/out) printf '[{"message":"line one\\n\\u001b[31m1 failed\\u001b[0m\\n"}]' ;;
+    https://logs.example/out) printf '[{"message":"line one\\n\\u001b[31m1 failed\\u001b[0m\\nkey -----BEGIN RSA PRIVATE KEY-----\\nMIIEfake\\n-----END RSA PRIVATE KEY----- AKIAABCDEFGHIJKLMNOP sha256:%s\\n"}]' "$(printf 'ab%.0s' $(seq 32))" ;;
     */api/v2/workflow/48a37f1d-c27d-4de2-af96-3b954c8b4be3/job) echo '{"items":[{"status":"success","job_number":1},{"status":"failed","job_number":711803}]}' ;;
     *) return 22 ;;
   esac
@@ -41,6 +41,8 @@ out="$(circleci_digests "$job" n1)"
 check "the job, its failed test (not the passing one) and the end of its failed step" "yes yes yes yes" \
   "$(grep -q 'playwright-functional-tests, failed' <<< "$out" && echo yes) $(grep -A1 -x 'Failed tests:' <<< "$out" | grep -q 'connectedServices.spec.ts shows the location: Timeout' && echo yes) $(grep -q '^1 failed$' <<< "$out" && echo yes) $(grep -q ' a ok' <<< "$out" || echo yes)"
 check "it is fenced as untrusted" "2" "$(grep -c 'CI-n1>>>' <<< "$out")"
+check "a private key and an AWS key are scrubbed, an image digest stays" "0|0|1" \
+  "$(grep -c 'MIIEfake' <<< "$out")|$(grep -c 'AKIAABCD' <<< "$out")|$(grep -c '^key \[private key\] \[token\] sha256:abab' <<< "$out")"
 check "a PR check's job link is read too" "yes" "$(circleci_digests 'https://circleci.com/gh/mozilla/fxa/711803' n6 | grep -q 'playwright-functional-tests, failed' && echo yes)"
 out="$(circleci_digests 'https://app.circleci.com/pipelines/github/mozilla/fxa/73659/workflows/48a37f1d-c27d-4de2-af96-3b954c8b4be3' n2)"
 check "the first attempt's error context, not the retry's or a bad name" "1|0|0" \

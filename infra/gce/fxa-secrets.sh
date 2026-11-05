@@ -50,15 +50,16 @@ SLACK_APP_TOKEN=$sa
 # The LLM proxy needs only the API key: its own file, so it does not load the Jira login and the rest of the ctl .env.
 [ ! -d "$W/fxa-sandbox-ctl" ] || put "$C/llm-proxy.env" "ANTHROPIC_API_KEY=$k
 "
-unset pem ci k cl sb sa
+unset pem k cl sb sa
 # The MCP gateway's upstream credentials, in their own file: no other service reads it.
-gw="$([ -z "$r" ] || printf 'RUNLAYER_AGENT_TOKEN=%s\n' "$r"
+gw="$(printf 'CIRCLECI_TOKEN=%s\n' "$ci"
+  [ -z "$r" ] || printf 'RUNLAYER_AGENT_TOKEN=%s\n' "$r"
   [ -z "$s" ] || printf 'SENTRY_ACCESS_TOKEN=%s\n' "$s"
   [ -z "$g" ] || printf 'GRAFANA_TOKEN=%s\n' "$g")"
-if [ -n "$gw" ]; then put "$C/mcp-gateway.env" "$gw
-"; else rm -f "$C/mcp-gateway.env"; fi
+put "$C/mcp-gateway.env" "$gw
+"
 unset gw
-unset r s g
+unset r s g ci
 # acli keeps its Jira login in its own config, so log it in from the secrets.
 if [ -z "$j" ] || [ -z "$e" ]; then
   echo "fxa-secrets: no fxa-jira-token or fxa-jira-email, so acli keeps its old Jira login" >&2

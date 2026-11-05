@@ -17,4 +17,9 @@ printf 'A=1\nB=3\n' > "$tmp/vm/bot.env.base"
 out="$(_env_guard "$tmp" bot.env.base 2>&1)"; rc=$?
 check "a change on the VM stops it, and shows the change" "1|< B=3|> B=2" "$rc|$(grep '^< ' <<< "$out")|$(grep '^> ' <<< "$out")"
 check "FXA_ENV_OVERWRITE=1 replaces it on purpose" "0" "$(FXA_ENV_OVERWRITE=1 _env_guard "$tmp" bot.env.base 2>/dev/null; echo $?)"
+# The gateway JSON: a ${VAR} passes, a literal CircleCI token stops the deploy.
+eval "$(sed -n '/^_literal_cred() {/,/^}/p' "$here/../infra/gce/manager.sh")"
+lc() { printf '%s\n' "$1" > "$tmp/gw.json"; _literal_cred "$tmp/gw.json" && echo stop || echo ship; }
+check "the gateway JSON: a reference ships, a literal Circle-Token or CCIPAT_ stops" "ship|ship|stop|stop|stop" \
+  "$(lc '{"headers": {"Circle-Token": "${CIRCLECI_TOKEN}"}}')|$(lc '{"headers": {"Authorization": "Bearer ${X}"}}')|$(lc '{"headers": {"Circle-Token": "abc123"}}')|$(lc '{"t": "CCIPAT_abc"}')|$(lc '{"a": "Bearer abc"}')"
 exit "$fail"
