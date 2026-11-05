@@ -94,11 +94,17 @@ unset -f curl
 # A review round on a pushed PR: after the squash's soft reset the index holds the PR's own commits too.
 g init -q --bare "$tmp/o2.git"; g clone -q "$tmp/o2.git" "$tmp/w2" 2>/dev/null
 printf 'doc\n' > "$tmp/w2/doc.md"; printf 'x\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" add .; g -C "$tmp/w2" commit -qm init; g -C "$tmp/w2" push -q origin main
-g -C "$tmp/w2" checkout -q -b pr; printf 'fix\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" commit -qam fix; g -C "$tmp/w2" push -q origin pr
+g -C "$tmp/w2" checkout -q -b pr; printf 'fix\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" -c 'user.name=fxa-agent[bot]' commit -qam fix; g -C "$tmp/w2" push -q origin pr
 printf 'doc2\n' > "$tmp/w2/doc.md"; printf 'fix\nstray\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" add .; g -C "$tmp/w2" reset -q --soft main
 echo '{"files": {"doc.md": "the review fix"}}' > "$tmp/w2/done.json"
 _finish_scope "$tmp/w2" "$tmp/w2/done.json" refs/remotes/origin/pr 2>/dev/null
 check "a round keeps the PR's own commits and drops only its own unlisted edit" "code.rs doc.md|fix" \
   "$(g -C "$tmp/w2" diff --cached --name-only | grep -v '^done' | paste -sd' ' -)|$(g -C "$tmp/w2" show :code.rs)"
+
+# repos[].commits append: a round goes on the PR head, even when only the bot wrote the PR.
+eval "$(sed -n '/^_finish_squash_base() {/,/^}/p;/^_finish_appends() {/,/^}/p' "$here/finish.sh")"
+mb="$(g -C "$tmp/w2" rev-parse main)"; ph="$(g -C "$tmp/w2" rev-parse refs/remotes/origin/pr)"
+check "squash goes back to the base; append stays on the PR head; a rebase round always starts at the base" "$mb|$ph|$mb" \
+  "$(PIPE_REPO_SLUG=ex/a PIPE_APPEND_REPOS="ex/b" _finish_squash_base "$tmp/w2" pr "$mb" 2>/dev/null)|$(PIPE_REPO_SLUG=Ex/A PIPE_APPEND_REPOS="ex/b ex/a" _finish_squash_base "$tmp/w2" pr "$mb" 2>/dev/null)|$(PIPE_REPO_SLUG=ex/a PIPE_APPEND_REPOS="ex/a" _finish_squash_base "$tmp/w2" pr "$mb" 1 2>/dev/null)"
 
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"

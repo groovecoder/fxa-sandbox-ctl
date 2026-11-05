@@ -790,7 +790,12 @@ _finish_push_and_pr() {
     msg="$(printf '%s' "$pr_title"; [ -n "${commit_body//[[:space:]]/}" ] && printf '\n\n%s' "$commit_body")"
     # A fix run's commit lands on a public PR: a fixed host text, never the agent's title or body.
     [ -z "$fix" ] || msg="$(_finish_prfix_message "$fix" "$FXA_FINISH_PR")"
-    new_sha="$(github_app_commit "$worktree" "$branch" "$merge_base" "$msg")" || arc=$?
+    # An append repo's rebase round: a merge of the PR head and the base, so the push is no rewrite.
+    local first=""
+    if [ -n "$merging" ] && _finish_appends; then
+      first="$(git -C "$worktree" rev-parse -q --verify "refs/remotes/origin/${branch}" 2>/dev/null || true)"
+    fi
+    new_sha="$(github_app_commit "$worktree" "$branch" "$merge_base" "$msg" $first)" || arc=$?
     if [ "$arc" != 0 ]; then
       [ "$arc" = 3 ] && _finish_prfix_why moved
       [ -n "$fix" ] && return "$arc"; return 1
@@ -1107,13 +1112,24 @@ _finish_as_is() {
   [ "$2" != "$3" ] && git -C "$1" diff --cached --quiet "$2" 2>/dev/null
 }
 
+# _finish_appends   The repo being shipped has "commits": "append" (PIPE_APPEND_REPOS): never rewrite its PRs.
+_finish_appends() {
+  local s=""; for s in ${PIPE_APPEND_REPOS:-}; do
+    [ "$(printf '%s' "$s" | tr 'A-Z' 'a-z')" = "$(printf '%s' "${PIPE_REPO_SLUG:-}" | tr 'A-Z' 'a-z')" ] && return 0
+  done; return 1
+}
+
 # _finish_squash_base <worktree> <branch> <merge_base> <merging>
 #   Where the squash starts. A person's commits on the PR stay theirs: the change
-#   goes on top of the PR's head. A rebase round (merging) rewrites anyway.
+#   goes on top of the PR's head. A rebase round (merging) starts at the base; an append repo makes it a merge commit.
 _finish_squash_base() {
   local wt="$1" branch="$2" base="$3" merging="${4:-}" head people
   head="$(git -C "$wt" rev-parse -q --verify "refs/remotes/origin/${branch}" 2>/dev/null || true)"
   if [ -z "$merging" ] && [ -n "$head" ] && git -C "$wt" merge-base --is-ancestor "$base" "$head" 2>/dev/null; then
+    if _finish_appends; then
+      echo "  This repo appends commits, so this change goes on top of the PR head." >&2
+      echo "$head"; return 0
+    fi
     people="$(git -C "$wt" log --format=%an "${base}..${head}" 2>/dev/null | grep -v '\[bot\]$' || true)"
     if [ -n "$people" ]; then
       echo "  The PR has commits from a person, so this change goes on top of them." >&2

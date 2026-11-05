@@ -165,7 +165,7 @@ def check(rec, name=None):
         repos = []
     slugs, paths, work, names = set(), set(), set(), set()
     for i, r in enumerate(repos):
-        r = obj(r, f"repos[{i}]", {"slug", "path", "role", "base", "default", "aliases"})
+        r = obj(r, f"repos[{i}]", {"slug", "path", "role", "base", "default", "aliases", "commits"})
         if "aliases" in r:
             for a in strs(r["aliases"], f"repos[{i}].aliases", ALIAS, 5):
                 if a in names:
@@ -184,6 +184,9 @@ def check(rec, name=None):
             bad.append(f"repos[{i}].base is not a branch name")
         if "default" in r:
             flag(r["default"], f"repos[{i}].default")
+        # commits: squash rewrites the PR into one commit; append adds each round's commit on the PR head.
+        if r.get("commits", "squash") not in ("squash", "append"):
+            bad.append(f"repos[{i}].commits must be squash or append")
         if s.lower() in slugs:
             bad.append(f"repos lists {s} twice")
         if p in paths:
@@ -356,6 +359,9 @@ def env(rec):
     default = " ".join(r["slug"] for r in repos if r.get("default"))
     if default:
         yield "PIPE_STACK_DEFAULT", default
+    append = " ".join(r["slug"] for r in repos if r.get("commits") == "append")
+    if append:
+        yield "PIPE_APPEND_REPOS", append
     alias = " ".join(f"{r['slug']}={','.join(r['aliases'])}" for r in work if r.get("aliases"))
     if alias:
         yield "PIPE_REPO_ALIASES", alias

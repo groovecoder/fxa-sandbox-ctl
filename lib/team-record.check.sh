@@ -303,6 +303,9 @@ check "TEAM_CAP_RUNNERS sets the runners ceiling, and options report it" "0|12" 
   "$(TEAM_CAP_RUNNERS=12 f4 ', "caps": { "runners": 12 }' | grep -c 'caps.runners')|$(TEAM_CAP_RUNNERS=12 py options | jq -r .caps.runners)"
 check "an accepted sprint means the same in jq test(), the sprint reader" "true|false" \
   "$(jq -n --arg re '^FxA Sprint ' '"FxA Sprint 12" | test($re)')|$(jq -n --arg re '^FxA Sprint ' '"Other Sprint" | test($re)')"
-rm -f "$T/f4.json"
+f5() { printf '{ "schema": 1, "name": "f5", "repos": [ { "slug": "mozilla/fxa", "role": "work"%s }, { "slug": "example/docs", "role": "dep", "commits": "squash" } ], "stack": { "kind": "fxa" } }' "$1" > "$T/f5.json"; py env "$T/f5.json" f5 2>&1; }
+check "repos[].commits: append lists the repo, squash or no key does not, another value is refused" "mozilla/fxa|0|1" \
+  "$(f5 ', "commits": "append"' | sed -n 's/^PIPE_APPEND_REPOS\t//p')|$(f5 '' | grep -c '^PIPE_APPEND_REPOS')|$(f5 ', "commits": "merge"' | grep -c 'repos\[0\].commits must be squash or append')"
+rm -f "$T/f4.json" "$T/f5.json"
 
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"
