@@ -505,11 +505,13 @@ finish_diff_only() {
 
 # _finish_scope <worktree> <done file>   Unstage each added or changed file the handoff's files list does not
 # name: only files the agent tied to the issue ship. A deletion stays. A handoff with no list changes nothing.
+# [keep]: the PR head a round started from; an unlisted file goes back to it, so the PR's own commits stay.
 _finish_scope() {
-  local f; jq -e '.files | type == "object"' "$2" >/dev/null 2>&1 || return 0
+  local f="" keep="${3:-HEAD}"; jq -e '.files | type == "object"' "$2" >/dev/null 2>&1 || return 0
   while IFS= read -r -d '' f; do
     jq -e --arg f "$f" '.files | has($f)' "$2" >/dev/null && continue
-    git -C "$1" reset -q -- "$f" >&2 || { echo "ERROR: could not leave out $f" >&2; return 1; }
+    git -C "$1" diff --cached --quiet "$keep" -- "$f" 2>/dev/null && continue
+    git -C "$1" reset -q "$keep" -- "$f" >&2 || { echo "ERROR: could not leave out $f" >&2; return 1; }
     echo "  left out of the PR, not in the handoff's files list: $f" >&2
   done < <(git -C "$1" diff --cached --name-only --diff-filter=d -z)
   ! git -C "$1" diff --cached --quiet || { echo "ERROR: nothing to ship: no file in the handoff's files list changed." >&2; return 1; }
@@ -742,7 +744,10 @@ _finish_push_and_pr() {
     [ "$merge_base" = "$FXA_FIX_HEAD_SHA" ] || { echo "ERROR: the branch of the PR moved; nothing was pushed." >&2; _finish_prfix_why moved; return 3; }
   fi
   # After the reset the index holds the whole change, a rebase round's merge included.
-  _finish_scope "$worktree" "$done_file" || return 1
+  # On a pushed PR the squash goes back to the base, so the scope keeps the PR's own commits.
+  local scope_keep=""
+  [ -n "$merging" ] || scope_keep="$(git -C "$worktree" rev-parse -q --verify "refs/remotes/origin/${branch}" 2>/dev/null || true)"
+  _finish_scope "$worktree" "$done_file" $scope_keep || return 1
   # A fix run's refusal is its end (why guard:<class>), not an operator error.
   # A fix run never gets FXA_ALLOW_TOOLING_EDITS: CI and yarn config stay refused.
   if [ -n "$fix" ]; then

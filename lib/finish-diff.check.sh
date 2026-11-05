@@ -91,4 +91,14 @@ check "an HTTP error, a bad key or no login fails" "1|1|1" \
   "$(CODE=403 jira_attach MNTOR-1 "$p" 2>/dev/null; echo $?)|$(jira_attach 'x;y' "$p" 2>/dev/null; echo $?)|$(PIPE_JIRA_BASIC= jira_attach MNTOR-1 "$p" 2>/dev/null; echo $?)"
 unset -f curl
 
+# A review round on a pushed PR: after the squash's soft reset the index holds the PR's own commits too.
+g init -q --bare "$tmp/o2.git"; g clone -q "$tmp/o2.git" "$tmp/w2" 2>/dev/null
+printf 'doc\n' > "$tmp/w2/doc.md"; printf 'x\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" add .; g -C "$tmp/w2" commit -qm init; g -C "$tmp/w2" push -q origin main
+g -C "$tmp/w2" checkout -q -b pr; printf 'fix\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" commit -qam fix; g -C "$tmp/w2" push -q origin pr
+printf 'doc2\n' > "$tmp/w2/doc.md"; printf 'fix\nstray\n' > "$tmp/w2/code.rs"; g -C "$tmp/w2" add .; g -C "$tmp/w2" reset -q --soft main
+echo '{"files": {"doc.md": "the review fix"}}' > "$tmp/w2/done.json"
+_finish_scope "$tmp/w2" "$tmp/w2/done.json" refs/remotes/origin/pr 2>/dev/null
+check "a round keeps the PR's own commits and drops only its own unlisted edit" "code.rs doc.md|fix" \
+  "$(g -C "$tmp/w2" diff --cached --name-only | grep -v '^done' | paste -sd' ' -)|$(g -C "$tmp/w2" show :code.rs)"
+
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"
