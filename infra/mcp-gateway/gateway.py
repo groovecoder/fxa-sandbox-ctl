@@ -563,11 +563,13 @@ class Upstream:
         return found
 
 
-# The read tools of a "github-app" connector: (description, the number argument).
+# The read tools of a "github-app" connector: (description, the argument that names the item).
 GH_TOOLS = {
     "get_pull_request": ("A pull request: title, state, author, branches, head commit and body.", "pull_number"),
     "get_pull_request_checks": ("The checks and statuses on a pull request's head commit, with the job_id of each GitHub "
-                                "Actions job (for get_job_logs) and the annotations of a failed one.", "pull_number"),
+                                "Actions job (for get_job_logs), each check's details_url and the annotations of a failed one.", "pull_number"),
+    "get_commit_checks": ("The checks and statuses on a branch or commit SHA (ref), as get_pull_request_checks gives them: "
+                          "for a branch with no pull request, or to see if main is red.", "ref"),
     "get_pull_request_comments": ("A pull request's comments and review comments, oldest first.", "pull_number"),
     "get_issue": ("An issue: title, state, author, body and comments.", "issue_number"),
     "get_job_logs": ("A GitHub Actions job's log: the lines that name a failure, then its end (tail_lines, default 200).", "job_id"),
@@ -575,7 +577,17 @@ GH_TOOLS = {
 # Read only, whatever the App may do elsewhere: GitHub refuses a token for a permission the App lacks.
 GH_READ = {"metadata": "read", "contents": "read", "pull_requests": "read", "checks": "read", "statuses": "read"}
 GH_NAME_RE = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,99}$")
+# A branch or SHA: no "..", no leading "/", nothing a URL would read as a query.
+GH_REF_RE = re.compile(r"(?!.*\.\.)(?!/)[A-Za-z0-9._/-]{1,200}")
 GH_FAIL_RE = re.compile(r"FAILED|FAIL |Error|error(\[|:)|panicked|assert|Traceback|exit code")
+
+
+def log_tail(lines, tail_lines):
+    """The lines that name a failure, then the last tail_lines (default 200, 20 to 1000)."""
+    tail = min(max(int(tail_lines or 200), 20), 1000) if str(tail_lines or "200").isdigit() else 200
+    if len(lines) > tail:
+        lines = [ln for ln in lines[:-tail] if GH_FAIL_RE.search(ln)][:80] + ["--- the end of the log:"] + lines[-tail:]
+    return lines
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -641,7 +653,7 @@ class GitHubApp(Upstream):
             self.tools = {}
             for n, (desc, num) in GH_TOOLS.items():
                 if n in self.tools_allowed:
-                    props = {"owner": {"type": "string"}, "repo": {"type": "string"}, num: {"type": "integer"}}
+                    props = {"owner": {"type": "string"}, "repo": {"type": "string"}, num: {"type": "string" if num == "ref" else "integer"}}
                     if n == "get_job_logs":
                         props["tail_lines"] = {"type": "integer"}
                     self.tools[n] = {"name": n, "description": desc,
@@ -660,21 +672,42 @@ class GitHubApp(Upstream):
         owner, repo, num = args.get("owner"), args.get("repo"), args.get(GH_TOOLS[tool][1])
         if not all(isinstance(v, str) and GH_NAME_RE.match(v) for v in (owner, repo)):
             raise UpstreamError("%s: owner and repo must be plain names" % self.name)
-        if isinstance(num, str) and num.isdigit():
-            num = int(num)
-        if not isinstance(num, int) or isinstance(num, bool) or num <= 0:
-            raise UpstreamError("%s: %s must be a positive number" % (self.name, GH_TOOLS[tool][1]))
+        if tool == "get_commit_checks":
+            if not isinstance(num, str) or not GH_REF_RE.fullmatch(num):
+                raise UpstreamError("%s: ref must be a branch name or a commit SHA" % self.name)
+        else:
+            if isinstance(num, str) and num.isdigit():
+                num = int(num)
+            if not isinstance(num, int) or isinstance(num, bool) or num <= 0:
+                raise UpstreamError("%s: %s must be a positive number" % (self.name, GH_TOOLS[tool][1]))
         tok, base = self._token(owner, repo), "%s/repos/%s/%s" % (self.api, owner, repo)
         get = lambda path: json.loads(self._http("GET", base + path, tok))
         user = lambda d: (d.get("user") or {}).get("login")
+
+        def checks(ref):
+            runs, failed = [], 0
+            for c in get("/commits/%s/check-runs?per_page=100" % ref).get("check_runs", []):
+                # A CircleCI check run has its job or workflow link only in details_url.
+                row = {"name": c.get("name"), "status": c.get("status"), "conclusion": c.get("conclusion"), "url": c.get("html_url"),
+                       "details_url": c.get("details_url")}
+                if (c.get("app") or {}).get("slug") == "github-actions":
+                    row["job_id"] = c.get("id")  # an Actions check run's id is its job's id
+                if c.get("conclusion") in ("failure", "timed_out") and failed < 3:
+                    failed += 1
+                    row["annotations"] = [{"path": a.get("path"), "line": a.get("start_line"), "message": (a.get("message") or "")[:500]}
+                                          for a in get("/check-runs/%d/annotations?per_page=20" % c["id"])]
+                runs.append(row)
+            statuses = [{"context": s.get("context"), "state": s.get("state"), "url": s.get("target_url")}
+                        for s in get("/commits/%s/status" % ref).get("statuses", [])]
+            return {"check_runs": runs, "statuses": statuses}
+
         if tool == "get_job_logs":
             text = self._http("GET", "%s/actions/jobs/%d/logs" % (base, num), tok, follow=False).decode("utf-8", "replace")
             lines = [re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", re.sub(r"^\S+Z ", "", ln)) for ln in text.splitlines()]
-            tail = min(max(int(args.get("tail_lines") or 200), 20), 1000) if str(args.get("tail_lines") or "200").isdigit() else 200
-            if len(lines) > tail:
-                lines = [ln for ln in lines[:-tail] if GH_FAIL_RE.search(ln)][:80] + ["--- the end of the log:"] + lines[-tail:]
-            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
-        if tool == "get_issue":
+            return {"content": [{"type": "text", "text": "\n".join(log_tail(lines, args.get("tail_lines")))}]}
+        if tool == "get_commit_checks":
+            out = {"ref": num, **checks(urllib.parse.quote(num, safe="/"))}
+        elif tool == "get_issue":
             d = get("/issues/%d" % num)
             out = {"title": d.get("title"), "state": d.get("state"), "author": user(d), "body": (d.get("body") or "")[:8000],
                    "comments": [{"author": user(c), "at": c.get("created_at"), "body": (c.get("body") or "")[:3000]}
@@ -692,19 +725,7 @@ class GitHubApp(Upstream):
                                             "body": (c.get("body") or "")[:3000]} for c in get("/pulls/%d/comments?per_page=50" % num)]}
             else:
                 sha = (pr.get("head") or {}).get("sha")
-                runs, failed = [], 0
-                for c in get("/commits/%s/check-runs?per_page=100" % sha).get("check_runs", []):
-                    row = {"name": c.get("name"), "status": c.get("status"), "conclusion": c.get("conclusion"), "url": c.get("html_url")}
-                    if (c.get("app") or {}).get("slug") == "github-actions":
-                        row["job_id"] = c.get("id")  # an Actions check run's id is its job's id
-                    if c.get("conclusion") in ("failure", "timed_out") and failed < 3:
-                        failed += 1
-                        row["annotations"] = [{"path": a.get("path"), "line": a.get("start_line"), "message": (a.get("message") or "")[:500]}
-                                              for a in get("/check-runs/%d/annotations?per_page=20" % c["id"])]
-                    runs.append(row)
-                statuses = [{"context": s.get("context"), "state": s.get("state"), "url": s.get("target_url")}
-                            for s in get("/commits/%s/status" % sha).get("statuses", [])]
-                out = {"head_sha": sha, "check_runs": runs, "statuses": statuses}
+                out = {"head_sha": sha, **checks(sha)}
         return {"content": [{"type": "text", "text": json.dumps(out, indent=1)}]}
 
 

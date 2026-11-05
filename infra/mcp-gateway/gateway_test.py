@@ -576,13 +576,15 @@ class GitHubAppConnector(unittest.TestCase):
                     return self.send({"id": 7})
                 if p == "/repos/mozilla/fxa/pulls/5":
                     return self.send({"title": "t", "state": "open", "head": {"ref": "b", "sha": "abc"}, "base": {"ref": "main"}, "body": "x" * 9000})
-                if p.startswith("/repos/mozilla/fxa/commits/abc/check-runs"):
+                if p.startswith("/repos/mozilla/fxa/commits/abc/check-runs") or p.startswith("/repos/mozilla/fxa/commits/main/check-runs"):
                     return self.send({"check_runs": [
                         {"id": 41, "name": "e2e", "status": "completed", "conclusion": "failure", "app": {"slug": "github-actions"}},
-                        {"id": 42, "name": "lint", "status": "completed", "conclusion": "success", "app": {"slug": "github-actions"}}]})
+                        {"id": 42, "name": "lint", "status": "completed", "conclusion": "success", "app": {"slug": "github-actions"}},
+                        {"id": 43, "name": "unit", "status": "completed", "conclusion": "success", "app": {"slug": "circleci-checks"},
+                         "details_url": "https://circleci.com/gh/mozilla/fxa/711803"}]})
                 if p.startswith("/repos/mozilla/fxa/check-runs/41/annotations"):
                     return self.send([{"path": "a.py", "start_line": 3, "message": "assert 1 == 2"}])
-                if p == "/repos/mozilla/fxa/commits/abc/status":
+                if p in ("/repos/mozilla/fxa/commits/abc/status", "/repos/mozilla/fxa/commits/main/status"):
                     return self.send({"statuses": [{"context": "ci/circleci", "state": "failure", "target_url": "u"}]})
                 if p == "/repos/mozilla/fxa/actions/jobs/41/logs":
                     self.send_response(302)
@@ -628,8 +630,19 @@ class GitHubAppConnector(unittest.TestCase):
     def test_checks_give_the_job_id_and_the_failed_annotations(self):
         out = json.loads(self.text("get_pull_request_checks", pull_number=5))
         self.assertEqual([(r["name"], r.get("job_id"), r.get("annotations")) for r in out["check_runs"]],
-                         [("e2e", 41, [{"path": "a.py", "line": 3, "message": "assert 1 == 2"}]), ("lint", 42, None)])
+                         [("e2e", 41, [{"path": "a.py", "line": 3, "message": "assert 1 == 2"}]), ("lint", 42, None), ("unit", None, None)])
         self.assertEqual(out["statuses"][0]["context"], "ci/circleci")
+        self.assertEqual(out["check_runs"][2]["details_url"], "https://circleci.com/gh/mozilla/fxa/711803")
+
+    def test_commit_checks_read_a_branch_and_refuse_a_ref_that_climbs_or_queries(self):
+        out = json.loads(self.text("get_commit_checks", ref="main"))
+        self.assertEqual((out["ref"], out["check_runs"][2]["details_url"]), ("main", "https://circleci.com/gh/mozilla/fxa/711803"))
+        n = len(self.SEEN)
+        for ref in ("main/../../other", "main?x=1", "/main", "main#x", "", 5, None, "main\n"):
+            with self.assertRaises(self.g.UpstreamError, msg=ref):
+                self.text("get_commit_checks", ref=ref)
+        self.assertEqual(len(self.SEEN), n)
+        self.assertEqual(self.up.list_tools()["get_commit_checks"]["inputSchema"]["properties"]["ref"], {"type": "string"})
 
     def test_a_job_log_follows_its_redirect_without_the_token_and_keeps_the_failure(self):
         out = self.text("get_job_logs", job_id=41)
