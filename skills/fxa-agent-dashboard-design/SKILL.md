@@ -5,10 +5,10 @@ description: Use when you audit, critique, redesign or polish a view of the FxA 
 
 # Dashboard design for FxA Agent users
 
-The users are operators of FxA Agent. They open a view to answer one question in 5 seconds, then act. A view is good when that answer is first, true and legible at every width. V1 parity is not a goal: make the page better to navigate and use.
+The users are operators of FxA Agent. They open a view to answer one question in 5 seconds, then act. A view is good when that answer is first, true and legible at every width. Make the page better to navigate and use.
 
 Read these first:
-- `guide/dashboard-design.md`: the design rules (written for v1, and v2 keeps them).
+- `guide/dashboard-design.md`: the design rules, the shared parts and the checks.
 - `dashboard-v2/src/styles/theme.css`: the v2 tokens. The components are in `dashboard-v2/src/ui` and `src/charts`.
 - `skills/fxa-agent-product-owner/SKILL.md`: the owner's taste and delivery habits.
 - `bar.md` (here): the 7-rule bar. Copy it to the scratchpad, and write the view's 5-second question at the top. Draft the question yourself, and ask the owner to confirm it in the first report.
@@ -46,7 +46,7 @@ An artifact does not change the dashboard. The code is the source of truth, and 
 1. Read the artifact, and list each token or layout change it makes against `dashboard-v2/src/styles/theme.css` and the view's CSS and TSX.
 2. Make those changes in the code. Keep the light and dark values as pairs.
 3. Run the checks of step 5 of the loop.
-   - `src/styles/theme.test.ts` requires each token to keep its v1 value, so a changed value fails it. Tell the owner that the change ends v1 token parity, and update the test only on a yes.
+   - `src/styles/theme.test.ts` requires a dark value for each token. Keep the light and dark values as pairs.
 4. Run the loop on the changed views.
 5. Publish the design system artifact again from the code, so that the artifact and the code agree.
 

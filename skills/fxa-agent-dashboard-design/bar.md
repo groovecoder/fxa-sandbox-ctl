@@ -10,4 +10,4 @@ Copy this file for the view under review, and write the view's 5-second question
 6. Design system: tokens only, tones as pairs with a word, motion only for a data change (guide/dashboard-design.md).
 7. Density: no card wastes space on nothing, similar cards line up, and the page does not scroll more than it must.
 
-A fix passes only when the page is better on the bar AND every existing check still passes (typecheck, lint, vitest, build budget, e2e, parity).
+A fix passes only when the page is better on the bar AND every existing check still passes (typecheck, lint, vitest, build budget, e2e).
