@@ -62,6 +62,14 @@ fi
 NODE_ENV=test npx nx run-many -t build --all --exclude=fxa-dev-launcher > /tmp/refresh-nx.log 2>&1 || { echo "WARN: nx build failed; runners build what they need at the pin"; tail -15 /tmp/refresh-nx.log; }
 echo "clone at $(git rev-parse --short HEAD)"
 GUEST
+# The FxA team's docs repo, kept near master so a session's pin fetches little. A failure never blocks the refresh.
+"$fc" ssh 0 'sudo -u agent bash -s' <<'GUEST' || echo "WARN: the ecosystem-platform clone failed; a session that picks it clones it"
+set -euo pipefail
+d=/home/agent/ecosystem-platform
+[ -d "$d/.git" ] || git clone -q https://github.com/mozilla/ecosystem-platform.git "$d"
+git -C "$d" fetch -q origin master && git -C "$d" checkout -q -B master FETCH_HEAD
+echo "ecosystem-platform at $(git -C "$d" rev-parse --short HEAD)"
+GUEST
 # The snapshot's stack uses CI's location override and Nightly's env; images before them lack the lines.
 "$fc" ssh 0 'sudo bash -s' <<'GUEST'
 grep -q GEODB_LOCATION_OVERRIDE /etc/agent-env.sh || cat >> /etc/agent-env.sh <<'ENV'

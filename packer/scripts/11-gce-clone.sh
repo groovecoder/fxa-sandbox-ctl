@@ -49,3 +49,6 @@ echo "==> Playwright browsers baked ($(du -sh /home/agent/.cache/ms-playwright |
 # Outside the tree: anything inside would be pulled back and staged into the PR.
 sha256sum yarn.lock | cut -d" " -f1 > /home/agent/.image-lock-hash
 echo "==> Clone baked ($(du -sh /home/agent/fxa | cut -f1))"
+# The FxA team's docs repo: a session that picks it finds the clone and only fetches its commit.
+sudo -u agent git clone --quiet https://github.com/mozilla/ecosystem-platform.git /home/agent/ecosystem-platform
+echo "==> ecosystem-platform baked ($(du -sh /home/agent/ecosystem-platform | cut -f1))"
