@@ -1,7 +1,9 @@
 ## Review feedback
 
 `done` means green and awaiting review, not correct (INCIDENTS: Review feedback). `feedback`
-drops comments with `position: null` and tracks handled ids in `<KEY>.feedback-seen`.
+reads inline comments, general PR comments (`i` ids) and review summaries (`r` ids). It drops
+resolved threads, bot comments other than Copilot and CodeRabbit, and 🤖 notes, and tracks
+handled ids in `<KEY>.feedback-seen`.
 
 **Run `$CTL feedback KEY bundle` before judging.** It writes one file with each unhandled
 comment, the branch lines it sits on, and every `file:line` it cites resolved on the branch and
