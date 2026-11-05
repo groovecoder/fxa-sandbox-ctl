@@ -188,7 +188,9 @@ export function teamApply(rec: J, patch: J): J {
   }
   return out;
 }
-export const teamRetest = (a: J, b: J) => RUNNER_KEYS.some((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
+// A repo's commits mode is read on the host only, so it needs no new test (as _teams_runner_keys).
+const runnerView = (r: J, k: string) => (k === 'repos' && Array.isArray(r[k]) ? r[k].map((x: J) => ({ ...x, commits: undefined })) : r[k]);
+export const teamRetest = (a: J, b: J) => RUNNER_KEYS.some((k) => JSON.stringify(runnerView(a, k)) !== JSON.stringify(runnerView(b, k)));
 export const list0 = (v: unknown) => [...new Set(String(v ?? '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean))];
 
 // The record keys an item form changes, {key: value}; undefined removes the key. opts is /api/teams/options.
@@ -201,7 +203,7 @@ export function teamPatch(f: { item: string; d: J }, rec: J, team: string, opts?
   const caps = (o: J) => some(drop({ ...(rec.caps ?? {}), ...o }));
   const pre = `fxa-team-${team}--`;
   switch (f.item) {
-    case 'repos': return { repos: d.repos.filter((r: J) => String(r.slug).trim()).map((r: J) => drop({ ...r, slug: String(r.slug).trim() })) };
+    case 'repos': return { repos: d.repos.filter((r: J) => String(r.slug).trim()).map((r: J) => drop({ ...r, slug: String(r.slug).trim(), commits: r.commits === 'append' ? 'append' : undefined })) };
     case 'goal': return { prompts: { ...(rec.prompts ?? {}), goal_md: d.goal } };
     case 'access': return { access: { ...(rec.access ?? {}), open: !!d.open, users: d.open ? rec.access?.users ?? [] : list([...d.users, d.uid ?? ''].join(',')),
       channels: d.open ? rec.access?.channels ?? [] : [...new Set([...d.chans, ...list(d.other)])], jira_prefixes: list(d.prefixes) } };

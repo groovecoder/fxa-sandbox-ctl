@@ -9,6 +9,15 @@ const save = (item: string, edit: (d: Record<string, unknown>) => void = () => {
   return teamApply(rec, teamPatch({ item, d }, rec, 'example'));
 };
 
+test('a repo commits mode: append is saved, squash leaves no key, and neither needs a new test', () => {
+  const set0 = (k: string, v: string) => (d: Record<string, unknown>) => { d.repos = (d.repos as Record<string, unknown>[]).map((r, i) => (i ? r : { ...r, [k]: v })); };
+  const app = save('repos', set0('commits', 'append'));
+  expect(app.repos).toEqual([{ slug: 'example/app', role: 'work', commits: 'append' }]);
+  expect(teamRetest(rec, app)).toBe(false);
+  expect(save('repos', set0('commits', 'squash')).repos).toEqual([{ slug: 'example/app', role: 'work' }]);
+  expect(teamRetest(rec, save('repos', set0('role', 'dep')))).toBe(true);
+});
+
 test('an item form replaces its own keys only, and a key with no input survives', () => {
   expect(save('caps', (d) => { d.usd_per_day = ''; d.runners = '3'; }).caps).toEqual({ launches_per_day: 40, runners: 3 });
   expect(save('jira', (d) => { d.launches_per_day = ''; }).jira).toEqual({ project: 'EX', queue: true, board: '7' });

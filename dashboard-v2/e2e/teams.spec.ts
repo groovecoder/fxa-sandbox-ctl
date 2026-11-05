@@ -105,6 +105,18 @@ test('New team: client checks with aria-invalid, the server 409, the payload, an
 
 
 
+test('Settings, repos: a repo set to Append saves commits append in the record', async ({ page }) => {
+  const m = await mock(page);
+  await go(page, '#teams/example/settings');
+  await main(page).locator('[data-tf="repos"]').click();
+  const form = main(page).locator('[data-tform]');
+  const pick = form.getByLabel('Commits of repo 1');
+  await expect(pick).toHaveValue('squash');
+  await pick.selectOption('append');
+  await form.getByRole('button', { name: 'Save' }).click();
+  await expect.poll(() => m.calls.find((c) => c.url === '/api/teams/example')?.body.record.repos).toEqual([{ slug: 'example/app', role: 'work', default: true, commits: 'append' }]);
+});
+
 test('Settings, record: an item form saves the whole record with the generation, 409 says Cancel, then redo', async ({ page }) => {
   const m = await mock(page);
   await go(page, '#teams/example/settings');

@@ -96,12 +96,13 @@ export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
         <>
           {(f.warn ?? []).map((w, i) => <div key={i} className="alert warn"><span className="what wrap">{w.replace(/^WARN: /, '')}</span></div>)}
           <div className="tscroll">
-            <table className="ttable"><thead><tr><th scope="col">Repo</th><th scope="col">Role</th><th scope="col"><span className="vh">Remove</span></th></tr></thead>
+            <table className="ttable"><thead><tr><th scope="col">Repo</th><th scope="col">Role</th><th scope="col">Commits</th><th scope="col"><span className="vh">Remove</span></th></tr></thead>
               <tbody>
                 {d.repos.map((r: J, i: number) => (
                   <tr key={i}>
                     <td><input className="input mono" value={r.slug} aria-label={`Repo ${i + 1}`} placeholder="owner/name" onChange={setIn('repos', i, 'slug')} /></td>
                     <td><select className="input" value={r.role} aria-label={`Role of repo ${i + 1}`} onChange={setIn('repos', i, 'role')}>{['work', 'dep', 'data', 'ref'].map((x) => <option key={x}>{x}</option>)}</select></td>
+                    <td><select className="input" value={r.commits ?? 'squash'} aria-label={`Commits of repo ${i + 1}`} title="Squash: each round rewrites the PR as one commit. Append: each round adds a commit on the PR." onChange={setIn('repos', i, 'commits')}><option value="squash">Squash</option><option value="append">Append</option></select></td>
                     <td><button type="button" className="linkbtn" aria-label={`Remove repo ${i + 1}`} onClick={() => editForm((x) => ({ ...x, repos: x.repos.filter((_: J, j: number) => j !== i) }))}>Remove</button></td>
                   </tr>
                 ))}
