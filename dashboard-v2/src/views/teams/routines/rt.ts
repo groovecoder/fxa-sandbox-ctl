@@ -17,7 +17,7 @@ export const RT_MODES: [string, string, string][] = [
   ['pr', 'Draft PR', 'Opens a draft PR with the fixes. Nothing merges by itself.'],
   ['pr+notes', 'Draft PR with notes', 'The draft PR, plus every finding it did not fix, in the PR description.'],
 ];
-export const RT_FIELDS = ['template', 'name', 'prompt', 'schedule', 'zone', 'repos', 'branch', 'channel', 'mode', 'draft', 'max_usd', 'skip_no_commits', 'pr_repo', 'pr_authors', 'pr_label', 'pr_mention', 'pr'];
+export const RT_FIELDS = ['template', 'name', 'prompt', 'schedule', 'zone', 'repos', 'branch', 'watch', 'channel', 'mode', 'draft', 'max_usd', 'skip_no_commits', 'pr_repo', 'pr_authors', 'pr_label', 'pr_mention', 'pr'];
 export const RT_ZONES: [string, string][] = [
   ['America/New_York', 'Eastern'], ['America/Chicago', 'Central'], ['America/Denver', 'Mountain'], ['America/Los_Angeles', 'Pacific'],
   ['UTC', 'UTC'], ['Europe/London', 'UK'], ['Europe/Berlin', 'Central Europe'], ['Asia/Kolkata', 'India'], ['Asia/Tokyo', 'Japan'], ['Australia/Sydney', 'Sydney'],
@@ -46,7 +46,7 @@ export function rtDraft(data?: J): J {
   const [kind, a, b] = String(d.schedule || 'weekdays 09:00').split(' '), pr = d.pr ?? {};
   return {
     ...d, template: d.template || 'blank', kind, day: kind === 'weekly' ? a : 'mon', time: kind === 'weekly' ? b : a, repos: [...(d.repos ?? [])],
-    branch: d.branch ?? '', channel: d.channel ?? '', draft: d.draft !== false,
+    branch: d.branch ?? '', watch: d.watch ?? '', channel: d.channel ?? '', draft: d.draft !== false,
     ...(d.on === 'pr-label' ? { pr_repo: pr.repo ?? '', pr_authors: (pr.authors ?? []).join(', '), pr_label: pr.label ?? 'agent-help', pr_mention: pr.blender_mention ?? '' } : {}),
   };
 }
@@ -62,6 +62,7 @@ export function rtRoutine(d: J): J {
     zone: d.zone, repos: d.repos, channel: String(d.channel).trim(), mode: d.mode, draft: d.draft !== false, max_usd: Number(d.max_usd), skip_no_commits: !!d.skip_no_commits,
   };
   if (String(d.branch).trim() && d.repos.length === 1) r.branch = String(d.branch).trim();
+  if (d.watch && !d.repos.includes(d.watch)) r.watch = d.watch;
   if (d.env) r.env = d.env;
   return r;
 }

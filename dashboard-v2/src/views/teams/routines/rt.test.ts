@@ -66,6 +66,12 @@ describe('the draft and the routine', () => {
     expect(rt.rtRoutine(d).pr).toEqual({ repo: 'example/app', authors: ['dependabot[bot]'], label: 'agent-help', blender_login: 'example-blender[bot]', sweep_min: 5 });
   });
   it('rtDraft with no routine equals v1', () => expect(rt.rtDraft()).toEqual(v1.rtDraft()));
+  it('an edit keeps the watch repo, as v1 does, and drops one that is also a routine repo', () => {
+    const r = { ...sched, name: 'W', prompt: 'p', repos: ['a/docs'], watch: 'a/app', max_usd: 5, skip_no_commits: true, mode: 'pr' };
+    expect(rt.rtRoutine(rt.rtDraft(r)).watch).toBe('a/app');
+    expect(rt.rtRoutine(rt.rtDraft(r))).toEqual(v1.rtRoutine(v1.rtDraft(r)));
+    expect(rt.rtRoutine({ ...rt.rtDraft(r), repos: ['a/docs', 'a/app'] }).watch).toBeUndefined();
+  });
   const repos = [[{ slug: 'example/app', role: 'work' }], [{ slug: 'a/b', role: 'work' }, { slug: 'c/d', role: 'dep' }], []];
   const starts = [rt.RT_BLANK, rt.RT_DEPFIX, { template: 'security-review', name: 'Security review', prompt: 'x', mode: 'report', locked_mode: 'report', skip_no_commits: true }];
   it.each(starts.flatMap((x) => repos.map((rs, i) => [`${x.template} with repo set ${i}`, x, rs])))('rtFromTpl equals v1: %s', (_, x, rs) => {

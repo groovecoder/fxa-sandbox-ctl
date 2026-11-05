@@ -30,7 +30,7 @@ function Readback({ d, c }: { d: J; c: Ctl }) {
   }
   const pr = d.draft === false ? 'a regular PR' : 'a draft PR';
   const mode = ({ report: 'reports', pr: `opens ${pr}`, 'pr+notes': `opens ${pr} with notes` } as Record<string, string>)[d.mode] ?? d.mode;
-  return <><b>{d.name || 'This routine'}</b> runs <b>{rtSched(rtRoutine(d))} {rtZoneName(d.zone)}</b> on <b>{d.repos.join(', ') || 'no repo yet'}</b>{d.skip_no_commits ? ', when there are new commits' : ''}. It {mode}{ch ? <>, posts in <b>{chn}</b>,</> : ', posts nothing in Slack (the results are in History),'} and stops at <b>{usd(Number(d.max_usd))}</b> a run.</>;
+  return <><b>{d.name || 'This routine'}</b> runs <b>{rtSched(rtRoutine(d))} {rtZoneName(d.zone)}</b> on <b>{d.repos.join(', ') || 'no repo yet'}</b>{d.watch ? <>, for the new commits of <b>{d.watch}</b></> : ''}{d.skip_no_commits ? ', when there are new commits' : ''}. It {mode}{ch ? <>, posts in <b>{chn}</b>,</> : ', posts nothing in Slack (the results are in History),'} and stops at <b>{usd(Number(d.max_usd))}</b> a run.</>;
 }
 
 export function Form({ c }: { c: Ctl }) {
@@ -159,6 +159,13 @@ export function Form({ c }: { c: Ctl }) {
                 {e.repos && <p className="m-0 text-sub font-semibold text-warn" id="rt-repos-err">{e.repos}</p>}
               </fieldset>
               {d.repos.length === 1 && <Field id="rt-branch" label={<>Branch <Opt /></>} err={e.branch}><input {...inp('branch')} className={INPUT} placeholder="the repo's default branch" /></Field>}
+              {repos.length > 1 && <Field id="rt-watch" label={<>Watch repo <Opt /></>} err={e.watch}
+                hint="The run reads this repo's new commits and changes nothing in it. Its new commits start the run.">
+                <select {...inp('watch')} className={INPUT}>
+                  <option value="">None</option>
+                  {repos.filter((s) => !d.repos.includes(s) || s === d.watch).map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>}
             </div></Card>
           </>}
           <Card><H2>What you get</H2><div className="flex flex-col gap-s3">
