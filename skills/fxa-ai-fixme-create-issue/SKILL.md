@@ -132,8 +132,9 @@ Out of scope:
 
 Dependencies: <"None", or the merged PR, ticket, or deploy this needs>
 
-Verify: <the project's test-unit or one spec, plus tsc for a rename or removal. The VM has no network,
-Stripe, CMS, or 123done OAuth reliers; name anything that needs them as unverified.>
+Verify: <the project's test-unit or one spec, plus tsc for a rename or removal. The VM reaches only the
+npm and yarn registries, GitHub and the pairing channel server (VM_AGENT_GUIDE.md). It has no Stripe,
+CMS, or 123done OAuth reliers; name anything that needs them as unverified.>
 ```
 
 ## Common mistakes
