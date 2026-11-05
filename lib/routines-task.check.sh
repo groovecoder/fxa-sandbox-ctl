@@ -76,6 +76,15 @@ check "a fresh restart of a routine session is refused, with no session" "${MSG}
 thread_set C0OWN00:1790000000.000100 pr_url https://github.com/mozilla/PyFxA/pull/3 pr_session agent-rt10
 check "a tag in a routine's thread that would carry its PR is refused, with no session" "${MSG}|none" \
   "$(FXA_VM_BACKEND=gce cmd_task --source slack --id agent-rs03 --owner U1 --prompt-file "$tmp/go.md" --thread C0OWN00:1790000000.000100 2>&1)|$(none agent-rs03)"
+# The one exception: a review round on the PR that a scheduled pr routine opened keeps the run's cap and taint.
+echo '{"key":"agent-rp01","state":"stopped","source":"routine","routine_mode":"pr","untrusted":"1","cap_usd":"7","trees":[{"slug":"mozilla/PyFxA","pr_url":"https://github.com/mozilla/PyFxA/pull/5"}]}' > "$tmp/agent-rp01.json"
+check "a round on a pr routine's PR resumes, with the run's cap and taint" "agent-rs05 starting|7|1|agent-rp01" \
+  "$(FXA_VM_BACKEND=gce cmd_task --source slack --id agent-rs05 --owner routine:pyfxa/1 --prompt-file "$tmp/go.md" --resume-from agent-rp01 2>/dev/null)|$(jq -r '"\(.cap_usd)|\(.untrusted)|\(.resume_from)"' "$tmp/agent-rs05.json" 2>/dev/null)"
+jq '.routine_mode = "report"' "$tmp/agent-rp01.json" > "$tmp/agent-rp02.json"
+jq '.watch_narrow = "1"' "$tmp/agent-rp01.json" > "$tmp/agent-rp03.json"
+jq '.trees[0].pr_url = null' "$tmp/agent-rp01.json" > "$tmp/agent-rp04.json"
+check "a report run, a narrowed run, or a run with no PR is still refused" "${MSG}|${MSG}|${MSG}" \
+  "$(for f in rp02 rp03 rp04; do FXA_VM_BACKEND=gce cmd_task --source slack --id agent-rx$f --owner U1 --prompt-file "$tmp/go.md" --resume-from agent-$f 2>&1; done | paste -sd'|' -)"
 echo '{"key":"agent-sl01","state":"stopped","source":"slack"}' > "$tmp/agent-sl01.json"
 check "a Slack session still resumes" "agent-rs04 starting" \
   "$(FXA_VM_BACKEND=gce cmd_task --source slack --id agent-rs04 --owner U1 --prompt-file "$tmp/go.md" --resume-from agent-sl01 2>/dev/null)"

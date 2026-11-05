@@ -2322,6 +2322,14 @@ cmd_task() {
   # Only a Slack session (or an old record with no source) carries forward; an unreadable one does not.
   # A missing record gets the resume path's own error below.
   local from_src; [ -n "$resume_from" ] && session_exists "$resume_from" && from_src="$(session_get "$resume_from" source 2>/dev/null || echo unreadable)"
+  # The one exception: a review round on the PR a scheduled pr routine opened. It keeps the run's cap and taint;
+  # a narrowed run (a security review, a dependency fix) has no PR round.
+  local rround=""
+  if [ "${from_src:-}" = routine ] && [ -z "$fresh_pr" ] && jq -e '(.routine_mode == "pr" or .routine_mode == "pr+notes")
+      and ((.pr_url // "") != "" or any((.trees // [])[]; (.pr_url // "") != ""))
+      and (.watch_narrow // "") == "" and (.fix_pr // "") == "" and (.memory // "") != "off"' "$(_session_file "$resume_from")" >/dev/null 2>&1; then
+    from_src=slack rround="$(session_get "$resume_from" cap_usd 2>/dev/null || echo 10)"
+  fi
   case "${from_src:-slack}" in slack) ;; *)
     echo "ERROR: a routine run cannot be continued; tag me in a new thread with the PR link or the finding" >&2; return 1 ;; esac
   # --fresh: a new conversation on the earlier session's open PR, at its head.
@@ -2382,6 +2390,7 @@ cmd_task() {
   [ -n "$resume_from" ] && session_set "$key" resume_from "$resume_from"
   # The resumed transcript holds what the earlier session read, so its taint carries over.
   [ -n "$resume_from" ] && [ "$(session_get "$resume_from" untrusted 2>/dev/null || true)" = 1 ] && session_set "$key" untrusted 1
+  [ -z "$rround" ] || session_set "$key" cap_usd "$rround"
   if [ -n "$thread" ]; then
     session_set "$key" thread "$thread"
     [ -n "$new_pr" ] && session_set "$key" new 1
