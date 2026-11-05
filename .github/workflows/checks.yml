@@ -59,7 +59,7 @@ jobs:
           FXA_CHECK_TIMEOUT: '600'
   dashboard-v2:
     # The v2 app: its checks, the committed dist against a new build, and the critical-path e2e. npm stays out of the *.check.sh files.
-    # The parity with v1 (skills/fxa-ctl-dev/parity-v2.sh) is a manual check now: v2 differs from v1 on purpose.
+
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -78,7 +78,7 @@ jobs:
           # A new branch or a force push has no before commit here: run everything.
           if ! git cat-file -e "$b^{commit}" 2>/dev/null; then echo ui=1 >> "$GITHUB_OUTPUT"; exit 0; fi
           if git diff --quiet "$b" HEAD -- dashboard dashboard-v2 desktop-gateway .github/workflows/checks.yml \
-              skills/fxa-ctl-dev/page.sh 'skills/fxa-ctl-dev/page-fixture*' 'skills/fxa-ctl-dev/parity*'; then
+              'skills/fxa-ctl-dev/page-fixture*'; then
             echo ui=0 >> "$GITHUB_OUTPUT"; echo "No dashboard file changed: the e2e is skipped."
           else echo ui=1 >> "$GITHUB_OUTPUT"; fi
       - uses: actions/setup-node@v4

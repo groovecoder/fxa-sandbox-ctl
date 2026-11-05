@@ -1,4 +1,4 @@
-// The Teams rules of dashboard/index.html with no React: the side list, the cells, the banner, and the record forms.
+// The Teams rules of the retired v1 dashboard with no React: the side list, the cells, the banner, and the record forms.
 import type { SideGroup, SideItem } from '../../app/store';
 import { ago, usd } from '../../format';
 import { ERRS, type J, memo, TEAMS, TEAM_RE } from '../../model/base';

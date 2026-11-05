@@ -1,10 +1,10 @@
-// The routine logic against the v1 code itself: each v1 function runs from dashboard/index.html on the same inputs.
+// The routine logic against the v1 code itself: each v1 function runs from its frozen copy in test/v1-routines.js on the same inputs.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as rt from './rt';
 
-const V1 = readFileSync(fileURLToPath(new URL('../../../../../dashboard/index.html', import.meta.url)), 'utf8').split('\n');
+const V1 = readFileSync(fileURLToPath(new URL('../../../../test/v1-routines.js', import.meta.url)), 'utf8').split('\n');
 // The top-level definition of each name: a one-statement const, or a function up to its closing brace at column 0.
 function src(name: string): string {
   const i = V1.findIndex((l) => new RegExp(`^(const|function) ${name}\\b`).test(l));

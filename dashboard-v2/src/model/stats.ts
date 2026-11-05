@@ -1,4 +1,4 @@
-// Stats ranges and the figures the Overview reads from the stats rows, ported from dashboard/index.html.
+// Stats ranges and the figures the Overview reads from the stats rows, ported from the retired v1 dashboard.
 import type { Store } from '../store/types';
 import { type J, STATS, TEAMS } from './base';
 import { ovFloor } from './floor';

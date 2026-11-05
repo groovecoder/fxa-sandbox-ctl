@@ -1,6 +1,6 @@
 # Dashboard design
 
-Read this before you change `dashboard/index.html`. The page is one file: the CSS, then JS that builds HTML. Each component is one class, and each value is a CSS custom property (a token).
+Read this before you change the dashboard in `dashboard-v2/`, a Vite, React and TypeScript app. The tokens are CSS custom properties in `src/styles/theme.css`, and the shared parts are in `src/ui` and `src/charts`.
 
 ## Rules
 
@@ -17,52 +17,38 @@ Read this before you change `dashboard/index.html`. The page is one file: the CS
 
 ## Build a view
 
-Use the helpers in the `// Components:` block, next to `const esc =`:
+Use the parts in `src/ui/parts.tsx`:
 
-```js
-tag("3 failing", "bad")                     // a pill: ok, warn, bad, info, merged, dim; { run, live, sq, href }
-dot("info", true)                           // a status dot; true pulses it
-meter(72, "warn", "72% of budget")          // a bar, 0 to 100
-card(html`<h2>Spend</h2>${body}`, { sm: true }) // also { flat: true }
-kvRow("Cost", "none", true)                 // label, value, missing
-table(["Team", ["Runs", "num"]], rows, { figures: true }) // also { dense: true }
-emptybox("No merged ticket yet.")
-cls("tag", tone, { run: true })             // a class list
+```tsx
+<Tag tone="bad" label="3 failing" />          // a pill: ok, warn, bad, info, merged, dim; also run, live, sq, href
+<Dot tone="info" label="running" live />       // a status dot; live pulses it
+<Meter pct={72} tone="warn" label="72% of budget" />
+<Card>...</Card>                               // also sm (a tile), flat (a card in a card), tone, href
+<Kv label="Cost" value="none" na />
+<StatTile label="Opened" value={6} sub="6 pipeline" />
+<EmptyBox>No merged ticket yet.</EmptyBox>
 ```
 
-- Put every value through `` html`...` ``. It escapes each `${value}`.
-- Use `raw()` only on HTML that a helper or `html` made. Never use `raw()` on text from a snapshot, Jira, GitHub or a runner.
-- Give `put()` a string, for example `` String(html`...`) ``. `put()` compares with `===`, so an `html` object repaints on every poll.
-- Use `card` in the main column, `card sm` for a small tile in a grid, and `card flat` for a card inside a card or a pane.
-- Use `kvRow` for facts about one item. Use `table` for many items with the same columns.
-- Use `table figures` when every column after the first is a number. Use `dense` in a narrow place.
+- React escapes each value. Do not use `dangerouslySetInnerHTML` on text from a snapshot, Jira, GitHub or a runner.
+- Use `Card` in the main column, `Card sm` for a tile in a grid, and `Card flat` for a card inside a card or a pane.
+- Use `Kv` for facts about one item. Use a table for many items with the same columns.
+- Use the shared heading and spacing rules: an `h2` is a section head (16/700), an `h3` is a card head (13/600), a card has `--card-pad` padding, and stacked cards are `--stack-gap` apart. The e2e test in `e2e/smoke.spec.ts` fails when a view drifts from them.
 
 ## Verify a change
 
-1. Run the offline checks of the helpers:
+1. Run the checks, in `dashboard-v2/`:
 
    ```bash
-   bash lib/dashboard-html.check.sh
-   bash lib/dashboard.check.sh
-   bash skills/fxa-ctl-dev/page.check.sh
+   npm run typecheck && npm run lint && npm test && npm run build && npx playwright test
    ```
 
-2. Take a screenshot of each view that you changed, in the light theme:
+2. Serve the build with a page fixture, and open it in a browser, in the light and the dark theme:
 
    ```bash
-   bash skills/fxa-ctl-dev/page.sh '#overview' --shot /tmp/light.png
+   python3 e2e/serve.py --fixture ../skills/fxa-ctl-dev/page-fixture-overview.json --port 4180
    ```
 
-3. Take the same screenshot in the dark theme:
+3. Make sure that the text is legible and that nothing overlaps, at 1440, 1024, 768 and 375 px.
+4. Run `bash skills/fxa-ctl-dev/test.sh changed` before you push, and commit `dashboard-v2/dist`.
 
-   ```bash
-   bash skills/fxa-ctl-dev/page.sh '#overview' --probe 'document.documentElement.dataset.theme = "dark"' --shot /tmp/dark.png
-   ```
-
-4. Look at both screenshots. Make sure that the text is legible and that nothing overlaps.
-5. Run `bash skills/fxa-ctl-dev/test.sh changed` before you push.
-
-## Dashboard v2
-
-The v2 app in `dashboard-v2/` keeps the rules above. For its build and its tests, see the Dashboard v2 steps in `skills/fxa-ctl-dev/SKILL.md`.
-After a change to v1 model code (`laneRows`, `beltGroups`, `ovNeeds` and the others in `dashboard-v2/src/model/index.ts`), run `bash skills/fxa-ctl-dev/v1-golden.sh` and commit `dashboard-v2/test/golden`.
+The files in `dashboard-v2/test/golden` are frozen results of the retired v1 dashboard. When a model change in `src/model` changes a result on purpose, update the file by hand.

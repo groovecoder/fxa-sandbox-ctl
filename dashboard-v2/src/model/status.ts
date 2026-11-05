@@ -1,4 +1,4 @@
-// The health word and the alerts, ported from renderStatus and renderAlerts in dashboard/index.html.
+// The health word and the alerts, ported from renderStatus and renderAlerts in the retired v1 dashboard.
 import { ago, short } from '../format';
 import { AGENTS, type J, STATE, memo } from './base';
 import { SNAP, merged, pipe, queueWaits, stopName, strayRun, strays } from './pipeline';

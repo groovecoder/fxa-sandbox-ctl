@@ -1,4 +1,4 @@
-// The Stats figures, ported from renderStats, prsTab and the cards of dashboard/index.html. Pure: no store, no DOM.
+// The Stats figures, ported from renderStats, prsTab and the cards of the retired v1 dashboard. Pure: no store, no DOM.
 import type { J } from '../../model/base';
 import { costPerMerged, inRange } from '../../model/stats';
 import type { StatsFilter } from '../../store/types';

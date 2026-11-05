@@ -74,7 +74,6 @@ export function Help({ open, onClose, keys, onKeys }: { open: boolean; onClose: 
         <Kv k={<kbd>r</kbd>} v="Refresh now" />
         <Kv k={<kbd>Esc</kbd>} v="Close this, or a drawer" />
         <label><input type="checkbox" id="keys-on" checked={keys} onChange={(e) => onKeys(e.target.checked)} /> Turn on single-key shortcuts. They are off by default, because they get in the way of speech input.</label>
-        <p className="hint"><a href="/">Back to v1</a></p>
       </div>
     </dialog>
   );
@@ -125,7 +124,6 @@ function items(s: Store, a: PaletteActions): Item[] {
     { id: 'a:right', label: 'Toggle details', hint: 'Action', run: a.right },
     { id: 'a:keys', label: `Keyboard shortcuts ${s.prefs.keys ? 'off' : 'on'}`, hint: 'Action', run: a.keys },
     { id: 'a:help', label: 'Show the keyboard shortcuts', hint: 'Action', run: a.help },
-    { id: 'a:v1', label: 'Back to v1', hint: 'Action', run: () => { location.href = '/'; } },
   );
   return out;
 }

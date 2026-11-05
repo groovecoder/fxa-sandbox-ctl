@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-// The page.sh rule: "@iso-600" is an ISO time 10 min ago.
+// The fixture time rule: "@iso-600" is an ISO time 10 min ago.
 const rel = (v: unknown): unknown => {
   if (Array.isArray(v)) return v.map(rel);
   if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, rel(x)]));

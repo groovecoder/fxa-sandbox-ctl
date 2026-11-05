@@ -1,4 +1,4 @@
-// The pipeline: the snapshot per team, runner cards, the board, belts and the queue, ported from dashboard/index.html.
+// The pipeline: the snapshot per team, runner cards, the board, belts and the queue, ported from the retired v1 dashboard.
 import { REPO_RE, days, plainMd, short } from '../format';
 import type { FeedName, Store } from '../store/types';
 import { AGENTS, type J, LANE_ST, PIPE_LISTS, SS, STATE, TEAM_ADMIN, memo } from './base';

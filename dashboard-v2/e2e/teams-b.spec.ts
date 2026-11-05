@@ -9,7 +9,7 @@ type Fx = Record<string, unknown>;
 type Post = { url: string; body: Record<string, unknown> };
 type Answer = (p: Post) => { status?: number; body: unknown } | Promise<{ status?: number; body: unknown }>;
 
-// The page.sh rule: "@iso-3600" is an ISO time an hour ago, "@epoch+600" an epoch 10 min ahead.
+// The fixture time rule: "@iso-3600" is an ISO time an hour ago, "@epoch+600" an epoch 10 min ahead.
 const now = Date.now() / 1000;
 const rel = (v: unknown): unknown => {
   if (Array.isArray(v)) return v.map(rel);

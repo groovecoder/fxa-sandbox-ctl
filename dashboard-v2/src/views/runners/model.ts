@@ -1,4 +1,4 @@
-// The Sandboxes view logic that src/model does not hold, ported from dashboard/index.html (sbCards, renderSbList, sbDetails, renderSbDone).
+// The Sandboxes view logic that src/model does not hold, ported from the retired v1 dashboard (sbCards, renderSbList, sbDetails, renderSbDone).
 import { ago, usd } from '../../format';
 import { AGENTS, LIVE_SESSION, STATE, STATS, TEAM_ADMIN, type J } from '../../model/base';
 import { ovFloor, sbRows } from '../../model/floor';

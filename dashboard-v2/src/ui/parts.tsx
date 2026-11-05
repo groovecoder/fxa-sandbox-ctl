@@ -1,4 +1,4 @@
-// The small parts, ported from the v1 helpers in dashboard/index.html (tag, dot, meter, card, kvRow, emptybox, statTile, checkBars).
+// The small parts, ported from the v1 helpers in the retired v1 dashboard (tag, dot, meter, card, kvRow, emptybox, statTile, checkBars).
 import type {
   CardProps,
   CheckBarsProps,

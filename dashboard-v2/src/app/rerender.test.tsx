@@ -17,7 +17,7 @@ const frames = (name: string): Frame[] =>
   readFileSync(`${process.cwd()}/fixtures/live/${name}.ndjson`, 'utf8').split('\n').filter(Boolean).map(parseFrame);
 const BASIC = frames('basic');
 const at = (id: string) => BASIC.find((f) => f.id === id)!;
-// The page.sh time rule of the v1 stats fixture: "@iso-3600" is an hour before NOW.
+// The fixture time rule of the v1 stats fixture: "@iso-3600" is an hour before NOW.
 const rel = (v: unknown): unknown => {
   if (Array.isArray(v)) return v.map(rel);
   if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, rel(x)]));

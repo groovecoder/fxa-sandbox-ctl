@@ -3,10 +3,10 @@
 With no --fixture: GET /api/live replays fixtures/live/<name>.ndjson, and the other GET /api/* reads answer from
 the hello and the first snapshot of the same file. The name comes from the fixture query or cookie, else the
 V2_LIVE environment variable, else basic. The replay stops after a bye; a resume (since) goes on after that id.
-With --fixture (a v1 page fixture, as parity-v2.sh uses): the fixture fills the server's feeds, so /api/snapshot,
+With --fixture: the fixture fills the server's feeds, so /api/snapshot,
 /api/stats and /api/overview are the real Handler answers, /api/live says bye off, so the page polls,
-and every other API path (/api/teams too) answers from the fixture, as page.sh does.
-With --live f.ndjson (parity-v2.sh on a live fixture): every page replays that file up to its first snapshot;
+and every other API path (/api/teams too) answers from the fixture.
+With --live f.ndjson: every page replays that file up to its first snapshot;
 --live f.ndjson --v1 prints the v1 page fixture of the same reads."""
 import argparse, datetime, json, os, re, sys, tempfile, time
 from http.cookies import SimpleCookie
@@ -19,8 +19,8 @@ ROOT = V2.parent
 p = argparse.ArgumentParser()
 p.add_argument("--port", type=int, default=4174)
 p.add_argument("--fixture", help="a v1 page fixture; without it the live fixtures answer")
-p.add_argument("--dist", default=str(V2 / "dist"), help="the build to serve (parity-v2.sh builds into a temp folder)")
-p.add_argument("--live", help="a live fixture file that every page replays, up to its first snapshot, so v2 shows the data v1 reads (parity-v2.sh)")
+p.add_argument("--dist", default=str(V2 / "dist"), help="the build to serve")
+p.add_argument("--live", help="a live fixture file that every page replays, up to its first snapshot")
 p.add_argument("--v1", action="store_true", help="with --live: print the v1 page fixture of the same data, and stop")
 a = p.parse_args()
 
@@ -37,7 +37,7 @@ now = time.time()
 
 
 def rel(v):
-    """The page.sh rule: "@iso-3600" is an ISO time an hour ago, "@epoch+600" an epoch 10 min ahead, "@day-2" a local day."""
+    """The fixture time rule: "@iso-3600" is an ISO time an hour ago, "@epoch+600" an epoch 10 min ahead, "@day-2" a local day."""
     if isinstance(v, dict):
         return {k: rel(x) for k, x in v.items()}
     if isinstance(v, list):
@@ -53,7 +53,7 @@ def rel(v):
 
 fx = rel(json.load(open(a.fixture))) if a.fixture else {}
 snap = fx.get("/api/snapshot") or {}
-# A fixture with no stats gets {}, as page.sh answers a missing path, so v1 and v2 read the same stats.
+# A fixture with no stats gets {}, as the retired page.sh answered a missing path.
 for name, data in (("FULL", snap.get("snapshot")), ("AGENTS", snap.get("agents")), ("STATS", fx.get("/api/stats", {} if a.fixture else None)),
                    ("TEAMS", (fx.get("/api/teams") or {}).get("teams"))):
     f = server.Feed(name.lower(), [], 60, 30)
@@ -127,7 +127,7 @@ def replay(fs, since):
 
 class Handler(server.Handler):
     def _team_admin(self, path):
-        # A fixture's viewer is its /api/team-admin, as page.sh gives v1, so both pages see the same rows.
+        # A fixture's viewer is its /api/team-admin.
         return bool((fx.get("/api/team-admin") or {}).get("admin")) if a.fixture else super()._team_admin(path)
 
     def live_name(self, query):

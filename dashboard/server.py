@@ -293,13 +293,6 @@ def script_hashes(page):
                     for m in re.findall(r"<script>([\s\S]*?)</script>", page))
 
 
-def csp_for(page):
-    """Only the page's own inline scripts run: an injected handler or script is blocked."""
-    return ("default-src 'none'; script-src " + script_hashes(page) + "; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src https://fonts.gstatic.com; img-src 'self' data: https://avatars.slack-edge.com https://ca.slack-edge.com "
-            "https://secure.gravatar.com; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
-
-
 def csp_v2(page):
     """The v2 policy: its own module scripts and the inline theme script, hashed from the page it serves."""
     return ("default-src 'none'; script-src 'self' " + script_hashes(page) + "; style-src 'self' 'unsafe-inline'; "
@@ -324,7 +317,7 @@ JOB_TITLES = {"pass": "Pipeline pass", "triage": "Triage", "merge-watch": "Merge
 
 
 def fix_label(rec):
-    """A dependency fix run's name for a team admin: its PR and what started it (fixLabel in index.html)."""
+    """A dependency fix run's name for a team admin: its PR and what started it (fixLabel in the v2 dashboard)."""
     n, t, a = str(rec.get("fix_pr") or ""), rec.get("fix_trigger"), rec.get("fix_actor") or ""
     by = "BLEnder" if t == "blender" else ("label by " + a if a else "label") if t == "label" else ("Run now by " + a if a else "Run now") if t == "manual" else ""
     return f"Dependency fix: #{n}" + (f" ({by})" if by else "") if n.isdigit() else "Dependency fix"
@@ -1441,9 +1434,14 @@ class Handler(BaseHTTPRequestHandler):
             if user:
                 self._team_ctl(user, [{"/audit": "audit", "/secrets": "secrets"}.get(m.group(2) or "", "get"), m.group(1)], read=True)
             return
-        if path in ("/", "/index.html"):
-            page = (ROOT / "index.html").read_text()
-            self._send(200, page, "text/html; charset=utf-8", csp_for(page))
+        if path in ("/", "/index.html", "/v2", "/v2/", "/v2/index.html"):
+            # /v2 stays for old links. No redirect: the gateway drops Location, and the asset paths are absolute.
+            try:
+                page = (V2_DIST / "index.html").read_text()
+            except OSError:
+                self._send(503, "The dashboard is not built: run npm run build in dashboard-v2.", "text/plain; charset=utf-8")
+                return
+            self._send(200, page, "text/html; charset=utf-8", csp_v2(page))
         elif path == "/icon.png":
             self._send(200, (ROOT / "icon.png").read_bytes(), "image/png")
         elif path == "/api/snapshot":
@@ -1594,14 +1592,6 @@ class Handler(BaseHTTPRequestHandler):
             self._desktop(path[len("/desktop/"):])
         elif path == "/api/refresh":
             self._json(405, {"error": "use POST"})
-        elif path in ("/v2", "/v2/", "/v2/index.html"):
-            # No redirect from /v2: the gateway drops Location, and the asset paths are absolute.
-            try:
-                page = (V2_DIST / "index.html").read_text()
-            except OSError:
-                self._send(503, "Dashboard v2 is not built: run npm run build in dashboard-v2.", "text/plain; charset=utf-8")
-                return
-            self._send(200, page, "text/html; charset=utf-8", csp_v2(page))
         elif path.startswith("/v2/"):
             name, d = path[len("/v2/assets/"):] if path.startswith("/v2/assets/") else "", V2_DIST / "assets"
             m = V2_ASSET.fullmatch(name)

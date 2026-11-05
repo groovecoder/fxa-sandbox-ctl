@@ -756,7 +756,6 @@ fxa-sandbox-ctl/               # Repo root
 │   └── fxa-ai-fixme.conf        # Repo, label family, pool state, telemetry paths
 ├── dashboard/
 │   ├── server.py                # Serves the snapshot as a live status page
-│   └── index.html               # The page itself
 ├── diagrams/                    # Generated PNGs of the pipeline diagrams
 ├── skills/
 │   ├── fxa-ai-fixme/            # Pass logic; ~/.claude/skills/ symlinks here

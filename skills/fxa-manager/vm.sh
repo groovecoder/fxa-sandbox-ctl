@@ -229,9 +229,9 @@ c=\$(sudo -u fxa git -C /home/fxa/Desktop/working2/fxa-sandbox-ctl rev-parse --s
 printf '  controller %s (want $1)  bot %s (want $2)\n' "\$c" "\$b"
 sleep 5; sudo journalctl -u fxa-agent-bot --since "-2min" --no-pager -o cat | grep -q "is running" && echo "  bot connected" || echo "  WARN: the bot has not logged 'is running' in 2 min"
 printf '  dashboard HTTP %s\n' "\$(curl -s -o /dev/null -w %{http_code} -H 'Host: localhost' localhost:8787/api/snapshot)"
-# v2 probes: the page has its module script, its first asset is immutable, the stream says hello (no HMAC: a non-admin viewer).
-v2=\$(curl -fsS -H 'Host: localhost' localhost:8787/v2/ 2>/dev/null); a=\$(printf '%s' "\$v2" | grep -oE '/v2/assets/[A-Za-z0-9._-]+[.]js' | head -1)
-printf '  v2 page %s\n' "\$(printf '%s' "\$v2" | grep -q '<script type="module"' && echo ok || echo 'WARN: no module script at /v2/')"
+# v2 probes: the root page has its module script, its first asset is immutable, the stream says hello (no HMAC: a non-admin viewer).
+v2=\$(curl -fsS -H 'Host: localhost' localhost:8787/ 2>/dev/null); a=\$(printf '%s' "\$v2" | grep -oE '/v2/assets/[A-Za-z0-9._-]+[.]js' | head -1)
+printf '  v2 page %s\n' "\$(printf '%s' "\$v2" | grep -q '<script type="module"' && echo ok || echo 'WARN: no module script at /')"
 printf '  v2 asset %s\n' "\$([ -n "\$a" ] && curl -fsS -o /dev/null -D - -H 'Host: localhost' "localhost:8787\$a" | grep -qi '^cache-control:.*immutable' && echo immutable || echo 'WARN: the first asset is not immutable')"
 printf '  live stream %s\n' "\$(curl -sN --max-time 5 -H 'Host: localhost' localhost:8787/api/live 2>/dev/null | grep -q '^event: hello' && echo hello || echo 'WARN: no hello: FXA_LIVE is off, or the stream failed')"
 EOF

@@ -1,4 +1,4 @@
-// The Overview's own rules over the stats rows, the floor and the recent runs, ported from dashboard/index.html.
+// The Overview's own rules over the stats rows, the floor and the recent runs, ported from the retired v1 dashboard.
 import type { ChartColor } from '../../charts';
 import { ago, usd } from '../../format';
 import { type J } from '../../model/base';

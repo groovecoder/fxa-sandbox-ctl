@@ -19,7 +19,7 @@ const defined = paths.map((p) => p.replace(/\*$/, '').replace(/[.*+?^${}()|[\]\\
 const ALIAS = `^${defined.length ? `(?!${defined.join('|')})` : ''}[@~#]/`;
 
 export default defineConfig(
-  { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report'] },
+  { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report', 'test/v1-routines.js'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,

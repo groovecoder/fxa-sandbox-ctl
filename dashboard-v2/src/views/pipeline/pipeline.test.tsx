@@ -18,7 +18,7 @@ Element.prototype.scrollIntoView ??= () => {};
 // Vitest runs in dashboard-v2/; under jsdom import.meta.url is not a file URL.
 const fixture = JSON.parse(readFileSync(`${process.cwd()}/../skills/fxa-ctl-dev/page-fixture-pipeline.json`, 'utf8'));
 
-// page.sh: "@iso-3600" is an ISO time an hour before now.
+// The fixture time rule: "@iso-3600" is an ISO time an hour before now.
 const rel = (v: J, now: number): J => Array.isArray(v) ? v.map((x) => rel(x, now))
   : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, rel(x, now)]))
     : typeof v === 'string' && /^@iso[+-]\d+$/.test(v) ? new Date((now + Number(v.slice(4))) * 1000).toISOString() : v;

@@ -1,4 +1,4 @@
-// Routine logic ported from dashboard/index.html (rtDraft to rtCostHint). Pure: no store, no DOM.
+// Routine logic ported from the retired v1 dashboard (rtDraft to rtCostHint). Pure: no store, no DOM.
 import { REPO_RE, sentence, usd } from '../../../format';
 import type { J } from '../../../model/base';
 import type { Tone } from '../../../ui';

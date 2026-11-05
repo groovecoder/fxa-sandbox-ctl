@@ -8,8 +8,8 @@ allowed-tools: Bash, Read, Edit, Write, Grep, Glob
 
 Before a product decision (a new setting, message, button, team feature or guard), read `PRODUCT.md`: its goals, principles and defaults decide.
 
-Before you change `dashboard/index.html`, read `guide/dashboard-design.md`. It gives the tokens, the
-component helpers, and the checks and screenshots that verify a dashboard change.
+Before you change the dashboard (`dashboard-v2/`), read `guide/dashboard-design.md`. It gives the tokens, the
+shared parts, and the checks that verify a dashboard change.
 
 ## Where things are
 
@@ -86,9 +86,7 @@ To replace exact text, use `python3 ~/.claude/skills/fxa-ctl-dev/rep.py <file> <
 
 To answer "is everything shipped?" or "what is the status?", run `bash skills/fxa-ctl-dev/shipped.sh` first (about 15 s; `--no-live` skips the manager). It lists work not on origin/main with its CI state, main against the dev deploy and the live bot, and the backlog items that wait.
 
-To render a dashboard view with live data and this tree's dashboard code, with no dev bot: `bash skills/fxa-ctl-dev/live-render.sh '#runners' [--admin] [--query 'ended=1&limit=100'] [page.sh options]` (about 15 s). A change to `lib/snapshot.sh` still needs `vm.sh dev`.
-
-Dashboard v2 (`dashboard-v2/`, served at `/v2`) is a Vite, React and TypeScript app. It needs Node 20.19 or later (`.nvmrc` has 24).
+The dashboard (`dashboard-v2/`, served at `/`; `/v2` still works for old links) is a Vite, React and TypeScript app. It needs Node 20.19 or later (`.nvmrc` has 24).
 The manager does not build it: commit `dashboard-v2/dist` with each change to the app.
 
 ```bash
@@ -96,8 +94,6 @@ cd dashboard-v2 && npm ci                     # once, and after a change to pack
 npm run typecheck && npm run lint && npm test # test.sh changed runs these and the build when dashboard-v2/ changed
 npm run build && git status dist              # then commit dist: CI fails when dist is not the build
 npx playwright install chromium && npm run e2e   # the critical path only: each view renders, the live stream, the saves (about 10 s)
-bash skills/fxa-ctl-dev/v1-golden.sh          # after a change to a page fixture or to v1 model code: writes test/golden/
-bash skills/fxa-ctl-dev/parity-v2.sh          # v1 and v2 on every page fixture and live fixture (about 10 min; manual, CI does not run it)
 ```
 
 The perf budgets fail a check when a change breaks them:
@@ -106,9 +102,9 @@ The perf budgets fail a check when a change breaks them:
 
 - `dashboard/stats.check.py` fails when the stats recompute takes 500 ms or more on the fixture store 100 times over.
 
-A parity diff that v2 fixes on purpose goes in `skills/fxa-ctl-dev/parity-allow.json`, with the v1 line in `why`.
-To compare on live data, record a live fixture from `vm.sh api` (`dashboard/live_record.py` says how) to a temp file,
-and give its path to `parity-v2.sh`. Keep the recording out of the repo.
+`dashboard-v2/test/golden` holds frozen results of the retired v1 dashboard: update a file by hand when a model change in `src/model` changes a result on purpose.
+To look at live data, record a live fixture from `vm.sh api` (`dashboard/live_record.py` says how) to a temp file,
+and serve it with `python3 e2e/serve.py --live <file> --port 4180`. Keep the recording out of the repo.
 
 Pin each npm package to an exact version (`npm view <pkg>@<version> version`), and commit `package-lock.json`.
 
@@ -155,7 +151,7 @@ to run with `!` instead of trying it first:
 | A runner prompt, a subagent, a skill | `skills/fxa-ctl-dev/agent-try.sh "<request>"`: on the laptop, about 20 s; no stack |
 | Anything a runner does | `fxa-sandbox-ctl session try --prompt "<request>"` on the manager: a real runner, no Slack |
 | A profile's guest scripts (provision, boot, ready) | `skills/fxa-ctl-dev/devslot.sh up <profile>` (the manager's `.env` gives the host), then `sync <profile> <guest dir>=<local dir>`, `run <profile> - < script.sh`, `reset`, `down`: a warm Firecracker slot. About 7 s for each run or reset, 17 s to sync 24 MB. The host stops an unused dev slot after 30 min |
-| A dashboard view (focus, routes, layout) | `skills/fxa-ctl-dev/page.sh '#teams/example' --probe '<async js>'` or `--shot out.png`: headless Chrome, fetch stubbed from `page-fixture.json` (or `--fixture`), about 3 s. Blur before a route change in a focus probe, or the focus can stay from the last route |
+| A dashboard view (focus, routes, layout) | in `dashboard-v2/`: `npm run build && python3 e2e/serve.py --fixture ../skills/fxa-ctl-dev/page-fixture-<name>.json --port 4180`, then open `http://localhost:4180/#<route>` in the browser pane. Use a port from 4180: Playwright reuses 4174 and 4175. A Playwright test in `e2e/` makes the check permanent |
 | The bot, or the whole path from Slack | the dev bot, below |
 | A new team, or a team's repos or image | the dev bot: `!team <name>` in a new thread. Read the start card: it must list every repo the person named. Then confirm that the runner uses the team's image (the card does not show it). Do this before you say the team is done |
 
@@ -224,18 +220,12 @@ Render the live data once with the new page:
 H=skills/fxa-manager/vm.sh
 jq -n --slurpfile a <($H api snapshot) --slurpfile b <($H api stats) --slurpfile c <($H run 'python3 -c "import sys,json,time; sys.path.insert(0,\"lib\"); import fxadb; print(json.dumps(fxadb.routine_summary(fxadb.connect(readonly=True), int(time.time()))))"' | tail -1) \
   '{"/api/snapshot": $a[0], "/api/stats": $b[0], "/api/routines/summary": $c[0], "/api/team-admin": {"admin": true}}' > "$SCRATCH/fx.json"
-for r in '#overview' '#pipeline/belts' '#runners' '#stats/spend'; do
-  bash skills/fxa-ctl-dev/page.sh "$r" --fixture "$SCRATCH/fx.json" --probe 'return document.getElementById("main").innerText.includes("did not render")'
-done
-# The routine summary comes from the store on the manager: /api/routines/summary needs a signed team admin.
-# Overview as a viewer who is not a team admin: prints false when no routine name from the summary shows.
-jq '. + {"/api/team-admin": {"admin": false}}' "$SCRATCH/fx.json" > "$SCRATCH/fx-user.json"
-names="$(jq -c '[."/api/routines/summary".routines[]?.name]' "$SCRATCH/fx.json")"
-bash skills/fxa-ctl-dev/page.sh '#overview' --fixture "$SCRATCH/fx-user.json" --probe "const n = $names, t = document.getElementById('ov-sys').innerText + document.getElementById('ov-floor').innerText; return n.some(x => t.includes(x))"
+cd dashboard-v2 && python3 e2e/serve.py --fixture "$SCRATCH/fx.json" --port 4180   # in the background
 ```
 
-`page-fixture-overview.json` is a sample-data fixture for the Overview; it takes `@iso-3600` and
-`@epoch+600` style times relative to the run. Headless Chrome keeps the window at least 500 px wide.
+Open `#overview`, `#pipeline/belts`, `#runners` and `#stats/spend` at `http://localhost:4180/` in the browser pane. Each must render with no "This section did not render".
+The routine summary comes from the store on the manager: `/api/routines/summary` needs a signed team admin.
+Serve the same file with `"/api/team-admin": {"admin": false}` to see the Overview as a viewer who is not a team admin: it must show no routine name from the summary.
 
 A section that throws shows "This section did not render". If it does, run `vm.sh rollback`, or revert the slices in reverse order and promote again.
 

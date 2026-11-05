@@ -1,4 +1,4 @@
-// Teams, routines facts and errors per team, ported from dashboard/index.html.
+// Teams, routines facts and errors per team, ported from the retired v1 dashboard.
 import type { Store } from '../store/types';
 import { ERRS, type J, RTSUM, SS, STATS, TEAMS, TEAM_ADMIN, memo } from './base';
 

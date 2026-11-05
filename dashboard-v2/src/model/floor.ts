@@ -1,4 +1,4 @@
-// The floor (pool slots and live sessions), Needs you and the Sandboxes list, ported from dashboard/index.html.
+// The floor (pool slots and live sessions), Needs you and the Sandboxes list, ported from the retired v1 dashboard.
 import { short } from '../format';
 
 import { AGENTS, type J, KEY_RE, LANE_ST, LIVE_SESSION, SS, STATE, TEAM_ADMIN, memo } from './base';

@@ -140,7 +140,7 @@ run_changed() {
   for f in $files; do
     [ -f "$f" ] || continue
     case "$f" in *.check.sh) picked+=("$f"); continue ;; esac
-    # The v2 app has its own npm checks below; its file names (index.html, package.json) would pick v1 checks.
+    # The v2 app has its own npm checks below; its file names (index.html, package.json) would pick unrelated checks.
     # The live fixtures are C1: the dashboard's Python checks replay them.
     case "$f" in dashboard-v2/*) v2=1; case "$f" in dashboard-v2/fixtures/live/*) py+=" $(echo dashboard/*.check.py)" ;; esac; continue ;; esac
     # The check named after the file's folder: lib/db/008-x.sql is lib/db.check.sh's.
@@ -180,10 +180,7 @@ run_changed() {
   done
   py="$(printf '%s\n' $py | sort -u)"
   [ ${#picked[@]} -gt 0 ] || [ -n "$py" ] || [ -n "$e2e" ] || [ -n "$v2" ] || { echo "$HOST: no check names the changed files; CI runs the full suite"; [ "$bad" = 0 ] || rc=1; return; }
-  # The page checks render dashboard/index.html in Chrome, about 100 times: only a dashboard or page
-  # change needs them (page.check.sh's fixtures name the controller as text).
-  if [ ${#picked[@]} -gt 0 ] && ! grep -qE '^(dashboard/|skills/fxa-ctl-dev/page)' <<< "$files"; then
-    picked=($(printf '%s\n' "${picked[@]}" | grep -v '^skills/fxa-ctl-dev/page[^/]*\.check\.sh$' || true)); fi
+
   # Largest first, as a full run does: the slow ones start first.
   [ ${#picked[@]} -eq 0 ] || picked=($(ls -S $(printf '%s\n' "${picked[@]}" | sort -u)))
   echo "$HOST: ${#picked[@]} checks for the changed files"

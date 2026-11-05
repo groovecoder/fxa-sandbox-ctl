@@ -38,7 +38,7 @@ def theme_hash(path):
 
 class Page(unittest.TestCase):
     def test_the_page_is_no_store_with_the_v2_csp(self):
-        for path in ("/v2", "/v2/", "/v2/index.html"):
+        for path in ("/", "/index.html", "/v2", "/v2/", "/v2/index.html"):
             code, h, body = get(path)
             self.assertEqual((code, h["Cache-Control"], h["Content-Type"]), (200, "no-store", "text/html; charset=utf-8"), path)
             self.assertIn(b'<script type="module"', body)
@@ -64,10 +64,8 @@ class Page(unittest.TestCase):
         finally:
             server.V2_DIST = keep
 
-    def test_v1_keeps_its_page_and_policy(self):
-        code, h, body = get("/")
-        self.assertEqual((code, h["Content-Security-Policy"]), (200, server.csp_for(body.decode())))
-        self.assertNotIn("'self' 'sha256", h["Content-Security-Policy"])
+    def test_the_root_is_the_v2_page(self):
+        self.assertEqual(get("/")[2], get("/v2/")[2])
 
 
 class Assets(unittest.TestCase):

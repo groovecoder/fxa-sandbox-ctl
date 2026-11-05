@@ -1,4 +1,4 @@
-// Each C2 selector equals its v1 golden result; the store is built through the poll converters and the reducers.
+// Each C2 selector equals its golden result, frozen from the retired v1 dashboard; the store is built through the poll converters and the reducers.
 import { readdirSync, readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { errorsAction, snapshotActions, teamsAction, viewerAction } from '../live/poll';
@@ -12,7 +12,7 @@ const golden = new URL('../../test/golden/', import.meta.url);
 const names = readdirSync(golden).filter((f) => f.endsWith('.json'));
 type J = ReturnType<typeof JSON.parse>;
 
-// page.sh: "@iso-3600" is an ISO time an hour before now, "@epoch+600" an epoch 10 min after, "@day-2" two days before today.
+// The fixture time rule: "@iso-3600" is an ISO time an hour before now, "@epoch+600" an epoch 10 min after, "@day-2" two days before today.
 function rel(v: J, now: number): J {
   if (Array.isArray(v)) return v.map((x) => rel(x, now));
   if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, rel(x, now)]));
@@ -22,7 +22,7 @@ function rel(v: J, now: number): J {
   const t = now + Number(m[2]);
   return m[1] === 'epoch' ? Math.trunc(t) : new Date(t * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
-// page.sh's fetch stub: the longest fixture key that the path starts with; a miss is [] for a list path, else {}.
+// The fetch stub of the retired v1 page.sh: the longest fixture key that the path starts with; a miss is [] for a list path, else {}.
 function stub(fx: Record<string, J>, path: string): J {
   const k = Object.keys(fx).filter((x) => path === x || path.startsWith(x + '/')).sort((a, b) => b.length - a.length)[0];
   return k ? fx[k] : /sessions/.test(path) ? { sessions: [], cursor: null } : /routines|errors/.test(path) ? [] : {};

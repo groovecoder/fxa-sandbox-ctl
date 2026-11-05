@@ -1,4 +1,4 @@
-// Sessions and quick answers, ported from dashboard/index.html.
+// Sessions and quick answers, ported from the retired v1 dashboard.
 import { ago } from '../format';
 import type { Session, Store } from '../store/types';
 import { type J, LIVE_SESSION, SS, STATS, TEAM_ADMIN, memo } from './base';
