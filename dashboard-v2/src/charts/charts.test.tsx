@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BarList, Belt, ChartFrame, Gantt, Heatmap, KpiCard, Sankey, Spark, StripPlot, Terminal, Tracker } from './index';
@@ -156,7 +156,7 @@ describe('Belt', () => {
 });
 
 describe('Terminal', () => {
-  it('keeps a 200-line window, reads aloud only when asked, and blinks only while running', () => {
+  it('keeps a 200-line window, never reads aloud, and blinks only while running', () => {
     const lines = Array.from({ length: 250 }, (_, i) => `line ${i}`);
     const { rerender } = render(<Terminal title="agent@sandbox: EX-1" lines={lines} state="running" />);
     const log = screen.getByRole('log', { name: 'agent@sandbox: EX-1 output' });
@@ -170,10 +170,7 @@ describe('Terminal', () => {
     expect(log.lastElementChild!.previousElementSibling!.textContent).toBe('line 250');
     expect(first!.isConnected).toBe(false);
     expect(log.querySelector('.ds-blink')).toBeNull();
-    const toggle = screen.getByRole('button', { name: 'Read new lines aloud' });
-    act(() => toggle.click());
-    expect(toggle.getAttribute('aria-pressed')).toBe('true');
-    expect(log.getAttribute('aria-live')).toBe('polite');
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('colours lines with the v1 ttyLine rules', () => {

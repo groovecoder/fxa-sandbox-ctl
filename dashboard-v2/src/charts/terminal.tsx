@@ -1,5 +1,5 @@
-// The terminal from v1 (.tty): append-only lines in a 200-line window, ttyLine colours, a log that reads aloud on request.
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+// The terminal from v1 (.tty): append-only lines in a 200-line window, ttyLine colours; the log stays quiet for a screen reader.
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { cx } from '../ui/tone';
 import type { TerminalProps } from './index';
 
@@ -30,7 +30,6 @@ export function ttyLine(l: string): ReactNode {
 }
 
 export function Terminal({ title, lines, state }: TerminalProps) {
-  const [aloud, setAloud] = useState(false);
   const screen = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const first = Math.max(0, lines.length - WINDOW);
@@ -51,20 +50,12 @@ export function Terminal({ title, lines, state }: TerminalProps) {
         <i aria-hidden className="size-s3 rounded-pill bg-tty-dot-3" />
         <span className="ml-s2 min-w-0 flex-1 truncate">{title}</span>
         <span className={busy ? 'text-tty-prompt' : 'text-tty-dim'}>{state}</span>
-        <button
-          type="button"
-          aria-pressed={aloud}
-          onClick={() => setAloud(!aloud)}
-          className="rounded-sm border border-tty-line bg-transparent px-s2 font-mono text-label text-tty-dim aria-pressed:text-tty-prompt"
-        >
-          Read new lines aloud
-        </button>
       </div>
       <div
         ref={screen}
         onScroll={onScroll}
         role="log"
-        aria-live={aloud ? 'polite' : 'off'}
+        aria-live="off"
         aria-label={`${title} output`}
         tabIndex={0}
         className="ds-screen min-h-0 flex-1 overflow-auto overscroll-contain px-s3 py-s3 font-mono text-label leading-relaxed break-words whitespace-pre-wrap"
