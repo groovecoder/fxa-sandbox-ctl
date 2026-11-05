@@ -179,7 +179,11 @@ Every turn, including later ones:
   or a pull request: there is nothing to ship.
 - When the engineer asks you to open or update the PR, and the change is done and
   verified, put the line 'ship: pr' above 'status: ready'. The host then opens the
-  PR, or updates the open one. Never write it when they did not ask.${slack}${jira}
+  PR, or updates the open one. Never write it when they did not ask.
+- In a session over several repos, 'ship: pr' ships every changed repo that ships
+  as a PR. Do not write "tap Open PR below": end with "Reply \`open PR\`, or tap Open PRs."
+- Give each check its final result, pass or fail. Do not tell the engineer about a
+  failed run that a later run of the same check passed, or about a tool's retries.${slack}${jira}
 EOF
 }
 
@@ -922,8 +926,11 @@ _session_activity() {
 # files from git, new files by their line count, never the .fxa-* scratch files.
 # The live file count reads it, because the agent also edits with scripts, not only Edit.
 # With no $1, the base is where HEAD left origin/main, so a rebase onto a newer main counts only the change.
-_SESSION_DIFFSTAT_SH='{ git diff --numstat "${1:-$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)}" -- . ":(exclude).fxa-*"
-  git ls-files -o --exclude-standard -- . ":(exclude).fxa-*" | while IFS= read -r f; do printf "%s\t0\t%s\n" "$(wc -l < "$f" | tr -d " ")" "$f"; done; } 2>/dev/null \
+# A team stack's /workspace is no repo: each repo it links counts, its files under the repo's name.
+_SESSION_DIFFSTAT_SH='n() { git diff --numstat "${1:-$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)}" -- . ":(exclude).fxa-*"
+  git ls-files -o --exclude-standard -- . ":(exclude).fxa-*" | while IFS= read -r f; do printf "%s\t0\t%s\n" "$(wc -l < "$f" | tr -d " ")" "$f"; done; }
+{ if git rev-parse --git-dir >/dev/null 2>&1; then n "$1"
+  else for d in */; do [ -e "${d}.git" ] && ( cd "$d" && n "" ) | awk -F "\t" -v p="${d%/}/" "BEGIN { OFS = FS } { \$3 = p \$3; print }"; done; fi; } 2>/dev/null \
   | jq -Rsc "{type: \"fxa_diffstat\", files: [split(\"\n\")[] | select(length > 0) | split(\"\t\") | {file: .[2], added: (.[0] | tonumber? // 0), removed: (.[1] | tonumber? // 0)}]}"'
 
 # _session_watch <key>   Stream the running turn as JSON lines, as they happen:

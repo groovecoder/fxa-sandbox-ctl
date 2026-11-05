@@ -239,6 +239,8 @@ STUB
 
 runtime_skill_ref() { printf '/%s' "$1"; }
 check "the first prompt carries the voice" "1" "$(SANDBOX_ROOT="$(cd "$(dirname "$0")/.." && pwd)" _session_first_prompt | grep -c 'helpful fox')"
+check "the first prompt says how a stack ships, and to give each check its final result" "1|1" \
+  "$(SANDBOX_ROOT="$(cd "$(dirname "$0")/.." && pwd)" _session_first_prompt | grep -c 'Reply `open PR`, or tap Open PRs')|$(SANDBOX_ROOT="$(cd "$(dirname "$0")/.." && pwd)" _session_first_prompt | grep -c 'Give each check its final result')"
 check "the first prompt names !usage and runs nothing" "1|" "$(SANDBOX_ROOT="$(cd "$(dirname "$0")/.." && pwd)" _session_first_prompt 2>"$tmp/fp.err" | grep -c 'point to `!usage`')|$(cat "$tmp/fp.err")"
 
 # The live file count comes from git on the runner, so edits made with a script count too.
@@ -253,6 +255,13 @@ git -C "$g" update-ref refs/remotes/origin/main HEAD
 echo z >> "$g/new.ts"
 check "diffstat: with no base, only the change since origin/main" '{"type":"fxa_diffstat","files":[{"file":"new.ts","added":1,"removed":0}]}' \
   "$(cd "$g" && bash -c "$_SESSION_DIFFSTAT_SH" _ "")"
+# A team stack's /workspace is no repo, only links to each: every repo counts, under its name.
+s="$tmp/stackws"; mkdir -p "$s"
+for r in fxa docs; do git init -q "$tmp/$r"; printf 'a\n' > "$tmp/$r/a.md"; git -C "$tmp/$r" add a.md
+  git -C "$tmp/$r" -c user.email=user@example.com -c user.name=t commit -q -m base; git -C "$tmp/$r" update-ref refs/remotes/origin/main HEAD; ln -s "$tmp/$r" "$s/$r"; done
+printf 'a\nb\n' > "$tmp/fxa/a.md"; printf 'x\ny\n' > "$tmp/docs/new.md"
+check "diffstat: a stack counts each repo, under its name" '{"type":"fxa_diffstat","files":[{"file":"docs/new.md","added":2,"removed":0},{"file":"fxa/a.md","added":1,"removed":0}]}' \
+  "$(cd "$s" && bash -c "$_SESSION_DIFFSTAT_SH" _ "")"
 check "diffstat: the watch turns it into a live event" '{"type":"diffstat","files":[{"file":"a.ts","added":3,"removed":1}]}' \
   "$(echo '{"type":"fxa_diffstat","files":[{"file":"a.ts","added":3,"removed":1}]}' | jq -R -c "$_SESSION_WATCH_JQ")"
 
