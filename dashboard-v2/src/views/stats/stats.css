@@ -1,11 +1,11 @@
 /* The Stats view, ported from the v1 stats CSS: tokens only. */
-.st h2 { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; }
-.st h3 { display: flex; align-items: baseline; gap: 0 var(--s2); flex-wrap: wrap; font-size: var(--t-heading); margin: 0 0 var(--s2); }
+.st h2 { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; margin: 0; font: 700 var(--t-heading) var(--head); }
+.st h3 { display: flex; align-items: baseline; gap: 0 var(--s2); flex-wrap: wrap; font: 600 var(--t-sub) var(--head); color: var(--ink); margin: 0 0 var(--s2); }
 .st .key { white-space: nowrap; }
 .st * + h3 { margin-top: var(--s4); }
 .st :is(h2, h3) .sub { font: 400 var(--t-sub) var(--sans); color: var(--faint); }
 .st h3 .note { margin-left: auto; font: 400 var(--t-sub) var(--sans); color: var(--faint); }
-.st-head { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.st-head { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s4); }
 .st .fchips { display: inline-flex; flex-wrap: wrap; gap: var(--s1); }
 .st .chip { padding: 1px 6px; font: 500 var(--t-label) var(--sans); color: var(--dim); border-color: var(--line); white-space: nowrap; }
 .st-ov { font-size: var(--t-sub); color: var(--warn); margin-bottom: var(--s2); }
@@ -13,12 +13,19 @@
 .linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
 .st .unknown { color: var(--warn); font-size: var(--t-sub); font-weight: 600; }
 .st .emptybox { margin-top: var(--s4); }
-.st .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); margin: var(--s4) 0; }
+.st .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s3); margin: 0; }
 .st .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
 .st .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s3); }
-.st * + .charts, .st * + .three { margin-top: var(--s3); }
+.st * + .charts, .st * + .three { margin-top: var(--s4); }
+/* Runners and Pipeline: the wide cards in the main column, the small summary in a 340 px side column (the Pipeline frame). */
+.st .st-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s4); align-items: start; }
+@media (min-width: 1200px) {
+  .st .st-cols { grid-template-columns: minmax(0, 1fr) 340px; }
+  .st .st-cols > * { grid-column: 1; }
+  .st .st-cols > :nth-child(2) { grid-column: 2; grid-row: 1 / span 3; }
+}
 .st-chart { min-width: 0; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); }
-.st-card { min-width: 0; }
+.st-card { min-width: 0; padding: var(--s4); }
 .st-card [data-new] { margin-top: var(--s4); }
 .st-toggle { display: flex; align-items: center; gap: var(--s1); margin-bottom: var(--s2); font-size: var(--t-label); color: var(--dim); }
 .st-toggle button { padding: 2px var(--s2); font-size: var(--t-label); }
@@ -29,7 +36,7 @@
 }
 
 .st-kv { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s1) var(--s1); font-size: var(--t-sub); border-radius: var(--r-sm); }
-.st-kv .k { min-width: 0; overflow-wrap: anywhere; }
+.st-kv .k { flex: none; max-width: 60%; overflow-wrap: anywhere; }
 .st-kv .v { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
 .st-kv .v b { color: var(--ink); }
 .st-kv.na .k { color: var(--faint); }

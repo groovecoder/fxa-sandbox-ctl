@@ -13,7 +13,7 @@ const oldest = <T,>(a: T[]) => a.slice().reverse();
 
 export function Runners({ st, rows, lo, hi }: { st: J; rows: J[]; lo: number; hi: number }) {
   return (
-    <div className="charts">
+    <div className="st-cols">
       <LoadCard l={st.load} lo={lo} hi={hi} />
       <AnswerCard rows={rows} />
       <RunnerCard rows={rows} />
@@ -110,7 +110,7 @@ export function Pipeline({ st, lo, hi }: { st: J; lo: number; hi: number }) {
   const p = pipelineData(st.pipeline, lo, hi), m = st.memory;
   const o = p ? oldest(p.days) : [];
   return (
-    <div className="charts">
+    <div className="st-cols">
       {!p ? <Box title="Pipeline queue" note="passes"><Empty>No pass recorded yet.</Empty></Box> : (
         <Box title="Pipeline queue" note="waits all time, passes in this range">
           {p.waits && (
