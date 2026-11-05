@@ -117,6 +117,18 @@ test('Settings, repos: a repo set to Append saves commits append in the record',
   await expect.poll(() => m.calls.find((c) => c.url === '/api/teams/example')?.body.record.repos).toEqual([{ slug: 'example/app', role: 'work', default: true, commits: 'append' }]);
 });
 
+test('Settings, repos at phone width: the table scrolls in its box, and the page does not scroll sideways', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  const m = await mock(page);
+  m.state.rec.example = { ...m.state.rec.example, repos: [{ slug: 'mozilla-services/syncstorage-rs', role: 'work', commits: 'append' }, { slug: 'mozilla/fxa', role: 'dep' }] };
+  await go(page, '#teams/example/settings');
+  await main(page).locator('[data-tf="repos"]').click();
+  const box = main(page).locator('[data-tform] .tscroll');
+  await expect(main(page).getByLabel('Commits of repo 1')).toHaveValue('append');
+  expect(await box.evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false);
+});
+
 test('Settings, record: an item form saves the whole record with the generation, 409 says Cancel, then redo', async ({ page }) => {
   const m = await mock(page);
   await go(page, '#teams/example/settings');

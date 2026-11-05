@@ -37,10 +37,13 @@
 .tpage .nm { font-weight: 700; display: inline-flex; align-items: center; gap: var(--s2); }
 .tpage .says { color: var(--dim); font-size: var(--t-sub); }
 
-.tpage .tscroll { overflow-x: auto; }
+.tpage .tscroll { overflow-x: auto; position: relative; }
 .tpage .ttable { width: 100%; border-collapse: collapse; font-size: var(--t-sub); margin-top: var(--s2); }
 .tpage .ttable th { text-align: left; color: var(--dim); font-weight: 600; padding: var(--s1) var(--s2); border-bottom: 1px solid var(--line); white-space: nowrap; }
 .tpage .ttable td { padding: var(--s2); border-bottom: 1px solid var(--line); vertical-align: middle; }
+/* A narrow screen scrolls the table, not squeezes its inputs past reading. */
+.tpage .ttable td > .input { min-width: 7rem; }
+.tpage .ttable td > input.mono { min-width: 16rem; }
 .tpage .sortbtn { background: none; border: 0; padding: 0; font: inherit; color: inherit; }
 .tpage .sortbtn:hover:not(:disabled) { background: none; color: var(--ink); }
 .tpage .tname { font-weight: 600; color: var(--link); }
