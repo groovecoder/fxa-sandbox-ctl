@@ -105,6 +105,22 @@ check "a head that cannot be read is skipped" "cannot read the branch head|0" \
   "$(tick $((T + 10800 + 60)) | jq -r --argjson r "$r8" '"\(.skips[] | select(.routine == $r) | .reason)|\(.runs | length)"')"
 _routine_head() { cat "$tmp/head" 2>/dev/null || echo "$H1"; }
 
+# watch: only the watch repo's new commits start the run, and its range is in the heads.
+_routine_profile() { echo '{"private": false, "read_only": false, "repos": [{"slug": "mozilla/fxa", "role": "work"}, {"slug": "mozilla/eco", "role": "work"}]}'; }
+_routine_head() { case "$1" in mozilla/fxa) echo "$H1" ;; *) echo "$PA" ;; esac; }
+w1="$(mk fxa "daily 12:30" '{"repos": ["mozilla/eco"], "watch": "mozilla/fxa", "mode": "pr"}')"
+w2="$(mk fxa "daily 12:30" '{"repos": ["mozilla/eco"], "watch": "mozilla/fxa", "mode": "pr"}')"
+db_exec "INSERT INTO routine_runs (routine_id, period, state, heads, started_at) VALUES
+  ($w1, '2026-10-18', 'ok', json('{\"mozilla/eco\": {\"start\": null, \"head\": \"$PA\"}, \"mozilla/fxa\": {\"start\": null, \"head\": \"$P7\"}}'), $((T - 86400))),
+  ($w2, '2026-10-18', 'ok', json('{\"mozilla/eco\": {\"start\": null, \"head\": \"$P7\"}, \"mozilla/fxa\": {\"start\": null, \"head\": \"$H1\"}}'), $((T - 86400)));"
+wo="$(tick $((T + 12600 + 60)))"
+check "a watch routine runs on new watch commits with no repo commits, and skips on repo commits alone" \
+  "$P7..$H1|no new commits since the last run" \
+  "$(db_value "SELECT json_extract(heads, '$.\"mozilla/fxa\".start') || '..' || json_extract(heads, '$.\"mozilla/fxa\".head') FROM routine_runs WHERE routine_id = $w1 AND period = '2026-10-19';")|$(jq -r --argjson r "$w2" '.skips[] | select(.routine == $r) | .reason' <<< "$wo")"
+db_exec "UPDATE routine_runs SET state = 'ok' WHERE routine_id = $w1;"
+_routine_profile() { echo "$OPEN"; }
+_routine_head() { cat "$tmp/head" 2>/dev/null || echo "$H1"; }
+
 # A run waits for a slot: unclaimed for 20 min, then starts; another's slots stay full and it fails at 30 min (D16).
 r9="$(mk fxa "daily 13:00")"; echo 1 > "$tmp/free"
 check "a run with no free slot stays unclaimed at 20 min" "0|0" "$(tick $((T + 14400 + 1200)) | jq '.runs | length')|$(rows "$r9")"

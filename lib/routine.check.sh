@@ -214,4 +214,16 @@ teams_delete rusty >/dev/null 2>&1
 check "teams_delete leaves no routine of the team, and audits it" "0|all 2 routines, with the team" \
   "$(db_value "SELECT count(*) FROM routines WHERE team = 'rusty';")|$(db_value "SELECT changed FROM team_audit WHERE team = 'rusty' AND action = 'routine-delete';")"
 
+# watch: a team repo the run reads only; its range is in the prompt, and only its commits start the run.
+check "a watch repo of the team passes" "ok" "$(v secret priv.json '{"mode":"pr","watch":"mozilla/fxa"}')"
+check "a watch repo that is not the team's" "watch: Repo mozilla/other is not one of this team's repos" "$(v secret priv.json '{"watch":"mozilla/other"}')"
+check "a watch repo that is also a routine repo" "watch: The watch repo must not be one of the routine's repos" "$(v secret priv.json '{"watch":"mozilla/secret"}')"
+a=$(printf 'a%.0s' $(seq 40)); b=$(printf 'b%.0s' $(seq 40)); c=$(printf 'c%.0s' $(seq 40))
+jq -cn --argjson x "$base" '$x + {mode: "pr", watch: "mozilla/fxa", branch: "main"}' > "$tmp/wc.json"
+jq -cn --arg a "$a" --arg b "$b" --arg c "$c" '{"mozilla/secret": {start: null, head: $a}, "mozilla/fxa": {start: $b, head: $c}}' > "$tmp/wh.json"
+check "the prompt gives the watch range, read only, on its default branch" "1" \
+  "$(python3 -I "$here/routine.py" prompt "$tmp/wc.json" "$tmp/wh.json" secret 0123456789ab | grep -c "^- mozilla/fxa, its default branch (read only: the code that landed; change and commit nothing in this repo): $b..$c$")"
+check "a watch repo with no heads refuses the prompt" "1" \
+  "$(jq -c 'del(."mozilla/fxa")' "$tmp/wh.json" > "$tmp/wh2.json"; python3 -I "$here/routine.py" prompt "$tmp/wc.json" "$tmp/wh2.json" secret 0123456789ab >/dev/null 2>&1; echo $?)"
+
 exit "$fail"

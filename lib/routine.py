@@ -37,7 +37,7 @@ TEMPLATES = ("code-review", "ux-review", "perf-review", "security-review", "blan
 MODES = ("report", "pr", "pr+notes")
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 KEYS = {"name", "template", "prompt", "schedule", "zone", "repos", "branch", "channel", "mode", "max_usd",
-        "skip_no_commits", "env", "on", "pr", "draft"}
+        "skip_no_commits", "env", "on", "pr", "draft", "watch"}
 # on='pr-label': the run starts when a dependency PR asks for help, not on a schedule (the pr block).
 PR_KEYS = {"repo", "authors", "label", "blender_login", "blender_mention", "sweep_min"}
 SLUG = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -234,6 +234,15 @@ def check(r, team, profile, index, env, count):
     for s in repos:
         if s.lower() not in known:
             bad.append(f"repos: Repo {s} is not one of this team's repos")
+    # watch: a team repo the run reads but never changes; its new commits start the run (a docs routine).
+    watch = r.get("watch")
+    if watch is not None:
+        if onpr:
+            bad.append("watch: A dependency PR routine has no watch repo")
+        elif not isinstance(watch, str) or watch.lower() not in known:
+            bad.append(f"watch: Repo {watch} is not one of this team's repos")
+        elif watch.lower() in [x.lower() for x in repos]:
+            bad.append("watch: The watch repo must not be one of the routine's repos")
     if "branch" in r:
         if not isinstance(r["branch"], str) or not BRANCH.fullmatch(r["branch"]) or ".." in r["branch"]:
             bad.append("branch: Use letters, digits and . _ / - in the branch, at most 60 characters")
@@ -458,13 +467,18 @@ def prompt(cfg, heads, team, nonce):
     branch = cfg.get("branch")
     if branch is not None and (not BRANCH.fullmatch(branch) or ".." in branch or len(cfg["repos"]) != 1):
         raise ValueError("the run's branch is not valid (a branch goes with exactly one repo)")
+    watch = cfg.get("watch")
+    if watch is not None and (not isinstance(watch, str) or not SLUG.fullmatch(watch)):
+        raise ValueError("the run's watch repo is not valid")
     lines = []
-    for slug in cfg["repos"]:
+    for slug in cfg["repos"] + ([watch] if watch else []):
         h = heads.get(slug)
         if not isinstance(h, dict) or not SHA.fullmatch(str(h.get("head", ""))) \
                 or not (h.get("start") is None or SHA.fullmatch(str(h["start"]))):
             raise ValueError(f"the run has no valid commit SHAs for {slug}")
-        on = f"branch {branch}" if branch else "its default branch"
+        on = f"branch {branch}" if branch and slug != watch else "its default branch"
+        if slug == watch:
+            on += " (read only: the code that landed; change and commit nothing in this repo)"
         span = f"{h['start']}..{h['head']}" if h.get("start") else f"up to {h['head']} (the first run: the commits of the last 24 hours)"
         lines.append(f"- {slug}, {on}: {span}")
     fence = f"routine-{nonce}"

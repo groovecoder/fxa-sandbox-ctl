@@ -615,10 +615,12 @@ _routine_heads() {
   prev="$(db_value "SELECT heads FROM routine_runs WHERE routine_id = $2 AND heads IS NOT NULL AND state IN ('ok','report','nochange') ORDER BY id DESC LIMIT 1;")" || return 1
   [ -n "$prev" ] || prev='{}'
   br="$(jq -r '.branch // ""' <<< "$1")"
-  for slug in $(jq -r '.repos[]' <<< "$1"); do
+  for slug in $(jq -r '.repos[], (.watch // empty)' <<< "$1"); do
     head="$(_routine_head "$slug" "$br")" || { echo "cannot read the head of ${slug}" >&2; return 3; }
     start="$(jq -r --arg s "$slug" '.[$s].head // empty' <<< "$prev" 2>/dev/null || true)"
     out="$(jq -c --arg s "$slug" --arg h "$head" --arg st "$start" '. + {($s): {start: (if $st == "" then null else $st end), head: $h}}' <<< "$out")"
+    # The watch repo is read on its default branch, after the repos.
+    [ "$slug" = "$(jq -r '.watch // ""' <<< "$1")" ] && br=""
   done
   printf '%s\n' "$out"
 }
@@ -791,7 +793,7 @@ routine_tick() {
       case $hrc in 0) ;; 3) why="cannot read the branch head" ;; *) rm -f "$f"; echo "$_ROUTINE_STORE" >&2; return 1 ;; esac
     fi
     if [ -z "$why" ] && [ "$(jq -r '.skip_no_commits // true' <<< "$cfg")" = true ] \
-        && [ "$(jq -r '[.[] | .start == .head] | all' <<< "$heads")" = true ]; then why="no new commits since the last run"; fi
+        && [ "$(jq -r --argjson c "$cfg" 'if $c.watch then [.[$c.watch]] else [.[]] end | map(.start == .head) | all' <<< "$heads")" = true ]; then why="no new commits since the last run"; fi
     if [ -z "$why" ] && [ "$free" -lt 2 ]; then
       # Waiting for a slot stays unclaimed; 30 min after the time it fails (D16).
       [ "$age" -ge 1800 ] || continue

@@ -2290,7 +2290,7 @@ cmd_task() {
     run_text="$(_ROUTINE_PY prompt <(printf '%s' "$routine_cfg") <(jq -c .heads <<< "$run_json") "${PIPE_PROFILE:-fxa}" "$nonce")" && [ -n "$run_text" ] \
       || { echo "ERROR: routine run ${rrun} cannot start: its row is not valid" >&2; return 1; }
     # One repo that is the team's own work repo needs no stack; any other pick is a team stack.
-    local rr; rr="$(jq -r '.repos | join(",")' <<< "$routine_cfg")"
+    local rr; rr="$(jq -r '.repos + [.watch // empty] | join(",")' <<< "$routine_cfg")"
     [ "$(tr '[:upper:]' '[:lower:]' <<< "$rr")" = "$(tr '[:upper:]' '[:lower:]' <<< "${PIPE_REPO_SLUG:-}")" ] || repos="$rr"
   fi
   [ -n "$owner" ] && { [ -n "$run_text" ] || [ -s "$prompt_file" ]; } || { echo "ERROR: task needs --owner and a non-empty --prompt-file" >&2; return 1; }
@@ -2395,6 +2395,9 @@ cmd_task() {
   # Not for a routine run: its repos come only from its row.
   [ -z "$repos" ] && [ "$source" != routine ] && ! trees_on "$key" && [ -n "${PIPE_STACK_DEFAULT:-}" ] && repos="$(tr -s ' ' ',' <<< "$PIPE_STACK_DEFAULT")"
   [ -n "$repos" ] && { trees_init "$key" "$repos" || { _task_abort "$key"; return 1; }; }
+  # A routine's watch repo is read only: its tree never opens a PR.
+  local rw=""; [ -n "$routine_cfg" ] && rw="$(jq -r '.watch // ""' <<< "$routine_cfg")"
+  [ -z "$rw" ] || _session_write "$key" '.trees |= map(if (.slug | ascii_downcase) == ($w | ascii_downcase) then .out = "diff" else . end)' --arg w "$rw"
   if trees_on "$key"; then
     [ -n "$resume_from" ] && trees_each "$key" _task_carry "$key" "$resume_from" "$fresh_pr"
   else

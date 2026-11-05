@@ -95,6 +95,17 @@ trees_init() { echo "$2" >> "$tmp/trees-init"; }
 PIPE_STACK_DEFAULT="mozilla/PyFxA mozilla/fxa" task pyfxa agent-rt21 --routine-run "$r8" >/dev/null 2>&1
 check "a one-repo routine on the team repo is no stack, even with PIPE_STACK_DEFAULT" "agent-rt21|" "$(jq -r .key "$tmp/agent-rt21.json")|$(cat "$tmp/trees-init")"
 unset -f trees_init
+# A watch repo joins the stack, read only: its tree never opens a PR.
+rid="$(db_value "INSERT INTO routines (team, data) VALUES ('pyfxa', '{}'); SELECT last_insert_rowid();")"
+r9="$(db_value "INSERT INTO routine_runs (routine_id, period, state, config, heads) VALUES ($rid, 'pw', 'claimed',
+  $(db_q "$(cfg | jq -c 'del(.branch) + {mode: "pr", watch: "mozilla/fxa"}')"),
+  $(db_q "$(jq -cn --arg a "$A" --arg b "$B" '{"mozilla/PyFxA": {start: $a, head: $b}, "mozilla/fxa": {start: $a, head: $b}}')")); SELECT last_insert_rowid();")"
+: > "$tmp/trees-init"
+trees_init() { echo "$2" >> "$tmp/trees-init"; _session_write "$1" '.trees = [{slug: "mozilla/PyFxA", out: "pr"}, {slug: "mozilla/fxa", out: "pr"}]'; }
+task pyfxa agent-rt22 --routine-run "$r9" >/dev/null 2>&1
+check "a watch routine picks its repo and the watch repo, and the watch tree is diff only" "mozilla/PyFxA,mozilla/fxa|mozilla/PyFxA:pr mozilla/fxa:diff" \
+  "$(cat "$tmp/trees-init")|$(jq -r '[.trees[] | "\(.slug):\(.out)"] | join(" ")' "$tmp/agent-rt22.json")"
+unset -f trees_init
 # A multi-repo routine has no branch: each repo is named at its default branch; a row with both is refused.
 jq -cn '{name: "Code review", template: "code-review", prompt: "x", mode: "report", repos: ["mozilla/PyFxA", "mozilla/fxa"]}' > "$tmp/multi.json"
 jq -cn --arg a "$A" --arg b "$B" '{"mozilla/PyFxA": {start: $a, head: $b}, "mozilla/fxa": {start: null, head: $b}}' > "$tmp/multi-heads.json"
