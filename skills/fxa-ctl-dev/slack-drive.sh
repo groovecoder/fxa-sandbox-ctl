@@ -52,7 +52,9 @@ replies() { api "$USER_TOKEN" conversations.replies -G --data-urlencode "channel
 show() {
   local me bot; me="$(api "$USER_TOKEN" auth.test | jq -r .user_id)"; bot="$(api "$BOT_TOKEN" auth.test | jq -r .user_id)"
   replies "$1" | jq -r --arg me "$me" --arg bot "$bot" --argjson t0 "${1%%.*}" '
-    def btext: if .type == "rich_text" then [.. | objects | select(.type == "text" or .type == "link" or .type == "emoji") | if .type == "emoji" then ":\(.name):" else (.text // .url) end] | join("")
+    # Slack stores a markdown block as rich_text: each list item goes on its own line, as the client shows it.
+    def leaves: [.. | objects | select(.type == "text" or .type == "link" or .type == "emoji") | if .type == "emoji" then ":\(.name):" else (.text // .url) end] | join("");
+    def btext: if .type == "rich_text" then [.elements[] | if .type == "rich_text_list" then ([.elements[] | "- " + leaves] | join("\n")) + "\n" else leaves end] | join("")
       else [.. | objects | select(.type == "mrkdwn" or .type == "plain_text" or .type == "markdown") | .text? // empty | strings] | join(" ") end;
     .messages[] |
     "+\(((.ts | tonumber) - $t0) | floor)s \(if .user == $me then "me" elif (.user == $bot or .bot_id) then "bot" else .user end)\(if .edited then " (edited)" else "" end): \(.text // "" | gsub("\n"; " ⏎ ") | .[0:600])",
