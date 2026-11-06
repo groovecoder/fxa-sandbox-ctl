@@ -90,17 +90,17 @@ function TestCard({ t, rec }: { t: J; rec: J }) {
       <div className="row"><button type="button" disabled={test?.busy} onClick={() => void stopTest(p)}>Stop the test</button><span className="hint">It stops the runner the test booted. The team stays as it is.</span></div>
       <p className="hint">{!test?.activate ? 'It stays a draft when it passes.' : `${teamName(t)} turns on when it passes.`}</p>
     </>,
-  ] : st === 'passed' && active ? ['Passed. The team is active.', null, go('Test again', false)]
+  ] : st === 'passed' && active ? [`Last test passed${x?.at ? ` ${new Date(x.at * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}. The team is active.`, <Tag label="Passed" tone="ok" />, go('Test again', false)]
     : st === 'passed' ? [who === 'Nobody' ? 'Passed. Activate it. Nobody can start it from Slack until you add people.' : `Passed. Activate it to let ${who.toLowerCase()} start it.`,
       <Tag label="Passed" tone="ok" />, <div className="row"><button ref={btn} type="button" onClick={() => void setStatus(p, 'active')}>Activate</button></div>]
     : st === 'failed' ? ['Failed. Read the log, change the setup, then test again.', <Tag label="Failed" tone="bad" />,
       <>{lines.length > 0 && <pre className="log" aria-label="The last lines of the test log">{lines.join('\n')}</pre>}{go('Test and activate', true)}</>]
-    : ['Boots one runner with this setup. The first answer can take up to 20 minutes.', null, go(active ? 'Test' : 'Test and activate', !active)];
+    : [`${active ? 'No test on record. ' : ''}A test boots one runner with this setup. The first answer can take up to 20 minutes.`, null, go(active ? 'Test' : 'Test and activate', !active)];
   return (
     <Card>
       <div className="stack">
         <div className="ck">
-          {(st === 'passed' || st === 'failed' || !active) && <span className={`num ${st === 'passed' ? 'ok' : st === 'failed' ? 'warn' : 'info'}`} aria-hidden="true">{st === 'passed' ? '✓' : st === 'failed' ? '!' : '2'}</span>}
+          {(st === 'passed' || st === 'failed') && <span className={`num ${st === 'passed' ? 'ok' : 'warn'}`} aria-hidden="true">{st === 'passed' ? '✓' : '!'}</span>}
           <div className="who"><h3 className="nm">{active ? 'Test' : 'Test and activate'}</h3><span className="says">{says}</span></div>
           {tag}
         </div>

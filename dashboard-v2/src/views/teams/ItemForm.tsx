@@ -59,6 +59,7 @@ export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
       <div className="row">
         <button type="button" disabled={f.busy} onClick={() => void saveForm()}>{f.busy ? 'Saving…' : retest ? 'Save and test again' : 'Save'}</button>
         <button type="button" className="linkbtn" onClick={closeForm}>Cancel</button>
+        <span className="hint">Save or cancel this form to change something else.</span>
       </div>
       <Said ok={f.ok} msg={f.msg} />
     </>

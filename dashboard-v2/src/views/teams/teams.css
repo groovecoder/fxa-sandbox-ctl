@@ -20,6 +20,7 @@
 .tpage .linkbtn { background: none; border: 0; padding: 0; color: var(--link); font: inherit; font-weight: 600; }
 .tpage .linkbtn:hover:not(:disabled) { background: none; text-decoration: underline; }
 .tpage button:disabled { opacity: .5; cursor: default; }
+.tpage .linkbtn:disabled { opacity: 1; color: var(--dim); }
 
 .tpage .row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
 .tpage .stack { display: flex; flex-direction: column; gap: var(--s3); }
@@ -71,7 +72,8 @@
 .tpage .tin { padding: var(--s2) 0; border-top: 1px solid var(--line); }
 .tpage .ckbody { padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); }
 .tpage .kv { align-items: baseline; font-size: var(--t-sub); }
-.tpage .kv > span:last-child { color: var(--ink); text-align: right; }
+.tpage .kv { flex-direction: column; align-items: flex-start; gap: 2px; }
+.tpage .kv > span:last-child { color: var(--ink); text-align: left; }
 
 .tpage .field { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
 .tpage .field label, .tpage .lb { font-weight: 600; font-size: var(--t-sub); }
@@ -107,7 +109,7 @@
 .tpage .ttimeline .when { color: var(--dim); font-variant-numeric: tabular-nums; }
 /* The People list, the folds and the long values: readable at every width. */
 .tpage .kv > span:first-child { flex: none; white-space: nowrap; }
-.tpage .tlines { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tpage .tlines { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .tpage .ck { flex-wrap: wrap; }
 .tpage .ck .who { flex: 1 1 14rem; }
 .tpage .tmore-card summary .tsum { display: inline; font-size: var(--t-body); font-weight: 600; margin: 0; }
@@ -131,8 +133,5 @@
   .tpage .tppl .trl { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
 }
 @media (max-width: 640px) {
-  .tpage .kv { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .tpage .kv > span:last-child { text-align: left; }
-  .tpage .tlines { align-items: flex-start; }
   .tpage .tmore-card summary .hint { display: block; padding-left: 1em; }
 }
