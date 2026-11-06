@@ -86,6 +86,15 @@ check "rebuilt tree sits on their tree" "$(git -C "$tmp/them" rev-parse "${their
 check "their file is kept, ours are sent" "a.txt,c.txt,d.txt,run.sh" "$(grep '^POST git/trees' "$tmp/calls" | tail -1 | cut -d' ' -f3- | jq -r '[.tree[].path] | join(",")')"
 check "the branch moves once" "1" "$(grep -c '^PATCH git/refs/heads/fxa-2' "$tmp/calls")"
 
+# The bot pushed its change, then a person pushed on top: the rebuild is empty, so nothing is sent and the branch is the result.
+git push -q origin "$base:refs/heads/fxa-3"
+same="$(git commit-tree "$(git write-tree)" -p "$base" -m "same change, pushed")"; git push -q origin "$same:refs/heads/fxa-3"
+git update-ref refs/remotes/origin/fxa-3 "$base"
+: > "$tmp/calls"
+out="$(REMOTE_SHA="$same" github_app_commit "$tmp/r" fxa-3 "$base" "m" 2>/dev/null)"; rc=$?
+check "an empty rebuild: only the first try's tree, no ref move, and the branch head is the result" "0|1|0|$same" \
+  "$rc|$(grep -c '^POST git/trees' "$tmp/calls")|$(grep -c '^PATCH git/refs' "$tmp/calls")|$out"
+
 # The change is already built on their amended commit, and our tracking ref is the old head they replaced: a fast forward.
 git update-ref refs/remotes/origin/fxa-2 "$(git commit-tree "$(git rev-parse "${base}^{tree}")" -p "$base" -m replaced)"
 : > "$tmp/calls"
