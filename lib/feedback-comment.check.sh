@@ -33,6 +33,20 @@ rm -f "$tmp/posted"
 _finish_feedback_comment agent-x1 "$tmp/done.json" "$url"
 check "a session key is not a Jira ticket" "no" "$([ -e "$tmp/posted" ] && echo yes || echo no)"
 
+# A round that fixed none of its comments, all from bots, gives its review round back; a person's comment keeps it.
+eval "$(sed -n '/^_finish_feedback_free() {/,/^}/p' "$(dirname "$0")/finish.sh")"
+PIPE_STATE_DIR="$tmp" PIPE_REPO_SLUG=mozilla/fxa
+gh() { case "$*" in *comments/11*|*comments/12*) echo Bot ;; *) echo User ;; esac; }
+free() { echo 2 > "$tmp/FXA-2.feedback-rounds"; printf '%s\n' "$@" > "$tmp/FXA-2.feedback-acted"; _finish_feedback_free FXA-2 "$tmp/done.json" 2>/dev/null; cat "$tmp/FXA-2.feedback-rounds"; }
+printf '{"feedback_summary":["Not fixed: a, wrong on main (u1)","- Not fixed: b, out of scope (u2)"]}' > "$tmp/done.json"
+check "all not fixed, all bot comments: the round does not count" "1" "$(free 11 12)"
+check "a person's inline comment in the round: it counts" "2" "$(free 11 13)"
+check "a conversation comment is a person's: it counts" "2" "$(free 11 i5)"
+printf '{"feedback_summary":["Not fixed: a (u1)","Fixed: b (u2)"]}' > "$tmp/done.json"
+check "one comment fixed: it counts" "2" "$(free 11 12)"
+printf '{"pr_body":"x"}' > "$tmp/done.json"
+check "no summary: it counts" "2" "$(free 11 12)"
+printf '{"feedback_summary":["Fixed: one"]}' > "$tmp/done.json"
 jira_comment() { return 1; }
 check "a failed post warns and does not fail" "0 1" "$(_finish_feedback_comment FXA-1 "$tmp/done.json" "$url" 2>"$tmp/err"; echo "$? $(grep -c WARN "$tmp/err")")"
 exit "$fail"

@@ -914,6 +914,7 @@ _This comment is from an AI agent._" >/dev/null 2>&1) || echo "  WARN: could not
     finish_request_copilot_review "$pr_url"
     _finish_feedback_comment "$issue" "$done_file" "$pr_url"
     _finish_feedback_pr "$pr_url" "$done_file"
+    _finish_feedback_free "$issue" "$done_file"
     _finish_release_runner "$worktree"
     printf '%s\n' "$pr_url"
     mv "$done_file" "${done_file}.$(date +%s)" 2>/dev/null || rm -f "$done_file"
@@ -1000,6 +1001,23 @@ _finish_feedback_comment() {
   jira_comment "$key" "::info
 **Review feedback round**${pr_url:+ · [PR #${pr_url##*/}](${pr_url})}
 ${summary}" || echo "  WARN: could not post the feedback summary on ${key}." >&2
+}
+
+# _finish_feedback_free <KEY> <done_file>
+#   A round that fixed nothing, on comments only bots wrote, gives its review round back: every
+#   feedback_summary line is "Not fixed", and every comment the pass recorded for it is a bot's.
+_finish_feedback_free() {
+  local key="$1" acted="${PIPE_STATE_DIR:-}/${1}.feedback-acted" rounds="${PIPE_STATE_DIR:-}/${1}.feedback-rounds" id n
+  [ -n "${PIPE_STATE_DIR:-}" ] && [ -s "$acted" ] && [ -s "$rounds" ] || return 0
+  jq -e '[.feedback_summary // empty | if type == "array" then .[] else . end | tostring | split("\n")[] | sub("^\\s*[-*] "; "") | select(. != "")]
+         | length > 0 and all(startswith("Not fixed"))' "$2" >/dev/null 2>&1 || return 0
+  while read -r id; do
+    # feedback drops bot conversation comments and reviews, so only an inline id can be a bot's.
+    [[ "$id" =~ ^[0-9]+$ ]] && [ "$(gh api "repos/${PIPE_REPO_SLUG:-}/pulls/comments/${id}" --jq .user.type 2>/dev/null < /dev/null)" = Bot ] || return 0
+  done < "$acted"
+  n="$(tr -dc 0-9 < "$rounds")"; [ "${n:-0}" -gt 0 ] || return 0
+  echo "$((n - 1))" > "$rounds"
+  echo "  The round fixed none of its comments, all from bots: it does not count toward the review-round cap." >&2
 }
 
 # _finish_feedback_pr <pr_url> <done_file>

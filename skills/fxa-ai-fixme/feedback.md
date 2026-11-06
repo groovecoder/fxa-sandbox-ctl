@@ -28,7 +28,10 @@ Procedure:
 1. **Do not relabel on detection.** Drop the ticket from ✅ and list it under ⚠️ as "feedback
    pending". Label `inflight` only in the pass that launches the round; three phantom inflights
    would make every slot look owned.
-2. `$CTL feedback KEY rounds`. **Cap 2 rounds per PR**, then `blocked rounds`.
+2. `$CTL feedback KEY rounds`. **Cap 2 rounds per PR**, then `blocked rounds`. A round that fixed
+   none of its comments, when only bots (Copilot, CodeRabbit) wrote them, does not count: the host
+   takes it back from `rounds` when the round ends. At the cap, still judge each new comment. A
+   decline or an answer needs no round, so label `blocked rounds` only for a comment you would act on.
    **A team admin's comment** (`admin: true` in `feedback`, `team admin` in the bundle) is the
    exception: precheck lists it as `feedback: KEY is blocked, and a team admin left new comments`
    when the ticket is `blocked` (any kind, a launch error too) and the PR is open. Treat it as
