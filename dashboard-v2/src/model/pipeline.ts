@@ -88,7 +88,7 @@ export const NEXT_STEP: Record<string, string> = {
   stalled: 'The run stalled twice. Read fxa-sandbox-ctl tail KEY, then relaunch it or label it rejected.',
   dead_vm: 'The sandbox died twice. Check the runner host, then relaunch the ticket.',
   attempts: 'Fix the PR by hand, or remove ai-fixme-blocked to give the agent a new try.',
-  rounds: 'Fix the PR by hand, or remove ai-fixme-blocked to give the agent a new try.',
+  rounds: 'The agent used its review rounds. Fix the PR by hand, or a team admin comments on the PR or gives it one more round here.',
   rebases: 'The PR conflicted with the base 5 times. Resolve the conflict by hand, or remove ai-fixme-blocked after main settles.',
   refused_ship: 'The change edits CI or Yarn or npm config. A human relaunches with FXA_ALLOW_TOOLING_EDITS=1 if the ticket asks for it.',
   frozen: 'The fix needs a frozen path. A human unfreezes it in _scripts/check-frozen.ts or fixes the ticket by hand.',
@@ -252,6 +252,8 @@ export const BROKEN = new Set(['stalled', 'dead_vm', 'attempts', 'rounds', 'infr
 // Each key goes to one group, from classify() through boardItems(), so the groups, the tab count and Needs you agree.
 export const beltGroups = memo((s) => [boardItems(s), laneRows(s), pipe(s), STATE(s), AGENTS(s), s.viewer], (s): J => {
   const snap = SNAP(s), items: J[] = snap ? boardItems(s) : [], byKey = Object.fromEntries(items.map((i) => [i.key, i]));
+  // A ticket blocked for rounds used all of them, so its tag needs no count from the stats feed.
+  const cap = snap?.limits?.feedback_rounds ?? 2, rl1 = (i: J) => (i.kind === 'rounds' ? { l1: `Review rounds ${cap} of ${cap}` } : {});
   const g: J = { working: [], needs: [], fixes: [], review: [], outside: [] }, placed = new Set<string>(), admin = TEAM_ADMIN(s).admin;
   const add = (to: string, r: J) => { placed.add(r.t.key); g[to].push({ ...r, group: to, item: r.item ?? byKey[r.t.key] }); };
   laneRows(s).forEach((r) => {
@@ -265,13 +267,13 @@ export const beltGroups = memo((s) => [boardItems(s), laneRows(s), pipe(s), STAT
       const min = Math.round((r.t.elapsed_seconds ?? 0) / 60), a = r.t.agent || {};
       return add('working', { ...r, tone: 'k-live', l1: `${LANE_ST[r.st]} · ${min} min`, l2: r.st === 1 ? r.t.detail || 'the sandbox boots' : plainMd(a.last_tool || a.last_text || '') || r.l2 });
     }
-    if (i.column === 'blocked') return i.group === 'act' ? add('needs', { ...r, tone: BROKEN.has(i.kind) ? 'k-bad' : 'k-warn', l2: i.why || r.l2 }) : /^the agent/.test(i.person ?? '') ? add('fixes', { ...r, tone: 'k-bad', l2: i.next || r.l2 }) : undefined;
+    if (i.column === 'blocked') return i.group === 'act' ? add('needs', { ...r, tone: BROKEN.has(i.kind) ? 'k-bad' : 'k-warn', l2: i.why || r.l2, ...rl1(i) }) : /^the agent/.test(i.person ?? '') ? add('fixes', { ...r, tone: 'k-bad', l2: i.next || r.l2 }) : undefined;
     if (i.column === 'review') add('review', { ...r, tone: r.kind === 'live' ? 'k-live' : 'k-ok' });
   });
   // Needs you items with no PR or run get a row at the Queue stop, so the group equals boardAct().
   items.filter((i) => !placed.has(i.key) && ((i.column === 'blocked' && i.group === 'act') || (i.column === 'running' && i.fault))).forEach((i) =>
     add('needs', { t: { key: i.key, summary: i.title, pr: i.pr }, st: i.column === 'running' ? 2 : 0, tone: i.fault || BROKEN.has(i.kind) ? 'k-bad' : 'k-warn',
-      l1: i.fault ? 'Run fault' : ({ needs_decision: 'Needs a decision', underspecified: 'Needs detail', already_done: 'Maybe done' } as Record<string, string>)[i.kind] ?? 'Blocked', l2: i.why || i.next || '', ageText: boardAge(i.age) }));
+      l1: i.fault ? 'Run fault' : ({ needs_decision: 'Needs a decision', underspecified: 'Needs detail', already_done: 'Maybe done' } as Record<string, string>)[i.kind] ?? 'Blocked', l2: i.why || i.next || '', ageText: boardAge(i.age), ...rl1(i) }));
   g.review.sort((x: J, y: J) => (y.age ?? 0) - (x.age ?? 0));
   // A failed read of the review list or of the in-flight PR states is unknown, never a confident count.
   const gh = !snap ? 'Loading the pipeline…' : snap.review == null || snap.inflight_prs_failed ? `unknown, ${snap.done_fetch_failed || (snap.review != null && snap.inflight_fetch_failed) ? 'Jira' : 'GitHub'} fetch failed` : '';

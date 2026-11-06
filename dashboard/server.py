@@ -1011,6 +1011,23 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=TEAMS.refresh, args=(True,), daemon=True).start()
             self._json(200, {"ok": True, "out": proc.stdout.strip()[-2000:]})
 
+    def _pipeline_write(self, path):
+        """POST /api/teams/<name>/pipeline/<KEY>/rounds: a signed admin of the team gives a ticket blocked at its
+        review round cap one more round. JSON only (the content type is the cross-site guard); the body is unused."""
+        m = re.fullmatch(rf"/api/teams/({TEAM_NAME})/pipeline/([A-Z][A-Z0-9]*-[0-9]{{1,9}})/rounds", path)
+        user = self._admin("POST", path, team=m.group(1))
+        if not user:
+            return
+        if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
+            self._json(415, {"error": "send JSON"})
+            return
+        team, key = m.groups()
+        # The FxA team's pipeline is PIPELINE and its feed FULL; another team's pipeline has its own name.
+        self._team_ctl(user, [PIPELINE if team == "fxa" else team, "rounds-give", key], cmd="--pipeline")
+        feed = FULL if team == "fxa" else TEAM_FEEDS.get(team)
+        if feed is not None and feed.claim():
+            threading.Thread(target=feed.refresh, args=(True,), daemon=True).start()
+
     def _team_test(self, user, name):
         """Start profile test in the background (it boots a runner for minutes); its log goes beside the record."""
         teams = Path(os.environ.get("FXA_TEAMS_DIR") or Path.home() / ".claude/state/teams")
@@ -1258,6 +1275,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if re.fullmatch(rf"/api/teams/{TEAM_NAME}/memory(/mem-[0-9a-f]{{8}}(/delete)?)?", path):
             self._memory_write(path)
+            return
+        if re.fullmatch(rf"/api/teams/{TEAM_NAME}/pipeline/[A-Z][A-Z0-9]*-[0-9]{{1,9}}/rounds", path):
+            self._pipeline_write(path)
             return
         if path.startswith("/api/teams"):
             self._team_write(path)

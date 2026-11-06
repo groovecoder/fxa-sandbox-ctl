@@ -5,7 +5,9 @@ import { Belt, Spark, Terminal, type TerminalState } from '../../charts';
 import { ago, days, jiraHref, plainMd, prUrl, usd } from '../../format';
 import { beltCount, boardItems, beltGroups } from '../../model';
 import { LANE_ST, type J } from '../../model/base';
-import { SNAP, hasChecks, jiraSite, laneTitle, openPrCounts, teamRepo } from '../../model/pipeline';
+import { SNAP, hasChecks, jiraSite, laneTitle, openPrCounts, pipe, teamRepo } from '../../model/pipeline';
+import { rtAdmin } from '../../model/teams';
+import { postJson } from '../../live/api';
 import { badPipeLink, sessTabOf } from '../../router';
 import { MODEL, useParts } from '../../app/store';
 import type { State } from '../../live/reducers';
@@ -247,6 +249,15 @@ const TTY: Record<string, TerminalState> = { running: 'running', waiting: 'waiti
 function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string }) {
   const t = r.t, i = r.item ?? {}, k = (s.feeds.stats?.data as J)?.tickets?.[t.key], a = t.agent || {}, lim = SNAP(s)?.limits?.attempts ?? 2;
   const stats = !!s.feeds.stats?.data, term = useOpen(`term:${t.key}`, false), det = useRef<HTMLDetailsElement>(null);
+  const team = pipe(s).keyTeam[t.key] || s.prefs.pipeTeam || 'fxa', cap = SNAP(s)?.limits?.feedback_rounds ?? 2;
+  const give = i.column === 'blocked' && i.kind === 'rounds' && rtAdmin(s, team);
+  const [busy, setBusy] = useState(false), [said, setSaid] = useState<[string, boolean] | null>(null);
+  const more = async () => {
+    setBusy(true);
+    const g = await postJson(`/api/teams/${encodeURIComponent(team)}/pipeline/${encodeURIComponent(t.key)}/rounds`, {});
+    setBusy(false);
+    setSaid('data' in g ? [`${t.key} has one more review round. The agent uses it on the next trusted comment.`, true] : [g.error.replace(/^ERROR: /, ''), false]);
+  };
   const tail = s.tails[t.key], tstate: TerminalState = tail?.lines.length ? TTY[tail.state] ?? 'running' : tail?.state === 'error' ? 'output unavailable' : 'connecting…';
   const blk = (h: string, body: ReactNode, bad?: boolean) =>
     bad ? <Card flat sm tone="bad" label="failed" className="blk"><h3>{h}</h3>{body}</Card> : <Card flat sm className="blk"><h3>{h}</h3>{body}</Card>;
@@ -267,7 +278,8 @@ function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string 
         </details>
       </>
     ))
-    : blk(`Agent: ${i.next || r.l1 || ''}`, <p>{t.attempts != null || r.group === 'fixes' ? `Fix attempts ${t.attempts ?? 0} of ${lim}. Then it moves to Needs you.` : plainMd(r.l2)}</p>);
+    : blk(`Agent: ${i.next || r.l1 || ''}`, <p>{i.kind === 'rounds' ? `Review rounds ${cap} of ${cap}. The agent stops here. Fix the PR by hand, or give the agent one more round.`
+      : t.attempts != null || r.group === 'fixes' ? `Fix attempts ${t.attempts ?? 0} of ${lim}. Then it moves to Needs you.` : plainMd(r.l2)}</p>);
   const rv = ({ APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested', REVIEW_REQUIRED: 'review required' } as Record<string, string>)[t.review] ?? t.review;
   const reqd = (t.reviewers ?? []).map((x: string) => x.replace(/^mozilla\//, '')).join(', ');
   const review = !t.pr ? blk('Review: none yet', <p>A reviewer gets it after CI passes.</p>)
@@ -293,11 +305,13 @@ function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string 
       <div className="blks">{ci}{agent}{review}{runs}</div>
       <div className="acts">
         {main}
+        {give && <button type="button" className="give" data-focus="d-rounds" disabled={busy} aria-busy={busy} onClick={() => void more()}>{busy ? 'Giving a round…' : 'Give one more round'}</button>}
         {jh && <a data-focus="d-jira" href={jh} target="_blank" rel="noopener">Jira ↗</a>}
         {ph && <a data-focus="d-pr" href={ph} target="_blank" rel="noopener">PR ↗</a>}
         {ph && <a data-focus="d-checks" href={`${ph}/checks`} target="_blank" rel="noopener">Checks ↗</a>}
         {sess && <a data-focus="sess" href={sess}>Session</a>}
       </div>
+      {give && <p role="status" className={cx('rsaid', said && !said[1] && 'bad')}>{said?.[0]}</p>}
     </div>
   );
 }

@@ -70,7 +70,8 @@
 .bdet .blk h3 { margin: 0; font-size: var(--t-sub); }
 .bdet .blk p { margin: 2px 0 0; font-size: var(--t-label); line-height: 1.45; color: var(--dim); }
 .bdet .acts { display: flex; flex-wrap: wrap; gap: 4px var(--s3); align-items: center; font-size: var(--t-sub); font-weight: 600; }
-.bdet .acts .main { font: inherit; font-weight: 650; color: var(--ink); background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r-md); padding: 0 10px; min-height: 32px; display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; }
+.bdet .rsaid { margin: var(--s1) 0 0; font-size: var(--t-sub); color: var(--dim); } .bdet .rsaid.bad { color: var(--bad); }
+.bdet .acts .main, .bdet .acts .give { font: inherit; font-weight: 650; color: var(--ink); background: var(--panel); border: 1px solid var(--line2); border-radius: var(--r-md); padding: 0 10px; min-height: 32px; display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; }
 .bterm { margin-top: var(--s2); }
 .bterm > summary { cursor: pointer; font: 600 var(--t-label) var(--mono); color: var(--dim); padding: var(--s1) 0; }
 .bterm .ds-screen { height: 220px; min-height: 0; }

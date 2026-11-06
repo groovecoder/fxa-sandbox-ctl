@@ -132,6 +132,33 @@ describe('Belts', () => {
     expect(screen.getByRole('log', { name: /agent@sandbox: fxa-20 output/ })).toBeTruthy();
   });
 
+  it('a ticket blocked at its round cap shows the rounds, and a team admin gives one more round', async () => {
+    const fx = rel(fixture, Date.now() / 1000);
+    fx['/api/snapshot'].snapshot.blocked[0].blocked_reason.kind = 'rounds';
+    fx['/api/team-admin'].admin = true;
+    load(fx, '#pipeline/belts/FXA-1');
+    const post = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"out":"ok"}', { status: 200 }));
+    render(<Belts />);
+    expect(document.querySelector('[data-belt="FXA-1"] .st')!.textContent).toContain('Review rounds 2 of 2');
+    expect(screen.getByRole('region', { name: 'Details of FXA-1' }).textContent).toContain('Review rounds 2 of 2. The agent stops here.');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Give one more round' })); });
+    expect(post.mock.calls[0]![0]).toBe('/api/teams/fxa/pipeline/FXA-1/rounds');
+    expect((post.mock.calls[0]![1] as RequestInit).method).toBe('POST');
+    expect(screen.getByRole('status').textContent).toBe('FXA-1 has one more review round. The agent uses it on the next trusted comment.');
+    post.mockResolvedValue(new Response('{"error":"ERROR: FXA-1 has no open PR (MERGED), so a round has nothing to fix"}', { status: 409 }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Give one more round' })); });
+    expect(screen.getByRole('status').textContent).toBe('FXA-1 has no open PR (MERGED), so a round has nothing to fix');
+    post.mockRestore();
+  });
+
+  it('a person who is not a team admin sees no Give one more round button', () => {
+    const fx = rel(fixture, Date.now() / 1000);
+    fx['/api/snapshot'].snapshot.blocked[0].blocked_reason.kind = 'rounds';
+    load(fx, '#pipeline/belts/FXA-1');
+    render(<Belts />);
+    expect(screen.queryByRole('button', { name: 'Give one more round' })).toBeNull();
+  });
+
   it('keeps the Outside list open across an update once a person opened it', () => {
     load();
     render(<Belts />);

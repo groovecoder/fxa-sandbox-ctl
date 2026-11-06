@@ -76,7 +76,7 @@ within their budget. Nobody asked the operator for anything, and FxA sessions di
 | **Outsider** | Anyone not allowed. | Nothing. Taps and tags are refused. A link card does not unfurl for them. |
 | **Team admin** | An email in `TEAM_ADMINS`. | Creates, edits, tests, enables and disables team records in the dashboard. Sets team secrets. Creates, edits, pauses, runs now, stops and deletes the team's routines in the dashboard. Every write is audited. |
 | **Jira reporter** | Anyone who can label a ticket. | Puts work in a team's queue with the `ai-fixme` label. |
-| **Reviewer** | People, and Copilot. | Review and merge the agent's PRs. A Copilot review or a failed CI run starts an automatic fix round, at most 2 for each PR. |
+| **Reviewer** | People, and Copilot. | Review and merge the agent's PRs. A Copilot review or a failed CI run starts an automatic fix round, at most 2 for each PR. At the cap, a team admin can give one more round from the Pipeline page. |
 | **Operator** | Vijay. | Holds the secrets, IAM, the live bot's access, the kill switches and promote. The guards are the operator's. |
 
 Design for the owner first, and for the teammate second. Every other role is a guard, not a user.

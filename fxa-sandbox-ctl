@@ -180,6 +180,8 @@ PIPELINE COMMANDS:
                                subs: ack | rounds [bump] | acted <id>... | thumbsup
                                bundle: write /tmp/feedback/fxa-KEY-bundle.md with each comment
                                and the branch/main lines it cites
+  rounds-give <KEY>            WRITE: one more review round for a ticket blocked at its
+                               round cap (relabels it done)
   tokens <ISSUE-KEY>           Token and model usage (run BEFORE the VM stops)
   record <ISSUE-KEY>           Append the run to the telemetry log
   costs [--reprice]            Rebuild the per-issue cost rollup; --reprice prices old runs from the LLM proxy
@@ -1715,6 +1717,25 @@ cmd_conflicts() { gh_conflicts "$(_key "$1")" "${@:2}"; }
 cmd_relock()    { gh_relock "$(_key "$1")"; }
 cmd_feedback()  {
   if [ "${2:-}" = "bundle" ]; then cmd_feedback_bundle "$(_key "$1")"; else gh_feedback "$(_key "$1")" "${@:2}"; fi
+}
+# rounds-give KEY   WRITE: one more review round for a ticket blocked at its round cap. Label it done
+# first, so a failed relabel changes nothing; then forget the noted comments, or the precheck sees
+# nothing new and the round never starts.
+cmd_rounds_give() {
+  local key pr state fail n f; key="$(_key "$1")"; f="${PIPE_STATE_DIR}/${key}.feedback-rounds"
+  [ "$(cut -f2 "${PIPE_STATE_DIR}/${key}.blocked-why" 2>/dev/null)" = rounds ] \
+    || { echo "ERROR: ${key} is not blocked at its review round cap" >&2; return 2; }
+  read -r _ pr state _ fail _ <<< "$(gh_pr_state "$key" 2>/dev/null)"
+  [ "$state" = OPEN ] || { echo "ERROR: ${key} has no open PR (${state:-unknown}), so a round has nothing to fix" >&2; return 2; }
+  fail="${fail#fail=}"; [ "${fail:-0}" = 0 ] \
+    || echo "WARN: PR #${pr} has ${fail} failed checks: the next pass may spend a fix attempt on them" >&2
+  cmd_label "$key" done >/dev/null || return 1
+  n="$(tr -dc 0-9 < "$f" 2>/dev/null)"; n="${n:-0}"; [ "$n" -gt 0 ] && n=$((n - 1)) && echo "$n" > "$f"
+  rm -f "${PIPE_STATE_DIR}/${key}.feedback-noted"
+  jira_comment "$key" "::info
+${FXA_TEAM_ACTOR:-An operator} gave one more review round. The agent uses it on the next trusted review comment." >/dev/null \
+    || echo "WARN: the Jira comment for ${key} failed" >&2
+  echo "${key}: ${n} of ${_FXA_ROUND_CAP} review rounds used. The agent uses the next one on the next trusted review comment."
 }
 cmd_progress()  { pipeline_progress "$(_key "$1")"; }
 # needs-you KEY   For the pass's ⚠️ list: "new" the first time (and records today), then
@@ -3439,6 +3460,7 @@ main() {
     conflicts)  cmd_conflicts "$@" ;;
     relock)     cmd_relock "$@" ;;
     feedback)   cmd_feedback "$@" ;;
+    rounds-give) cmd_rounds_give "$@" ;;
     tokens)     cmd_usage_tokens "$@" ;;
     # For the manager's gh shim: a fresh installation token of the GitHub App.
     # A read-only profile (PIPE_PR_OPEN=0) never writes to its repo, so the gh wrapper gets no App token.
