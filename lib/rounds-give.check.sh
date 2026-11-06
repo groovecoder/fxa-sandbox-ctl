@@ -6,7 +6,7 @@ fail=0
 check() { if [ "$2" = "$3" ]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s: want [%s] got [%s]\n' "$1" "$2" "$3"; fail=1; fi; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 eval "$(sed -n '/^cmd_rounds_give() {/,/^}/p' "$(dirname "$0")/../fxa-sandbox-ctl")"
-PIPE_STATE_DIR="$tmp" _FXA_ROUND_CAP=2
+PIPE_STATE_DIR="$tmp" _FXA_ROUND_CAP=2 PIPE_REVIEW_ROUNDS=3
 _key() { echo "$1"; }
 gh_pr_state() { echo "$1 41 ${PR_STATE:-OPEN} ok=20 fail=${PR_FAIL:-0} running=0"; }
 cmd_label() { [ -z "${LABEL_FAIL:-}" ] || return 1; echo "$1 $2" >> "$tmp/labels"; rm -f "$tmp/$1.blocked-why"; }
@@ -19,7 +19,7 @@ check "a ticket blocked for rounds: exit 0, labelled done, one round back, noted
   "$rc|$(cat "$tmp/labels")|$(cat "$tmp/FXA-1.feedback-rounds")|$([ -e "$tmp/FXA-1.feedback-noted" ] && echo kept || echo gone)"
 check "the ticket gets one ::info comment that names the admin" "1|yes" \
   "$(grep -c '^::info' "$tmp/comments")|$(grep -q 'admin@example.com gave one more review round' "$tmp/comments" && echo yes)"
-check "it says how many rounds are used now" "yes" "$(grep -q '1 of 2 review rounds used' <<<"$out" && echo yes)"
+check "it says how many rounds are used now, of the team's cap" "yes" "$(grep -q '1 of 3 review rounds used' <<<"$out" && echo yes)"
 
 reset; printf '1\tattempts\t\n' > "$tmp/FXA-1.blocked-why"
 cmd_rounds_give FXA-1 >/dev/null 2>&1; rc=$?

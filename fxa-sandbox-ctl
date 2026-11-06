@@ -1748,7 +1748,7 @@ cmd_rounds_give() {
   jira_comment "$key" "::info
 ${FXA_TEAM_ACTOR:-An operator} gave one more review round. The agent uses it on the next trusted review comment." >/dev/null \
     || echo "WARN: the Jira comment for ${key} failed" >&2
-  echo "${key}: ${n} of ${_FXA_ROUND_CAP} review rounds used. The agent uses the next one on the next trusted review comment."
+  echo "${key}: ${n} of ${PIPE_REVIEW_ROUNDS:-${_FXA_ROUND_CAP}} review rounds used. The agent uses the next one on the next trusted review comment."
 }
 cmd_progress()  { pipeline_progress "$(_key "$1")"; }
 # needs-you KEY   For the pass's ⚠️ list: "new" the first time (and records today), then
