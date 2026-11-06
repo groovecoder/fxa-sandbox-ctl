@@ -894,9 +894,15 @@ github_app_commit() {
   local who=""; [ -n "$first" ] || who="$(git -C "$wt" log --format='%an <%ae>' "${parent}..refs/remotes/origin/${branch}" 2>/dev/null \
     | grep -viE '\[bot\]|^github ' | sort -u | grep -vxFf <(printf '%s\n' "$msg" | sed -n 's/^Co-authored-by: //p') || true)"
   [ -z "$who" ] || msg="${msg}"$'\n\n'"$(sed 's/^/Co-authored-by: /' <<< "$who")"
-  tree="$(jq -c --arg b "$(git -C "$wt" rev-parse "${parent}^{tree}")" '{base_tree: $b, tree: .}' <<< "$entries" \
-          | _gh_app_api POST git/trees | jq -r '.sha // empty')"
-  [ -n "$tree" ] || { echo "ERROR: could not create the tree as the App." >&2; return 1; }
+  # A tree that names blobs posted a moment ago can get 422 once, before GitHub can read them: try once more.
+  local tpay="" tres="" try=""
+  tpay="$(jq -c --arg b "$(git -C "$wt" rev-parse "${parent}^{tree}")" '{base_tree: $b, tree: .}' <<< "$entries")"
+  for try in 1 2; do
+    tres="$(printf '%s' "$tpay" | _gh_app_api POST git/trees)" && break
+    [ "$try" = 2 ] || sleep "${FXA_APP_TREE_RETRY_S:-5}"
+  done
+  tree="$(jq -r '.sha // empty' <<< "$tres" 2>/dev/null || true)"
+  [ -n "$tree" ] || { echo "ERROR: could not create the tree as the App: $(jq -r '.message // empty' <<< "$tres" 2>/dev/null | head -c 200)" >&2; return 1; }
   commit="$(jq -nc --arg m "$msg" --arg t "$tree" --arg p "$parent" --arg f "$first" '{message: $m, tree: $t, parents: ([$f, $p] | map(select(. != "")))}' \
             | _gh_app_api POST git/commits | jq -r '.sha // empty')"
   [ -n "$commit" ] || { echo "ERROR: could not create the commit as the App." >&2; return 1; }

@@ -16,7 +16,9 @@ _gh_app_api() {
   local body; body="$(cat)"; printf '%s %s %s\n' "$1" "$2" "$body" >> "$tmp/calls"
   case "$1 $2" in
     "POST git/blobs") echo '{"sha":"blob'"$(wc -l < "$tmp/calls" | tr -d ' ')"'"}' ;;
-    "POST git/trees") echo '{"sha":"tree1"}' ;;
+    # TREE_FAILS=<n>: the first n tree posts get 422 with GitHub's message.
+    "POST git/trees") if [ "$(grep -c '^POST git/trees' "$tmp/calls")" -le "${TREE_FAILS:-0}" ]; then echo '{"message":"GitRPC::BadObjectState"}'; return 22; fi
+      echo '{"sha":"tree1"}' ;;
     "POST git/commits") echo '{"sha":"commit1"}' ;;
     GET*) [ -s "$tmp/remote" ] && REMOTE_SHA="$(cat "$tmp/remote")"; [ -n "${REMOTE_SHA:-}" ] && echo '{"object":{"sha":"'"$REMOTE_SHA"'"}}' || return 22 ;;
     # PATCH_FAILS=<sha>: the PATCH is refused, and the branch is then at <sha>.
@@ -40,6 +42,10 @@ check "blob holds the staged content" "a2" "$(grep '^POST git/blobs' "$tmp/calls
 check "commit has one parent and the message" "$base|fix(x): y" \
   "$(grep '^POST git/commits' "$tmp/calls" | cut -d' ' -f3- | jq -r '"\(.parents | join(","))|\(.message)"')"
 check "a new branch is created" "refs/heads/fxa-1" "$(grep '^POST git/refs' "$tmp/calls" | cut -d' ' -f3- | jq -r .ref)"
+: > "$tmp/calls"; FXA_APP_TREE_RETRY_S=0 TREE_FAILS=1 github_app_commit "$tmp/r" fxa-9 "$base" "x" >/dev/null 2>&1
+check "a tree refused once is posted again and the commit goes on" "2|1" "$(grep -c '^POST git/trees' "$tmp/calls")|$(grep -c '^POST git/commits' "$tmp/calls")"
+: > "$tmp/calls"; out="$(FXA_APP_TREE_RETRY_S=0 TREE_FAILS=2 github_app_commit "$tmp/r" fxa-9 "$base" "x" 2>&1)"
+check "a tree refused twice stops with GitHub's message" "1|0" "$(grep -c 'could not create the tree as the App: GitRPC::BadObjectState' <<< "$out")|$(grep -c '^POST git/commits' "$tmp/calls")"
 : > "$tmp/calls"; github_app_commit "$tmp/r" fxa-9 "$base" "merge" abc123 >/dev/null 2>&1
 check "a first parent makes a merge commit" "abc123,$base" "$(grep '^POST git/commits' "$tmp/calls" | cut -d' ' -f3- | jq -r '.parents | join(",")')"
 
