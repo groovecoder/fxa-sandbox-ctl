@@ -33,6 +33,11 @@ check "any other state clears the reason" "no" "$([ -e "$tmp/FXA-2.blocked-why" 
 touch "$tmp/jirafail"; cmd_label FXA-5 blocked stalled 2>/dev/null
 check "a failed Jira write fails the label and keeps no reason" "no" "$([ -e "$tmp/FXA-5.blocked-why" ] && echo yes || echo no)"
 rm -f "$tmp/jirafail"
+out="$(cmd_label FXA-8 blocked 2>&1; echo "rc=$?")"
+check "no kind and no reason: refused before Jira, no reason kept" "rc=1|1|no" \
+  "$(tail -1 <<< "$out")|$(grep -c 'needs a kind' <<< "$out")|$([ -e "$tmp/FXA-8.blocked-why" ] && echo yes || echo no)"
+out="$(cmd_label FXA-8 ai-fixme-blocked '  ' 2>&1; echo "rc=$?")"
+check "the prefixed label with a blank reason is refused too" "rc=1" "$(tail -1 <<< "$out")"
 out="$(cmd_label ../x blocked stalled 2>&1; echo "rc=$?")"
 check "a key that is not a ticket key keeps no file and does not fail the label" "rc=0|0" "$(tail -1 <<< "$out")|$(ls "$tmp" | grep -c 'x.blocked-why')"
 # root writes into a read-only folder, so this case runs only as another user.

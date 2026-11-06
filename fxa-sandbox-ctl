@@ -1946,6 +1946,11 @@ cmd_feedback_bundle() {
 # A rule that relies on a pass to run a separate command does not survive a cron.
 cmd_label() {
   local key="${1:-}" state="${2:-}"
+  # An empty reason shows "Blocked: needs a person" with no why on the Board; refuse it before Jira changes.
+  if [ "${state#"${PIPE_LABEL_PREFIX}"-}" = blocked ] && [ -z "$(printf '%s' "${*:3}" | tr -d '[:space:]')" ]; then
+    echo "ERROR: label $key blocked needs a kind (${_PIPE_BLOCKED_KINDS}) or a reason: label $key blocked <kind> ['<reason>']" >&2
+    return 1
+  fi
   jira_label_set "$key" "$state" || return 1
   rm -f "${PIPE_STATE_DIR}/$(jira_normalize_key "$key" 2>/dev/null).needs-you"
   state="${state#${PIPE_LABEL_PREFIX}-}"

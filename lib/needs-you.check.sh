@@ -15,6 +15,6 @@ d0="$(date -u +%F)"   # before the stamp: a run that crosses 00:00 UTC gets the 
 check "the first report is new" "new" "$(cmd_needs_you fxa-1)"
 got="$(cmd_needs_you FXA-1)"; [ "$got" = "seen $(date -u +%F)" ] && got="seen $d0"
 check "later passes see it, with the date" "seen $d0" "$got"
-cmd_label FXA-1 blocked >/dev/null 2>&1
+cmd_label FXA-1 blocked stalled >/dev/null 2>&1
 check "a label change makes the next item new" "new" "$(cmd_needs_you FXA-1)"
 exit "$fail"
