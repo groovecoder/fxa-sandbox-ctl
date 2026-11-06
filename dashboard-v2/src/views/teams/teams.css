@@ -112,8 +112,8 @@
 .tpage .tlines { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .tpage .ck { flex-wrap: wrap; }
 .tpage .ck .who { flex: 1 1 14rem; }
-.tpage .tmore-card summary .tsum { display: inline; font-size: var(--t-body); font-weight: 600; margin: 0; }
-.tpage .ck h3.nm { font-size: inherit; margin: 0; }
+.tpage .tmore-card summary .tsum { display: inline; font-size: var(--t-sub); font-weight: 600; margin: 0; }
+.tpage .ck h3.nm { font-size: var(--t-sub); font-weight: 600; margin: 0; }
 .tpage .tcheck { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; cursor: pointer; }
 .tpage .tppl td > input.mono { min-width: 12rem; }
 .tpage .tppl-box { container-type: inline-size; overflow-x: auto; }
@@ -134,4 +134,9 @@
 }
 @media (max-width: 640px) {
   .tpage .tmore-card summary .hint { display: block; padding-left: 1em; }
+  .tpage .tdot { display: none; }
+  .tpage .kv .linkbtn { display: block; }
+}
+@media (max-width: 480px) {
+  .tpage .tin { flex-direction: column; align-items: flex-start; }
 }

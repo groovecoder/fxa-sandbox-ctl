@@ -129,7 +129,7 @@ function Inputs({ t, rec, f, admin }: { t: J; rec: J; f: J; admin: boolean }) {
       {f?.item === k && <ItemForm t={t} rec={rec} f={f} />}
     </div>
   );
-  const btn = (k: string, l: string) => <button type="button" className="linkbtn" data-tf={k} disabled={!!f} onClick={() => openForm(p, k)}>{l}</button>;
+  const btn = (k: string, l: string) => <button type="button" className="linkbtn" data-tf={k} aria-label={`${l} ${k === 'access' ? 'Slack' : 'Jira queue'}`} disabled={!!f} onClick={() => openForm(p, k)}>{l}</button>;
   const go = <a className="lnk" href={`#teams/${p}/routines`}>Open Routines</a>;
   // The old access.users list and the people marked Can start.
   const n = new Set([...(a.users ?? []), ...(rec.people ?? []).filter((x: J) => x.start === true).map((x: J) => x.slack)]).size, after = draft ? ' (after the test)' : '';
@@ -157,7 +157,7 @@ function Inputs({ t, rec, f, admin }: { t: J; rec: J; f: J; admin: boolean }) {
         j.board ? `A merged ticket goes into the active sprint of board ${j.board}${j.sprint ? ` whose name ${/^\^[\w ]+$/.test(j.sprint.trim()) ? `starts with ${j.sprint.trim().slice(1)}` : `matches ${j.sprint.trim()}`}` : ''}` : ''], btn('jira', j.project ? 'Change' : 'Set up'))}
       {rs && row('routines', 'Routines', on ? <Tag label="on" tone="ok" /> : <Tag label="off" />,
         [sched.length ? `${[on || !held ? `${on} on a schedule` : '', held ? `${held} paused` : ''].filter(Boolean).join(', ')}${nx < Infinity ? ` · next run ${stamp(nx)}` : ''}` : 'Turns on when you add a routine'], go)}
-      {rs && row('depfix', 'Dependency PRs', depOn ? <Tag label="on" tone="ok" /> : <Tag label="off" />, [depOn ? (depL.length ? depL.join('; ') : `${depOn} on`) : 'Turns on from Routines'], go)}
+      {rs && row('depfix', 'Dependency PRs', depOn ? <Tag label="on" tone="ok" /> : <Tag label="off" />, [depOn ? (depL.length ? depL.join('; ') : `${depOn} on`) : 'Turns on from Routines'], <a className="lnk" href={`#teams/${p}/routines`} aria-label="Open Routines for dependency PRs">Open Routines</a>)}
     </div>
   );
 }
@@ -166,7 +166,7 @@ function More({ k, title, sub, children }: { k: string; title: string; sub: stri
   const open = useTs((s) => s.more.includes(k));
   return (
     <details className="card tmore-card" open={open} onToggle={(e) => { const o = (e.target as HTMLDetailsElement).open; if (o !== open) toggleMore(k, o); }}>
-      <summary><h3 className="tsum">{title}</h3> <span className="hint">· {sub}</span></summary>
+      <summary><h3 className="tsum">{title}</h3> <span className="hint"><span className="tdot" aria-hidden="true">· </span>{sub}</span></summary>
       <div className="stack sm tmore">{children}</div>
     </details>
   );
@@ -249,10 +249,10 @@ function Setup({ t }: { t: J }) {
   if (!R.ok || !R.rec) return <Card><p className="unknown">The record did not load: {R.msg || 'no answer'}</p><div className="row"><button type="button" onClick={() => void loadRecord(p)}>Load the record</button></div></Card>;
   const rec = R.rec, active = rec.status === 'active', fx = p === 'fxa', ro = (k: string) => fx && FXA_RO.includes(k);
   const cli = <span className="hint">The operator changes this with the CLI</span>;
-  const btn = (k: string, l: string, link = false) => (ro(k) ? cli : <button type="button" className={link ? 'linkbtn' : undefined} data-tf={k} disabled={!!f} title={f ? 'Close the open form first' : undefined} onClick={() => openForm(p, k)}>{l}</button>);
+  const btn = (k: string, l: string, link = false, what = '') => (ro(k) ? cli : <button type="button" className={link ? 'linkbtn' : undefined} data-tf={k} aria-label={what ? `${l} ${what}` : undefined} disabled={!!f} title={f ? 'Close the open form first' : undefined} onClick={() => openForm(p, k)}>{l}</button>);
   const rowv = (k: string, l: string, v: ReactNode, b: string) => (
     <>
-      <div className="kv"><span>{l}</span><span>{v}{ro(k) ? null : <> · {btn(k, b, true)}</>}</span></div>
+      <div className="kv"><span>{l}</span><span>{v}{ro(k) ? null : <><span className="tdot" aria-hidden="true"> · </span>{btn(k, b, true, l.toLowerCase())}</>}</span></div>
       {f?.item === k && <ItemForm t={t} rec={rec} f={f} />}
     </>
   );
@@ -324,7 +324,7 @@ function Setup({ t }: { t: J }) {
 
       </More>
       <More k="runs" title="How it runs" sub={fx ? 'the operator changes these with the CLI' : 'a change needs a new test'}>
-        {rowv('tools', 'Tools', teamTools(rec.mcp), 'Change')}
+        {rowv('tools', 'Tools', ((s) => s.charAt(0).toUpperCase() + s.slice(1))(teamTools(rec.mcp)), 'Change')}
         {rowv('skills', 'Skills', (rec.skills ?? []).length ? rec.skills.join(', ') : 'The base skills only', 'Change')}
         {rowv('runner', 'Runner', `${rec.stack?.kind === 'fxa' ? `FxA stack from ${rec.stack.repo ?? 'mozilla/fxa'}` : 'No stack'}, ${rec.runner?.backend === 'firecracker' ? 'Firecracker' : 'GCE VM'}${rec.runner?.android ? ', Android' : ''}`, 'Change')}
         {rowv('egress', 'Network', `${plural(egA.length, 'approved host')}${egAsk ? `, ${egAsk} asked for` : ''}`, 'Change')}
