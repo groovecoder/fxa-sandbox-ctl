@@ -182,6 +182,7 @@ PIPELINE COMMANDS:
                                and the branch/main lines it cites
   rounds-give <KEY>            WRITE: one more review round for a ticket blocked at its
                                round cap (relabels it done)
+  stop-run <KEY>               WRITE: stop an inflight run (labels it blocked operator)
   tokens <ISSUE-KEY>           Token and model usage (run BEFORE the VM stops)
   record <ISSUE-KEY>           Append the run to the telemetry log
   costs [--reprice]            Rebuild the per-issue cost rollup; --reprice prices old runs from the LLM proxy
@@ -1335,7 +1336,8 @@ _reap_key() {
   local key="$1"
   if [ "${FXA_NO_REAP:-}" = "1" ]; then echo "$key reap-skipped (FXA_NO_REAP=1)"; return 0; fi
   local name; name="$(worktree_branch_for "$key")" || return 1
-  if ! vm_is_running "$name" 2>/dev/null; then echo "$key no-vm"; return 0; fi
+  # A run that still boots has no VM yet: kill its launcher, or it creates the VM for a ticket that is no longer inflight.
+  if ! vm_is_running "$name" 2>/dev/null; then agent_kill_launcher "$(printf '%s' "$key" | tr 'a-z' 'A-Z')"; echo "$key no-vm"; return 0; fi
   # A stuck VM costs less than a pass that aborts halfway through its label writes.
   if agent_stop "$name" >/dev/null 2>&1; then
     echo "$key reaped ($name)"
@@ -1719,6 +1721,15 @@ cmd_conflicts() { gh_conflicts "$(_key "$1")" "${@:2}"; }
 cmd_relock()    { gh_relock "$(_key "$1")"; }
 cmd_feedback()  {
   if [ "${2:-}" = "bundle" ]; then cmd_feedback_bundle "$(_key "$1")"; else gh_feedback "$(_key "$1")" "${@:2}"; fi
+}
+# stop-run KEY   WRITE: stop a pipeline run from the dashboard. It reads the live label, not a page's
+# snapshot, so a ticket that went done or merged since the page loaded is left alone.
+# ponytail: no pipeline_lock (a pass holds it for minutes); a pass that labels the key in the same seconds can race it.
+cmd_stop_run() {
+  local key; key="$(_key "$1")"
+  jira_inflight_keys 2>/dev/null | tr '[:lower:]' '[:upper:]' | grep -qxF "$key" \
+    || { echo "ERROR: ${key} is not inflight, so no run of it is left to stop" >&2; return 2; }
+  cmd_label "$key" blocked operator 'stopped from the dashboard by a team admin'
 }
 # rounds-give KEY   WRITE: one more review round for a ticket blocked at its round cap. Label it done
 # first, so a failed relabel changes nothing; then forget the noted comments, or the precheck sees
@@ -3465,6 +3476,7 @@ main() {
     relock)     cmd_relock "$@" ;;
     feedback)   cmd_feedback "$@" ;;
     rounds-give) cmd_rounds_give "$@" ;;
+    stop-run)   cmd_stop_run "$@" ;;
     tokens)     cmd_usage_tokens "$@" ;;
     # For the manager's gh shim: a fresh installation token of the GitHub App.
     # A read-only profile (PIPE_PR_OPEN=0) never writes to its repo, so the gh wrapper gets no App token.

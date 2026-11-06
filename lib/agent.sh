@@ -1521,13 +1521,9 @@ _runner_postmortem() {
   return 0
 }
 
-agent_stop() {
-  local name="$1"
-  # The name becomes rm -rf paths below; `stop ../..` must not reach outside LOG_DIR.
-  [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "ERROR: Invalid name '${name}'." >&2; return 1; }
-  # The launcher that watches this slot dies with the VM, or it races a relaunch
-  # to commit the same slot. Not a CI watcher: past the PR it only reads GitHub.
-  local key; key="$(printf '%s' "$name" | tr 'a-z' 'A-Z')"
+# agent_kill_launcher <KEY>   Kill the ticket's launcher before it reaches its PR; past the PR it is a CI watcher and only reads GitHub.
+agent_kill_launcher() {
+  local key="$1"
   # Never this launcher: a relaunch stops the ticket's earlier runner from a
   # subshell, whose pid differs from $$ but whose process group does not. An
   # earlier launcher belongs to the group of the pass that started it.
@@ -1537,6 +1533,14 @@ agent_stop() {
     [ -n "$mypg" ] && [ "$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')" = "$mypg" ] && continue
     grep -qE '^(PR (opened|updated): )?https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$' "$(pipeline_launch_log "$key" 2>/dev/null)" 2>/dev/null || kill "$pid" 2>/dev/null || true
   done || true  # no launcher: pgrep exits 1, and under pipefail and set -e that ended stop before the VM went
+}
+agent_stop() {
+  local name="$1"
+  # The name becomes rm -rf paths below; `stop ../..` must not reach outside LOG_DIR.
+  [[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]] || { echo "ERROR: Invalid name '${name}'." >&2; return 1; }
+  # The launcher that watches this slot dies with the VM, or it races a relaunch
+  # to commit the same slot. Not a CI watcher: past the PR it only reads GitHub.
+  agent_kill_launcher "$(printf '%s' "$name" | tr 'a-z' 'A-Z')"
 
   echo "Stopping agent '${name}'..."
   _runner_postmortem "$name"

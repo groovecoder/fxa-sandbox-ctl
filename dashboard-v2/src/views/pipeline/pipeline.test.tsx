@@ -157,12 +157,31 @@ describe('Belts', () => {
     post.mockRestore();
   });
 
-  it('a person who is not a team admin sees no Give one more round button', () => {
+  it('a team admin stops a working run with two clicks', async () => {
+    const fx = rel(fixture, Date.now() / 1000);
+    fx['/api/team-admin'].admin = true;
+    load(fx, '#pipeline/belts/FXA-20');
+    const post = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"ok":true}', { status: 202 }));
+    render(<Belts />);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop the agent' }));
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByRole('status').textContent).toBe('Stop FXA-20? Click again to stop it. The ticket is then labelled blocked.');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Click again to stop' })); });
+    expect(post.mock.calls[0]![0]).toBe('/api/teams/fxa/pipeline/FXA-20/stop');
+    expect((screen.getByRole('button', { name: 'Stopping…' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('status').textContent).toBe('Stopping FXA-20. Its row leaves Working now in a minute or two.');
+    post.mockRestore();
+  });
+
+  it('a person who is not a team admin sees no Give one more round or Stop the agent button', () => {
     const fx = rel(fixture, Date.now() / 1000);
     fx['/api/snapshot'].snapshot.blocked[0].blocked_reason.kind = 'rounds';
     load(fx, '#pipeline/belts/FXA-1');
     render(<Belts />);
     expect(screen.queryByRole('button', { name: 'Give one more round' })).toBeNull();
+    load(undefined, '#pipeline/belts/FXA-20');
+    cleanup(); render(<Belts />);
+    expect(screen.queryByRole('button', { name: 'Stop the agent' })).toBeNull();
   });
 
   it('keeps the Outside list open across an update once a person opened it', () => {

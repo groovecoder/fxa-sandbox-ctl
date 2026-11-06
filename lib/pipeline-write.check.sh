@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Offline check of POST /api/teams/<team>/pipeline/<KEY>/rounds: signed team admins only, JSON only,
-# the key from the path only, the FxA team's pipeline name, a ctl refusal (exit 2) as 409, and a feed refresh.
+# Offline check of POST /api/teams/<team>/pipeline/<KEY>/{rounds,stop}: signed team admins only, JSON only,
+# the key from the path only, the FxA team's pipeline name, a ctl refusal (exit 2) as 409, a detached stop, and a feed refresh.
 #   bash lib/pipeline-write.check.sh
 set -u
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 here="$(cd "$(dirname "$0")" && pwd)"
 printf k1 > "$tmp/hmac"
-FXA_DASHBOARD_HMAC_FILE="$tmp/hmac" TEAM_ADMINS="admin@example.com" python3 - "$here/../dashboard" <<'PY'
-import json, sys, time
+FXA_DASHBOARD_HMAC_FILE="$tmp/hmac" TEAM_ADMINS="admin@example.com" python3 - "$here/../dashboard" "$tmp" <<'PY'
+import json, os, sys, time
 sys.path.insert(0, sys.argv[1]); import server, testkit
 base = testkit.start(server.Handler)
 fail = 0
@@ -47,5 +47,27 @@ check("another team runs on its own pipeline and claims its own feed", (["--pipe
 Proc.returncode, Proc.stdout, Proc.stderr = 2, "", "ERROR: FXA-1 is not blocked at its review round cap"
 st, b = post(P)
 check("a ctl refusal (exit 2) is a 409 with its reason", (409, "ERROR: FXA-1 is not blocked at its review round cap"), (st, b.get("error")))
+
+# Stop: detached, a pid file per key, 409 while that pid lives, and the feed refresh after the stop ends.
+server.STATE_ROOT = sys.argv[2]
+spawned = []
+class Popen:
+    def __init__(self, args, **kw): self.args, self.env, self.pid = args, kw["env"], os.getpid(); spawned.append(self)
+    def wait(self): time.sleep(0.3); return 0
+server.subprocess.Popen = Popen
+claims.clear()
+S = "/api/teams/fxa/pipeline/FXA-1/stop"
+check("stop: not JSON is a 415, nothing started", (415, 0), (post(S, ctype="text/plain")[0], len(spawned)))
+check("stop: a signed user who is not an admin of the team: 403", (403, 0), (post(S, user="other@example.com")[0], len(spawned)))
+st, b = post(S)
+check("stop: an admin gets 202, and stop-run starts detached as the admin", (202, [str(server.CTL), "--pipeline", "fxa-ai-fixme", "stop-run", "FXA-1"], "admin@example.com"),
+      (st, spawned[-1].args, spawned[-1].env["FXA_TEAM_ACTOR"]))
+check("stop: a second click while the stop runs (its pid lives): 409, nothing more started", (409, 1), (post(S)[0], len(spawned)))
+claimed(1); time.sleep(0.1)
+check("stop: the FxA snapshot refreshes after the stop ends", "full", claims[-1])
+check("stop: the pid file goes when the stop ends", False, os.path.exists(os.path.join(sys.argv[2], "fxa-ai-fixme", "FXA-1.stop.pid")))
+check("stop: after the stop ended a new stop starts", (202, 2), (post(S)[0], len(spawned)))
+post("/api/teams/crew/pipeline/CR-7/stop")
+check("stop: another team stops on its own pipeline", ["--pipeline", "crew", "stop-run", "CR-7"], spawned[-1].args[1:])
 sys.exit(fail)
 PY

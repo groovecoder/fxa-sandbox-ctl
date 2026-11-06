@@ -1133,19 +1133,46 @@ class Handler(BaseHTTPRequestHandler):
     def _pipeline_write(self, path):
         """POST /api/teams/<name>/pipeline/<KEY>/rounds: a signed admin of the team gives a ticket blocked at its
         review round cap one more round. JSON only (the content type is the cross-site guard); the body is unused."""
-        m = re.fullmatch(rf"/api/teams/({TEAM_NAME})/pipeline/([A-Z][A-Z0-9]*-[0-9]{{1,9}})/rounds", path)
+        m = re.fullmatch(rf"/api/teams/({TEAM_NAME})/pipeline/([A-Z][A-Z0-9]*-[0-9]{{1,9}})/(rounds|stop)", path)
         user = self._admin("POST", path, team=m.group(1))
         if not user:
             return
         if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
             self._json(415, {"error": "send JSON"})
             return
-        team, key = m.groups()
+        team, key, act = m.groups()
         # The FxA team's pipeline is PIPELINE and its feed FULL; another team's pipeline has its own name.
-        self._team_ctl(user, [PIPELINE if team == "fxa" else team, "rounds-give", key], cmd="--pipeline")
-        feed = FULL if team == "fxa" else TEAM_FEEDS.get(team)
+        pipe, feed = (PIPELINE, FULL) if team == "fxa" else (team, TEAM_FEEDS.get(team))
+        if act == "stop":
+            self._pipeline_stop(user, pipe, key, feed)
+            return
+        self._team_ctl(user, [pipe, "rounds-give", key], cmd="--pipeline")
         if feed is not None and feed.claim():
             threading.Thread(target=feed.refresh, args=(True,), daemon=True).start()
+
+    def _pipeline_stop(self, user, pipe, key, feed):
+        """Start stop-run detached: a reap copies the run's work over IAP for minutes, and a kill halfway loses it."""
+        d = Path(STATE_ROOT) / pipe
+        pidf = d / f"{key}.stop.pid"
+        try:
+            os.kill(int(pidf.read_text()), 0)
+            self._json(409, {"error": f"a stop of {key} is already running"})
+            return
+        except (OSError, ValueError):
+            pass
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / f"{key}.stop.log", "w") as out:
+            p = subprocess.Popen([str(CTL), "--pipeline", pipe, "stop-run", key], stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                 start_new_session=True, env={**os.environ, "FXA_TEAM_ACTOR": user})
+        pidf.write_text(str(p.pid))
+        # When the stop ends: drop the pid file (a reused PID must not read as a live stop), then refresh the feed.
+        def done():
+            p.wait()
+            pidf.unlink(missing_ok=True)
+            if feed is not None and feed.claim():
+                feed.refresh(True)
+        threading.Thread(target=done, daemon=True).start()
+        self._json(202, {"ok": True, "out": f"stopping {key}: the run is labelled blocked, and its row leaves Working now in a minute or two"})
 
     def _team_test(self, user, name):
         """Start profile test in the background (it boots a runner for minutes); its log goes beside the record."""
@@ -1396,7 +1423,7 @@ class Handler(BaseHTTPRequestHandler):
         if re.fullmatch(rf"/api/teams/{TEAM_NAME}/memory(/mem-[0-9a-f]{{8}}(/delete)?)?", path):
             self._memory_write(path)
             return
-        if re.fullmatch(rf"/api/teams/{TEAM_NAME}/pipeline/[A-Z][A-Z0-9]*-[0-9]{{1,9}}/rounds", path):
+        if re.fullmatch(rf"/api/teams/{TEAM_NAME}/pipeline/[A-Z][A-Z0-9]*-[0-9]{{1,9}}/(rounds|stop)", path):
             self._pipeline_write(path)
             return
         m = re.fullmatch(rf"/api/teams/({TEAM_NAME})/people", path)

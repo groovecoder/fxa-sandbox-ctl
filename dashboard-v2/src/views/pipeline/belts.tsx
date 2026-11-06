@@ -251,7 +251,17 @@ function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string 
   const stats = !!s.feeds.stats?.data, term = useOpen(`term:${t.key}`, false), det = useRef<HTMLDetailsElement>(null);
   const team = pipe(s).keyTeam[t.key] || s.prefs.pipeTeam || 'fxa', cap = SNAP(s)?.limits?.feedback_rounds ?? 2;
   const give = i.column === 'blocked' && i.kind === 'rounds' && rtAdmin(s, team);
+  // Every Working now row, not only a live agent: a run that still boots or stalled is the one to stop.
+  const stop = r.group === 'working' && rtAdmin(s, team);
   const [busy, setBusy] = useState(false), [said, setSaid] = useState<[string, boolean] | null>(null);
+  const [arm, setArm] = useState(false), [stopping, setStopping] = useState(false);
+  const halt = async () => {
+    if (!arm) { setArm(true); setSaid([`Stop ${t.key}? Click again to stop it. The ticket is then labelled blocked.`, true]); return; }
+    setArm(false); setStopping(true);
+    const g = await postJson(`/api/teams/${encodeURIComponent(team)}/pipeline/${encodeURIComponent(t.key)}/stop`, {});
+    if (!('data' in g)) setStopping(false);
+    setSaid('data' in g ? [`Stopping ${t.key}. Its row leaves Working now in a minute or two.`, true] : [g.error.replace(/^ERROR: /, ''), false]);
+  };
   const more = async () => {
     setBusy(true);
     const g = await postJson(`/api/teams/${encodeURIComponent(team)}/pipeline/${encodeURIComponent(t.key)}/rounds`, {});
@@ -306,13 +316,14 @@ function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string 
       <div className="blks">{ci}{agent}{review}{runs}</div>
       <div className="acts">
         {main}
+        {stop && <button type="button" className="give" data-focus="d-stop" disabled={stopping} aria-busy={stopping} onClick={() => void halt()}>{stopping ? 'Stopping…' : arm ? 'Click again to stop' : 'Stop the agent'}</button>}
         {give && <button type="button" className="give" data-focus="d-rounds" disabled={busy} aria-busy={busy} onClick={() => void more()}>{busy ? 'Giving a round…' : 'Give one more round'}</button>}
         {jh && <a data-focus="d-jira" href={jh} target="_blank" rel="noopener">Jira ↗</a>}
         {ph && <a data-focus="d-pr" href={ph} target="_blank" rel="noopener">PR ↗</a>}
         {ph && <a data-focus="d-checks" href={`${ph}/checks`} target="_blank" rel="noopener">Checks ↗</a>}
         {sess && <a data-focus="sess" href={sess}>Session</a>}
       </div>
-      {give && <p role="status" className={cx('rsaid', said && !said[1] && 'bad')}>{said?.[0]}</p>}
+      {(give || stop) && <p role="status" className={cx('rsaid', said && !said[1] && 'bad')}>{said?.[0]}</p>}
     </div>
   );
 }
