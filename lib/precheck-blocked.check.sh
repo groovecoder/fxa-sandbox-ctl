@@ -48,5 +48,19 @@ check "the same blocked conflict on the next precheck is quiet" "0" "$(cmd_prech
 pipeline_rebases() { echo 5; }
 check "a blocked PR at 5 rebases does not wake, and is not labelled again" "0|0" "$(rm -f "$tmp/FXA-4.drain-noted"; cmd_precheck 2>&1 | grep -c '^drain: FXA-4')|$(grep -c . "$tmp/labels")"
 
+# A team admin's new comment on a blocked PR wakes the pass for a round, once; another commenter's never does.
+gh_admin_logins() { echo member-a; }
+jira_keys_in_state() { [ "$1" = blocked ] && printf 'FXA-8\nFXA-9\n'; }
+printf '1\tlaunch_error\tERROR: x\n' > "$tmp/FXA-8.blocked-why"; printf '1\trounds\t\n' > "$tmp/FXA-9.blocked-why"
+gh_feedback() { case "$1" in
+  FXA-8) echo '{"pr":8,"comments":[{"id":"i1","author":"member-a","admin":true},{"id":"2","author":"Copilot","admin":false}]}' ;;
+  *) echo '{"pr":9,"comments":[{"id":"i3","author":"stranger","admin":false}]}' ;; esac; }
+out="$(cmd_precheck 2>&1)"
+check "a blocked PR with an admin comment wakes the pass with only that id; a stranger's comment does not" "1|0" \
+  "$(grep -c '^feedback: FXA-8 is blocked, and a team admin left new comments: i1 (run: feedback FXA-8 bundle)' <<< "$out")|$(grep -c 'FXA-9 is blocked' <<< "$out")"
+check "the same admin comment on the next precheck is quiet" "0" "$(cmd_precheck 2>&1 | grep -c '^feedback: FXA-8')"
+gh_admin_logins() { :; }; rm -f "$tmp/FXA-8.feedback-noted"
+check "with no admin logins, no blocked PR is read for feedback" "0" "$(cmd_precheck 2>&1 | grep -c '^feedback:')"
+
 [ "$fail" = 0 ] && echo "all ok"
 exit "$fail"

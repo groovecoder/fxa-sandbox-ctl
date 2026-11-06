@@ -1582,13 +1582,20 @@ $(gh_drain "$inpr" 2>/dev/null | awk '$3 == "CONFLICT"' || true)"
   # Drain reads only done tickets. A blocked ticket's PR can still be merged or closed by a person,
   # and nothing else moves the ticket then. A PR blocked for its review rounds or fix attempts still
   # gets rebases: its code is fine. Above the note cleanup, so its wake stays once an hour.
-  local bstate bkind bm
+  local bstate bkind bm badmin; badmin="$(gh_admin_logins 2>/dev/null || true)"
   for key in $(jira_keys_in_state blocked 2>/dev/null || true); do
     read -r _ num bstate _ <<< "$(gh_pr_state "$key" 2>/dev/null)"
     case "$bstate" in
       MERGED) if cmd_label "$key" merged >/dev/null 2>&1; then merged_n=$((merged_n + 1)); _info "drain: $key merged #$num while blocked (labelled, ticket closed)"; else _work "drain: $key blocked, #$num merged (label merged FAILED)"; fi ;;
       CLOSED) if cmd_label "$key" rejected >/dev/null 2>&1; then rejected_n=$((rejected_n + 1)); _info "drain: $key rejected #$num while blocked (labelled)"; else _work "drain: $key blocked, #$num closed (label rejected FAILED)"; fi ;;
       OPEN)
+        # A team admin's new comment starts one round on a blocked PR (feedback.md). Only an admin's: the repo can be public.
+        ids=""; [ -z "$badmin" ] || ids="$(gh_feedback "$key" 2>/dev/null | jq -r '(.comments // [])[] | select(.admin == true) | .id' 2>/dev/null | sort || true)"
+        noted="${PIPE_STATE_DIR}/${key}.feedback-noted"
+        if [ -n "$ids" ] && [ "$ids" != "$(cat "$noted" 2>/dev/null || true)" ]; then
+          _work "feedback: $key is blocked, and a team admin left new comments: $(echo $ids) (run: feedback $key bundle)"
+          printf '%s\n' "$ids" > "$noted"
+        fi
         bkind="$(cut -f2 "${PIPE_STATE_DIR}/${key}.blocked-why" 2>/dev/null || true)"
         case "$bkind" in rounds|attempts) ;; *) continue ;; esac
         # Not gh_drain: it reports a red PR as RED and hides its conflict.
@@ -1951,7 +1958,7 @@ cmd_feedback_bundle() {
     nonce="$(openssl rand -hex 6)"
     while [ "$i" -lt "$n" ]; do
       id="$(printf '%s' "$fb" | jq -r ".comments[$i].id")"; author="$(printf '%s' "$fb" | jq -r ".comments[$i].author")"
-      assoc="$(printf '%s' "$fb" | jq -r ".comments[$i].association")"; trusted="$(printf '%s' "$fb" | jq -r ".comments[$i].trusted")"
+      assoc="$(printf '%s' "$fb" | jq -r ".comments[$i].association")"; trusted="$(printf '%s' "$fb" | jq -r ".comments[$i].trusted")$(printf '%s' "$fb" | jq -r "if .comments[$i].admin then \", team admin\" else \"\" end")"
       path="$(printf '%s' "$fb" | jq -r ".comments[$i].path // \"\"")"; line="$(printf '%s' "$fb" | jq -r ".comments[$i].line // 0")"
       body="$(printf '%s' "$fb" | jq -r ".comments[$i].body")"; url="$(printf '%s' "$fb" | jq -r ".comments[$i].url // \"\"")"
       local where="in the PR conversation" state outd

@@ -41,6 +41,16 @@ fb="$(gh_feedback FXA-1)"
 check "an outdated open thread counts, marked outdated, at its original line" "true 8" "$(jq -r '.comments[] | select(.id == "5") | "\(.outdated) \(.line)"' <<<"$fb")"
 check "a human review summary counts, with its state" "CHANGES_REQUESTED true" "$(jq -r '.comments[] | select(.id == "r20") | "\(.state) \(.trusted)"' <<<"$fb")"
 check "Copilot's overview and an empty approval are left out" "no" "$(jq -e '.comments[] | select(.id == "r21" or .id == "r22")' <<<"$fb" >/dev/null && echo yes || echo no)"
+# Team admins: the record's emails, through reporters.tsv, give GitHub logins; nothing else is an admin.
+FXA_TEAMS_DIR="$tmp/teams" PIPE_PROFILE=fxa; mkdir -p "$tmp/teams"
+echo '{"admins":[{"slack":"U1","email":"Admin.A@example.com"},{"slack":"U2","email":"nologin@example.com"}]}' > "$tmp/teams/fxa.json"
+printf '# name\tlogin\temail\nAdmin A\tmember-a\tadmin.a@example.com\nOutsider\toutsider\tout@example.com\nBad\tx;y\tnologin@example.com\n' > "$tmp/reporters.tsv"
+check "an admin's email maps to a login, case aside; an unmapped admin and a bad login give none" "member-a" "$(gh_admin_logins | paste -sd' ' -)"
+fb="$(gh_feedback FXA-1)"
+check "an admin's comments are marked admin; a stranger's, Copilot's and CodeRabbit's are not" "1 5 i9 r20|2 3 6" \
+  "$(jq -r '[.comments[] | select(.admin) | .id] | join(" ")' <<<"$fb")|$(jq -r '[.comments[] | select(.admin | not) | .id] | join(" ")' <<<"$fb")"
+rm -f "$tmp/reporters.tsv"
+check "with no reporters.tsv nobody is an admin" "0" "$(gh_feedback FXA-1 | jq '[.comments[] | select(.admin)] | length')"
 check "without the thread list it stops, so precheck sees no changed comment set" "1|" \
   "$(out="$(NO_GRAPHQL=1 gh_feedback FXA-1 2>/dev/null)"; echo "$?|$out")"
 exit "$fail"

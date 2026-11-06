@@ -430,6 +430,9 @@ gh_feedback() {
   done
   [ -n "$ok" ] && all="$(printf '%s' "$all" | jq -c --arg ok "$ok" \
     '($ok | split(" ") | map(select(length > 0))) as $w | map(if (.author | IN($w[])) then .trusted = true else . end)')"
+  # A team admin's comment starts a round even on a blocked PR (precheck), so mark it; a bot is never one.
+  all="$(printf '%s' "$all" | jq -c --arg a "$(gh_admin_logins 2>/dev/null | tr '\n' ' ' || true)" \
+    '($a | split(" ") | map(select(length > 0))) as $w | map(.admin = ((.author | IN($w[])) and (.author | endswith("[bot]") | not)) | if .admin then .trusted = true else . end)')"
 
   if [ "$sub" = "ack" ]; then
     printf '%s\n' "$all" | jq -r '.[].id' >>"$seen"
@@ -442,6 +445,15 @@ gh_feedback() {
   seen_json="$( { cat "$seen" 2>/dev/null || true; } | jq -R 'select(length>0)' | jq -s '.')"
   printf '%s\n' "$all" | jq --argjson seen "$seen_json" --arg pr "$pr" \
     '{pr: ($pr|tonumber), comments: [.[] | select(.id as $i | ($seen | index($i)) == null)]}'
+}
+
+# gh_admin_logins   The GitHub logins of the team's admins: each admin's email in the team record,
+# mapped through reporters.tsv (displayName, login, email). An unmapped admin has no login; never guess one.
+gh_admin_logins() {
+  local rec="${FXA_TEAMS_DIR:-}/${PIPE_PROFILE:-}.json" map="${PIPE_STATE_DIR:-}/reporters.tsv"
+  [ -f "$rec" ] && [ -f "$map" ] || return 0
+  jq -r '.admins[]?.email // empty' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
+    | awk -F'\t' 'NR == FNR { a[$0] = 1; next } $0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && (tolower($3) in a) { print $2 }' - "$map" | sort -u
 }
 
 # Does this ticket have recorded ids waiting for a 👍?
