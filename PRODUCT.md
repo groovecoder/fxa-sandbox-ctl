@@ -76,7 +76,7 @@ within their budget. Nobody asked the operator for anything, and FxA sessions di
 | **Outsider** | Anyone not allowed. | Nothing. Taps and tags are refused. A link card does not unfurl for them. |
 | **Team admin** | An email in `TEAM_ADMINS`. | Creates, edits, tests, enables and disables team records in the dashboard. Sets team secrets. Creates, edits, pauses, runs now, stops and deletes the team's routines in the dashboard. Every write is audited. |
 | **Jira reporter** | Anyone who can label a ticket. | Puts work in a team's queue with the `ai-fixme` label. |
-| **Reviewer** | People, and Copilot. | Review and merge the agent's PRs. A Copilot review or a failed CI run starts an automatic fix round, at most 2 for each PR. At the cap, a team admin can give one more round from the Pipeline page. |
+| **Reviewer** | People, and Copilot. | Review and merge the agent's PRs. A Copilot review or a failed CI run starts an automatic fix round, at most the team's `pr.review_rounds` (2 by default) for each PR. A team admin's comment starts a round on its own cap of 10. No round starts while a person still comments: the PR must have no human comment for 15 minutes. At the cap, a team admin can give one more round from the Pipeline page. |
 | **Operator** | Vijay. | Holds the secrets, IAM, the live bot's access, the kill switches and promote. The guards are the operator's. |
 
 Design for the owner first, and for the teammate second. Every other role is a guard, not a user.
@@ -196,7 +196,7 @@ read-only text. FxA always asks fxa-devs for review.
 | `egress` | The extra hosts the agent may reach. Hosts that take data out with no account (paste sites, tunnels, request catchers) are refused, even for an admin. |
 | `mcp` | Which connectors the team's sessions get. |
 | `jira` | The team's project and whether the pipeline works its queue. With `jira.usage: false`, the comment on a merged ticket has no agent time, tokens or cost (for a project whose comments sync to a public place). With `jira.secret: true`, the team takes only the project's secret tickets (a security level or a secret label). Its work repos must be private, as GitHub confirms, and it cannot be open or list Jira prefixes. `jira.board` and `jira.sprint` put a merged ticket into the board's active sprint whose name matches. |
-| `pr` | Whether the team opens PRs, and the reviewers. A team with `open: false` gets diffs only. `users` lists the Slack users who may open a PR or push from Slack, beside the team admins; with none listed, anyone who can steer may. `labels` adds GitHub labels to each PR beside `auto`, which every PR gets because the pipeline finds its PRs by it; the FxA team adds `coderabbit`. `infra_checks` lists `check=log text` rules: a failed check whose log has the text is the repo's fault, not the PR's. `review_rounds` (0 to 5, default 2) is how many fix rounds the bot starts by itself on a PR for Copilot, CodeRabbit and CI before it asks. |
+| `pr` | Whether the team opens PRs, and the reviewers. A team with `open: false` gets diffs only. `users` lists the Slack users who may open a PR or push from Slack, beside the team admins; with none listed, anyone who can steer may. `labels` adds GitHub labels to each PR beside `auto`, which every PR gets because the pipeline finds its PRs by it; the FxA team adds `coderabbit`. `infra_checks` lists `check=log text` rules: a failed check whose log has the text is the repo's fault, not the PR's. `review_rounds` (0 to 5, default 2) is how many fix rounds the bot starts by itself on a PR for Copilot, CodeRabbit, CI and trusted reviewers who are not admins, before it asks. `admin_review_rounds` (0 to 20, default 10) is how many rounds a team admin's comments start. `review_quiet_minutes` (0 to 120, default 15) is how long a PR has no human comment before a round starts. |
 | `caps` | Launches per day, runners at once, and dollars per day and per month, inside the operator's ceilings. |
 | `prompts` | The team's `CLAUDE.md`, guide and pass goal. Admins edit these as text. |
 | `skills` | Skills from the reviewed catalog (`skills/team-catalog.txt`). |
@@ -248,7 +248,8 @@ Apply them in this order. When two conflict, the higher one wins, and you say wh
 4. **A person owns each outside action.** The agent never merges, approves or enables auto-merge, and its
    PRs are drafts, except for a routine that a team admin set to open a regular PR. It pushes to a person's
    PR only after the author's consent on GitHub. Automatic rounds
-   stop at the team's `pr.review_rounds`, 2 by default.
+   stop at the team's `pr.review_rounds`, 2 by default. Rounds for a team admin's comments stop at
+   `pr.admin_review_rounds`, 10 by default.
 5. **Records are data, never code.** A dashboard write starts from validated JSON. One validator serves
    the write path and the load path. New code a team needs goes into the repo through review.
 6. **One code path.** The CLI, Slack and the dashboard call the same controller commands. Do not add a

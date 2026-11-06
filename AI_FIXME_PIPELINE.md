@@ -858,8 +858,10 @@ Stay silent on the PR. Do not reply to review comments and do not resolve thread
 each comment the round actually fixed, and never to one it declined. Record the IDs at launch
 with `feedback <KEY> acted <id>...`; `label <KEY> done` fires the reactions once the fix is green.
 
-Cap: **2 rounds per PR**, then `blocked`. Copilot re-reviews on every push, so without the cap
-this never ends.
+Cap: the team's `pr.review_rounds` (**2 by default**) per PR for bot comments, CI and trusted reviewers
+who are not admins, then `blocked`. Copilot re-reviews on every push, so without the cap this never
+ends. A round that acts on a team admin's comment counts on its own cap of 10. No round starts until
+the PR has had no human comment for 15 minutes.
 
 ---
 
@@ -909,7 +911,8 @@ marker, and `reporters.tsv`.
 | `<KEY>.skipped` | Skip fingerprint, time, pass count, reason, and the kind (needs_decision, underspecified, depends_on, already_done, or empty) | The ticket gets one more skip comment |
 | `<KEY>.blocked-why` | When the ticket was blocked, the kind (stalled, dead_vm, attempts, rounds, rebases, refused_ship, frozen, launch_error, operator, other) and the reason, from `label KEY blocked`; any other label removes it | Belts shows "blocked in Jira" with no reason |
 | `<KEY>.feedback-seen` | Handled review comment IDs | Handled comments reappear as new |
-| `<KEY>.feedback-rounds` | Round counter | The 2-round cap resets |
+| `<KEY>.feedback-rounds` | Bot round counter | The bot round cap resets |
+| `<KEY>.feedback-admin-rounds` | Team admin round counter | The 10-round admin cap resets |
 | `<KEY>.feedback-acted` | IDs this round will fix | The 👍 reactions are lost |
 | `launches.log` | One line per launch | The 24 hour launch budget resets |
 | `reporters.tsv` | Jira displayName to GitHub login | PRs get the team review only |
