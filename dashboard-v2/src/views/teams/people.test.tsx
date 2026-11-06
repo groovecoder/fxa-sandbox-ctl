@@ -30,12 +30,12 @@ test('People shows the Slack name, saves email and GitHub, and says why a new ro
   const posts = stub(() => [{ email: 'old@example.com', slack: 'U0OLD001', github: 'old-gh' }], { notes: [{ email: 'new@example.com', why: 'no Slack user has this email' }] });
   render(<People p="crew" />);
   expect(await screen.findByText('Old Person (@old)')).toBeTruthy();
-  expect((screen.getByText('Save') as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByText('Save changes') as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(screen.getByText('Add by email'));
   fireEvent.change(screen.getByLabelText('Email of person 2'), { target: { value: 'new@example.com' } });
   fireEvent.change(screen.getByLabelText('GitHub username of new@example.com'), { target: { value: 'new-gh' } });
   expect(screen.getByText('Not saved')).toBeTruthy();
-  await act(async () => { fireEvent.click(screen.getByText('Save')); });
+  await act(async () => { fireEvent.click(screen.getByText('Save changes')); });
   expect(posts).toEqual([{ people: [{ email: 'old@example.com', github: 'old-gh' }, { email: 'new@example.com', github: 'new-gh' }], generation: '7' }]);
   expect(await screen.findByText(/no Slack user has this email/)).toBeTruthy();
 });
@@ -63,10 +63,25 @@ test('the roles: off for a viewer who may not change them; sent on save for one 
   cleanup(); useTs.setState({ ppl: null }); can = true;
   render(<People p="crew" />);
   fireEvent.click(await screen.findByLabelText('Can open PRs: a@example.com'));
-  await act(async () => { fireEvent.click(screen.getByText('Save')); });
+  await act(async () => { fireEvent.click(screen.getByText('Save changes')); });
   expect(posts[0]).toEqual({ people: [{ email: 'a@example.com', github: '', admin: true, pr: true }, { email: '', github: '', slack: 'U0BBBB02', start: true }], generation: '7' });
   cleanup(); useTs.setState({ ppl: null });
   render(<People p="crew" open />);
   await screen.findByLabelText('Team admin: a@example.com');
   expect(screen.queryByText('Can start')).toBeNull();
+});
+
+test('a people answer with no list says it did not load and offers Retry, not an empty team', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) })));
+  render(<People p="crew" />);
+  expect(await screen.findByText(/did not load/)).toBeTruthy();
+  expect(screen.getByText(/\? people/)).toBeTruthy();
+  expect(screen.getByText('Retry')).toBeTruthy();
+});
+
+test('the Slack search in People shows its results with no form open', async () => {
+  stub(() => []);
+  render(<People p="crew" />);
+  fireEvent.change(await screen.findByLabelText('Add a person from Slack'), { target: { value: 'old' } });
+  expect(await screen.findByText(/Old Person/, {}, { timeout: 2000 })).toBeTruthy();
 });

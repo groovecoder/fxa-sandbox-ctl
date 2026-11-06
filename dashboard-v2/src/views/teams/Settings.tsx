@@ -41,7 +41,7 @@ function Info({ t, people }: { t: J; people?: boolean }) {
         <Kv label="Mode" value={t.read_only ? 'diffs only' : 'draft PRs'} />
         <p className="hint">{where}</p>
       </Card>
-      {people && <People p={t.profile} open={t.access?.open === true} />}
+      {people && <People p={t.profile} open={t.access?.open === true} active={t.access?.status === 'active'} />}
       <Card><h2>Runs on</h2><RunsOn t={t} /></Card>
     </>
   );
@@ -270,14 +270,15 @@ function Setup({ t }: { t: J }) {
           <div className="ck">
             <span className={`num ${miss.length ? 'warn' : 'ok'}`} aria-hidden="true">{miss.length ? '!' : '✓'}</span>
             <div className="who">
-              <span className="nm">Repo{rs.length === 1 ? '' : 's'}</span>
+              <h3 className="nm">Repo{rs.length === 1 ? '' : 's'}</h3>
               <span className="says">
                 {rs.length === 1 ? <span className="mono">{rs[0].slug}</span> : `${rs.length} repos`}
                 {miss.length ? <> · the GitHub App is missing on <span className="mono">{miss.map((r) => r.slug).join(', ')}</span></> : fr.size ? ' · the GitHub App is installed' : ''}
                 {` · ${rec.stack?.kind === 'fxa' ? 'the FxA stack' : 'no FxA stack'}`}
               </span>
+              {ro('repos') && <span className="hint">The operator changes the repos with the CLI.</span>}
             </div>
-            {f?.item !== 'repos' && btn('repos', 'Change', true)}
+            {f?.item !== 'repos' && !ro('repos') && btn('repos', 'Change', true)}
           </div>
           {rs.length > 1 && f?.item !== 'repos' && (
             <details className="trepos">
@@ -290,7 +291,6 @@ function Setup({ t }: { t: J }) {
         </div>
       </Card>
       <TestCard t={t} rec={rec} />
-      <Card flat>{rowv('goal', 'What it works on', fx ? "FxA's built-in goal" : goal ? `${goal.slice(0, 80)}${goal.length > 80 ? '…' : ''}` : 'not set', 'Change')}</Card>
       <Card>
         <div className="stack sm">
           <h3>How work reaches this team</h3>
@@ -299,7 +299,6 @@ function Setup({ t }: { t: J }) {
           <p className="hint">{active ? '' : 'Every input stops while the team is not active. '}{c.usd_per_day != null || c.usd_per_month != null ? 'Every input counts against the spend cap below.' : ''}</p>
         </div>
       </Card>
-      <People p={p} open={rec.access?.open === true} />
       <Card flat>
         <div className="stack sm">
           <h3>Budget</h3>
@@ -318,8 +317,10 @@ function Setup({ t }: { t: J }) {
             </span>), 'Change')}
         </div>
       </Card>
-      <More k="about" title="About the team" sub="the name shown">
+      <People p={p} open={rec.access?.open === true} active={active} />
+      <More k="about" title="About the team" sub="the name shown and what it works on">
         {rowv('name', 'Name shown', rec.label || teamCap(p), 'Change')}
+        {rowv('goal', 'What it works on', fx ? "FxA's built-in goal" : goal ? `${goal.slice(0, 80)}${goal.length > 80 ? '…' : ''}` : 'not set', 'Change')}
 
       </More>
       <More k="runs" title="How it runs" sub={fx ? 'the operator changes these with the CLI' : 'a change needs a new test'}>
@@ -340,7 +341,7 @@ function Setup({ t }: { t: J }) {
 
 // The team's people, one list: email, Slack user, GitHub username, and the roles admin, start and pr. That team's admins only.
 const ROLES: [string, string][] = [['admin', 'Team admin'], ['start', 'Can start'], ['pr', 'Can open PRs']];
-export function People({ p, open }: { p: string; open?: boolean }) {
+export function People({ p, open, active = true }: { p: string; open?: boolean; active?: boolean }) {
   const P = useTs((s) => (s.ppl?.team === p ? s.ppl : null)), names = useTs((s) => s.names);
   const tb = useRef<HTMLTableSectionElement>(null);
   useEffect(() => {
@@ -351,9 +352,10 @@ export function People({ p, open }: { p: string; open?: boolean }) {
   }, [P?.rows]);
   // A team open to everyone has no start list, so its column hides.
   const roles = ROLES.filter(([k]) => !(open && k === 'start'));
-  const admins = P ? P.rows.filter((r) => r.admin).length : 0;
-  const sub = P ? `${P.rows.length} ${P.rows.length === 1 ? 'person' : 'people'}, ${plural(admins, 'team admin')}` : 'loading…';
+  const admins = P ? P.rows.filter((r) => r.admin).length : 0, n = P ? P.rows.filter((r) => r.email || r.slack).length : 0;
+  const sub = !P ? 'loading…' : P.failed ? '? people' : `${n} ${n === 1 ? 'person' : 'people'}, ${plural(admins, 'team admin')}`;
   if (!P) return <More k="people" title="People" sub={sub}><p className="empty">loading…</p></More>;
+  if (P.failed) return <More k="people" title="People" sub={sub}><p className="hint">The people list did not load{P.msg ? `: ${P.msg}` : ''}. <button type="button" className="linkbtn" onClick={() => void loadPpl(p)}>Retry</button></p></More>;
   const dirty = JSON.stringify(P.rows) !== P.base;
   const loaded = new Set((JSON.parse(P.base) as J[]).map((r) => String(r.email ?? '')));
   const setRow = (i: number, x: J) => editPpl((rs) => rs.map((r, j) => (j === i ? { ...r, ...x } : r)));
@@ -361,12 +363,12 @@ export function People({ p, open }: { p: string; open?: boolean }) {
     <More k="people" title="People" sub={sub}>
       <div className="stack sm" data-people>
         <p className="hint">
-          Each role needs a Slack user. Save finds it from the email. The pipeline knows a team admin's GitHub comments by the GitHub username.
-          {open ? ' Everyone can start this team, so there is no start list.' : ''}{P.canAdmin ? '' : ' Only a dashboard admin changes the roles.'}
+          A ticked box needs a Slack user. Save finds it from the email.
+          {open ? (active ? ' Everyone can start this team, so there is no start list.' : ' Everyone the bot allows can start it after the test passes.') : ''}{P.canAdmin ? '' : ' Only a dashboard admin changes the ticks.'}
         </p>
         {P.rows.length > 0 && (
-          <table className="ttable tppl">
-            <thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col">GitHub username</th>{roles.map(([k, w]) => <th key={k} scope="col">{w}</th>)}<th scope="col"><span className="vh">Remove</span></th></tr></thead>
+          <div className="tppl-box"><table className="ttable tppl">
+            <thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col" title="The pipeline knows a team admin's GitHub comments by this name">GitHub username</th>{roles.map(([k, w]) => <th key={k} scope="col">{w}</th>)}<th scope="col"><span className="vh">Remove</span></th></tr></thead>
             <tbody ref={tb}>
               {P.rows.map((r, i) => {
                 const who = r.email || personLabel(names, String(r.slack ?? '')) || `person ${i + 1}`;
@@ -375,25 +377,25 @@ export function People({ p, open }: { p: string; open?: boolean }) {
                     <td data-l="Email">{r.email || !r.slack
                       ? <input className="input mono" value={r.email ?? ''} aria-label={`Email of ${who}`} placeholder="name@example.com" onChange={(e) => setRow(i, { email: e.target.value, slack: undefined })} />
                       : <span className="na">no email</span>}</td>
-                    <td data-l="Slack user">{r.slack ? personLabel(names, r.slack) : <span className="na">{r.email && loaded.has(r.email) ? 'not found' : 'found on save'}</span>}</td>
+                    <td data-l="Slack user">{r.slack ? personLabel(names, r.slack) : <span className="na">{r.email && loaded.has(r.email) ? 'no Slack user has this email' : 'found on save'}</span>}</td>
                     <td data-l="GitHub username"><input className="input" value={r.github ?? ''} aria-label={`GitHub username of ${who}`} placeholder="login" onChange={(e) => setRow(i, { github: e.target.value })} /></td>
                     {roles.map(([k, w]) => (
-                      <td key={k} data-l={w}><label className="tcheck"><input type="checkbox" checked={!!r[k]} disabled={!P.canAdmin} onChange={(e) => setRow(i, { [k]: e.target.checked || undefined })} /><span className="vh">{w}: {who}</span></label></td>
+                      <td key={k} className="trole"><label className="tcheck"><input type="checkbox" checked={!!r[k]} disabled={!P.canAdmin} onChange={(e) => setRow(i, { [k]: e.target.checked || undefined })} /><span className="trl">{w}</span><span className="vh">: {who}</span></label></td>
                     ))}
                     <td><button type="button" className="linkbtn" aria-label={`Remove ${who}`} onClick={() => editPpl((rs) => rs.filter((_, j) => j !== i))}>Remove</button></td>
                   </tr>
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
-        {!P.rows.length && P.ok && <p className="na">Nobody yet.</p>}
+        {!P.rows.length && P.ok && <p className="hint">Nobody yet.</p>}
         <SlackSearch target="ppl" have={P.rows.map((r) => String(r.slack ?? ''))}
           onAdd={(x) => editPpl((rs) => (rs.some((r) => r.email && r.email === x.email) ? rs : [...rs, { email: x.email ?? '', slack: x.id, github: '' }]))} />
-        <div className="row">
-          <button type="button" className="linkbtn" onClick={() => { editPpl((rs) => [...rs, { email: '', github: '' }]); setTimeout(() => tb.current?.querySelector<HTMLInputElement>('tr:last-child input')?.focus(), 0); }}>Add by email</button>
-          <button type="button" disabled={P.busy || !dirty} onClick={() => void savePpl()}>Save</button>
-          {dirty && <span className="hint">Not saved</span>}
+        <button type="button" className="linkbtn tadd" onClick={() => { editPpl((rs) => [...rs, { email: '', github: '' }]); setTimeout(() => tb.current?.querySelector<HTMLInputElement>('tr:last-child input')?.focus(), 0); }}>Add by email</button>
+        <div className="row tsave">
+          <span className="hint">{dirty ? 'Not saved' : 'No changes'}</span>
+          <button type="button" disabled={P.busy || !dirty} onClick={() => void savePpl()}>Save changes</button>
         </div>
         <Said ok={P.ok} msg={P.msg} />
         {P.notes.length > 0 && <ul className="hint">{P.notes.map((n) => <li key={n.email}><span className="mono">{n.email}</span>: {n.why}</li>)}</ul>}

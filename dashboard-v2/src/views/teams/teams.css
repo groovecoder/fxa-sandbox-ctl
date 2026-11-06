@@ -114,11 +114,25 @@
 .tpage .ck h3.nm { font-size: inherit; margin: 0; }
 .tpage .tcheck { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; cursor: pointer; }
 .tpage .tppl td > input.mono { min-width: 12rem; }
-@media (max-width: 640px) {
+.tpage .tppl-box { container-type: inline-size; overflow-x: auto; }
+.tpage .tppl .trl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tpage .linkbtn, .tpage summary { min-height: 24px; }
+.tpage .tsave { justify-content: flex-end; }
+.tpage .tadd { align-self: flex-start; min-height: 24px; }
+/* The card, not the viewport, decides: the team list pane takes room at 1024 and 768. */
+@container (max-width: 720px) {
   .tpage .tppl thead { display: none; }
-  .tpage .tppl tr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s1) var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--line); }
+  .tpage .tppl tr { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: var(--s1) var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--line); align-items: center; }
   .tpage .tppl td { display: block; border: 0; padding: 0; }
   .tpage .tppl td:first-child { grid-column: 1 / -1; }
   .tpage .tppl td[data-l]::before { content: attr(data-l); display: block; color: var(--dim); font-size: var(--t-label); }
   .tpage .tppl td > input.mono, .tpage .tppl td > .input { min-width: 0; width: 100%; }
+  .tpage .tppl .tcheck { gap: var(--s1); justify-content: flex-start; }
+  .tpage .tppl .trl { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+}
+@media (max-width: 640px) {
+  .tpage .kv { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .tpage .kv > span:last-child { text-align: left; }
+  .tpage .tlines { align-items: flex-start; }
+  .tpage .tmore-card summary .hint { display: block; padding-left: 1em; }
 }
