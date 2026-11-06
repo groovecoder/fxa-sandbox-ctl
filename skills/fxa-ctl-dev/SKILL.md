@@ -22,7 +22,7 @@ shared parts, and the checks that verify a dashboard change.
 | Runner-side files | `templates/`, `packer/`, `skills/` (the runner receives only an allowlist of skills) |
 | Manager VM setup | `infra/gce/manager.sh`, `infra/gce/manager-setup.sh` |
 | Design and plans (local only, not committed) | `ai/docs/` |
-| Host state | `~/.claude/state/fxa-ai-fixme` (pipeline, `errors.jsonl`), `~/.claude/state/agent-sessions` |
+| Host state | `~/.claude/state/fxa-ai-fixme` (pipeline, `errors.jsonl`, each run's transcript for 30 days in `transcripts/`), `~/.claude/state/agent-sessions` |
 
 Both repos are public. Never commit a secret, an internal URL, or a person's
 email; `.env` files stay untracked.

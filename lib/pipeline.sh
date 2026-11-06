@@ -442,8 +442,8 @@ pipeline_unlock() {
 # ── State mirror ───────────────────────────────────────────────
 # PIPE_STATE_URI (gs://bucket/prefix) mirrors the state dir. Push runs at every
 # unlock. Pull is manual: it could roll back a launch log that is still growing.
-# Left out: the lock, the pause marker, reporters.tsv (emails), and temp files.
-_pipeline_state_exclude='^(pass\.lock(/.*)?|PAUSED|reporters\.tsv|.*\.tmp)$'
+# Left out: the lock, the pause marker, reporters.tsv (emails), temp files, and the run transcripts (large, kept 30 days here only).
+_pipeline_state_exclude='^(pass\.lock(/.*)?|PAUSED|reporters\.tsv|transcripts/.*|.*\.tmp)$'
 pipeline_state_push() {
   pipeline_require || return 1
   [ -n "${PIPE_STATE_URI:-}" ] || return 0

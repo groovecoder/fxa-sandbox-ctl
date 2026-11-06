@@ -925,7 +925,9 @@ nothing, which is the safe direction.
 Run telemetry goes to `agent-runs.jsonl` and `agent-costs.json` in the pipeline state directory (mirrored to Cloud Storage; `ai/docs/` in the FxA repo keeps symlinks), formerly inside the FxA
 checkout, which is gitignored. `$CTL tokens` reads the transcript copy in the slot
 (`.fxa-auto-claude.jsonl`), and asks the VM only when that copy is missing. `label <KEY> done`
-records the run itself.
+records the run itself. Each recorded run also keeps its transcript (`.fxa-auto-session.jsonl`, the
+main agent only) as `transcripts/<KEY>-<UTC time>.claude.tgz` in the state directory for 30 days. The
+slot holds only its last run's copy, and the Cloud Storage mirror leaves the archives out.
 
 ---
 

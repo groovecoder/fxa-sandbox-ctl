@@ -205,6 +205,18 @@ _telemetry_proxy_cost() {
     | jq -c 'select(length > 0) | {usd: (map(.usd) | add * 100 | round / 100), models: (map({key: .model, value: (.usd * 100 | round / 100)}) | from_entries)}'
 }
 
+# _telemetry_keep_transcript <KEY> <slot> <launched_at>   Keep each run's transcript 30 days, as a Slack
+# session's is: the slot holds only its last run's. Best effort: a failure never fails the record.
+_telemetry_keep_transcript() {
+  local f="${2:+$2/.fxa-auto-session.jsonl}" d="${PIPE_STATE_DIR:-}/transcripts" ts t
+  [ -n "${PIPE_STATE_DIR:-}" ] && [ -n "$f" ] && [ -s "$f" ] && mkdir -p "$d" 2>/dev/null || return 0
+  [ "${3:-0}" != 0 ] && ts="$3" || ts="$(date +%s)"
+  ts="$(date -u -d "@$ts" +%Y%m%dT%H%M%SZ 2>/dev/null || date -u -r "$ts" +%Y%m%dT%H%M%SZ)" || return 0
+  t="$(mktemp "${d}/.keep.XXXXXX")" || return 0
+  { tar -czf "$t" -C "$2" .fxa-auto-session.jsonl 2>/dev/null && mv -f "$t" "${d}/${1}-${ts}.claude.tgz"; } || rm -f "$t"
+  find "$d" -name '*.claude.tgz' -mtime +30 -exec rm -f {} + 2>/dev/null || true
+}
+
 telemetry_record() {
   pipeline_require || return 1
   local key="${1:-}"; [ -n "$key" ] || { echo "ERROR: record needs <KEY>" >&2; return 1; }
@@ -326,6 +338,7 @@ print(max(0,int(end-start)) if start else 0)" "$log" "${done_file:-}" "$launched
       '. + $cost + {issue:$k, kind:$kind, pr:$pr, commit:$sha, files_changed:$files, strict:$strict, wall_seconds:$secs, launched_at:$launched, recorded_at:$at, billing:$billing}')" || return 1
   printf '%s\n' "$row" >>"$PIPE_RUNS_FILE"
   declare -F db_ingest >/dev/null && db_ingest runs "$row"
+  _telemetry_keep_transcript "$key" "$wt" "$launched_at"
   echo "recorded $key -> $PIPE_RUNS_FILE"
   tail -1 "$PIPE_RUNS_FILE"
   telemetry_costs >/dev/null && echo "rolled up -> $PIPE_COSTS_FILE"

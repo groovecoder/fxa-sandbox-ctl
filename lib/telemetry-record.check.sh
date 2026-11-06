@@ -16,12 +16,13 @@ _telemetry_worktree_for_key() { return 1; }         # no slot holds the branch
 agent_ssh_exec() { return 1; }                       # the runner is gone
 pipeline_launch_log() { printf '%s/%s.launch.log\n' "$tmp" "$1"; }
 telemetry_costs() { :; }
-PIPE_RUNS_FILE="$tmp/agent-runs.jsonl" PIPE_COSTS_FILE="$tmp/agent-costs.json" FXA_WORKTREE_BASE=main
+PIPE_RUNS_FILE="$tmp/agent-runs.jsonl" PIPE_COSTS_FILE="$tmp/agent-costs.json" FXA_WORKTREE_BASE=main PIPE_STATE_DIR="$tmp/state"
 echo "Run kind: fix" > "$(pipeline_launch_log FXA-1)"
 
 telemetry_record FXA-1 >/dev/null 2>&1
 check "no transcript returns 1" "1" "$?"
 check "no transcript writes no row" "0" "$(cat "$PIPE_RUNS_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+check "and keeps no archive" "0" "$(ls "$tmp/state/transcripts" 2>/dev/null | wc -l | tr -d ' ')"
 
 # A slot transcript still records exactly one priced row.
 mkdir -p "$tmp/slot"
@@ -31,17 +32,24 @@ _telemetry_worktree_for_key() { echo "$tmp/slot"; }
 telemetry_record FXA-1 >/dev/null 2>&1
 check "transcript writes one row" "1" "$(wc -l < "$PIPE_RUNS_FILE" | tr -d ' ')"
 check "transcript row is priced" "5" "$(jq -r '.cost_usd' "$PIPE_RUNS_FILE")"
+a="$(ls "$tmp/state/transcripts" 2>/dev/null | grep -E '^FXA-1-[0-9]{8}T[0-9]{6}Z\.claude\.tgz$' | head -1)"
+check "the recorded run's transcript is archived as KEY-<UTC time>.claude.tgz" "m1" \
+  "$([ -n "$a" ] && tar -xzOf "$tmp/state/transcripts/$a" .fxa-auto-session.jsonl | jq -r .message.id)"
 
 # A relaunch reads the same transcript under a new launch time: no second row.
 echo "Launched at: 1790000999" > "$(pipeline_launch_log FXA-1)"
 telemetry_record FXA-1 >/dev/null 2>&1
 check "the same run relaunched writes no second row" "1" "$(wc -l < "$PIPE_RUNS_FILE" | tr -d ' ')"
+check "and keeps no second archive" "1" "$(ls "$tmp/state/transcripts" | grep -c '^FXA-1-')"
+touch -t 202001010000 "$tmp/state/transcripts/FXA-0-20200101T000000Z.claude.tgz"
 
 # 1-hour cache writes cost 2x input, model by model: 1M 1-hour tokens on opus-5-5 (input $4) are $8.
 mkdir -p "$tmp/slot2"
 echo '{"type":"assistant","message":{"id":"m2","model":"claude-opus-5-5","usage":{"input_tokens":0,"output_tokens":1,"cache_creation_input_tokens":1000000,"cache_creation":{"ephemeral_1h_input_tokens":1000000}}}}' > "$tmp/slot2/.fxa-auto-session.jsonl"
 _telemetry_worktree_for_key() { echo "$tmp/slot2"; }; echo "Run kind: fix" > "$(pipeline_launch_log FXA-2)"
 telemetry_record FXA-2 >/dev/null 2>&1
+check "an archive older than 30 days is pruned when the next run is kept" "no|1" \
+  "$([ -e "$tmp/state/transcripts/FXA-0-20200101T000000Z.claude.tgz" ] && echo yes || echo no)|$(ls "$tmp/state/transcripts" | grep -c '^FXA-2-')"
 check "a session transcript's 1-hour cache writes are priced at 2x input" "8" "$(jq -r 'select(.issue == "FXA-2") | .cost_usd' "$PIPE_RUNS_FILE")"
 # A 1-hour count above the write count (a bad transcript) is clamped to it, as the proxy does: 1M writes, 2M "1-hour", still $8.
 mkdir -p "$tmp/slot3"
