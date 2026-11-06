@@ -1117,18 +1117,36 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": f"no team record {name}"})
             return
         old = rec.get("people") if isinstance(rec.get("people"), list) else []
+        admins = [a for a in rec.get("admins") or [] if isinstance(a, dict)]
+        by_mail = {str(a.get("email") or "").lower(): a for a in admins if a.get("email")}
         if method == "GET":
-            self._json(200, {"people": old, "generation": str(rec.get("generation") or "")})
+            # One list in the dashboard: the people, each team admin marked, and an admin with no person row added.
+            seen = {str(p.get("email") or "").lower() for p in old if isinstance(p, dict)}
+            rows = [{**p, **({"admin": True} if str(p.get("email") or "").lower() in by_mail else {})} for p in old if isinstance(p, dict)]
+            rows += [{"email": e, "slack": a.get("slack"), "admin": True} for e, a in by_mail.items() if e not in seen]
+            self._json(200, {"people": rows, "generation": str(rec.get("generation") or ""), "can_admin": user in team_admins()})
             return
-        got, err = people_rows(body.get("people"), old)
+        # An admin's stored Slack user counts as known, so the save does not ask Slack for it again.
+        known = old + [{"email": e, "slack": a.get("slack")} for e, a in by_mail.items()]
+        got, err = people_rows(body.get("people"), known)
         if err:
             self._json(400, {"error": err})
             return
         rows, notes = got
+        want = {str(r.get("email") or "").strip().lower() for r in body["people"] if isinstance(r, dict) and r.get("admin") is True}
+        new_admins = [{"slack": r.get("slack", ""), "email": r["email"]} for r in rows if r["email"] in want]
+        if {a["email"] for a in new_admins} != set(by_mail) and user not in team_admins():
+            self._json(403, {"error": "only a dashboard admin (TEAM_ADMINS) changes who is a team admin"})
+            return
+        if any(not a["slack"] for a in new_admins):
+            self._json(400, {"error": f"a team admin needs a Slack user, and Slack has none for {', '.join(a['email'] for a in new_admins if not a['slack'])}"})
+            return
         for k in ("generation", "tested", "test_log"):
             rec.pop(k, None)
         rec["people"] = rows
-        self._team_ctl(user, ["set", name, None, "--generation", str(body["generation"])], rec, extra={"people": rows, "notes": notes})
+        # An admin listed by Slack ID only has no row here, so it stays.
+        rec["admins"] = [a for a in admins if not a.get("email")] + new_admins
+        self._team_ctl(user, ["set", name, None, "--generation", str(body["generation"])], rec, extra={"people": [{**r, **({"admin": True} if r["email"] in want else {})} for r in rows], "notes": notes})
 
     def _pipeline_write(self, path):
         """POST /api/teams/<name>/pipeline/<KEY>/rounds: a signed admin of the team gives a ticket blocked at its

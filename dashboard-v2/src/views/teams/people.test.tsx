@@ -41,3 +41,28 @@ test('an edited email drops the Slack user it showed, since the server looks it 
   fireEvent.change(screen.getByLabelText('Email of person 1'), { target: { value: 'other@example.com' } });
   expect(screen.queryByText('U0OLD001')).toBeNull();
 });
+
+test('People is folded by default and names the count in its summary', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, headers: { get: () => null },
+    json: async () => ({ people: [{ email: 'a@example.com' }, { email: 'b@example.com' }], generation: '7' }) })));
+  const { container } = render(<People p="crew" />);
+  expect(await screen.findByText(/2 people/)).toBeTruthy();
+  expect((container.querySelector('details') as HTMLDetailsElement).open).toBe(false);
+});
+
+test('the team admin mark: off for a viewer who may not change admins, sent on save for one who may', async () => {
+  const posts: J2[] = [];
+  let can = false;
+  vi.stubGlobal('fetch', vi.fn(async (_u: string, init?: RequestInit) => {
+    if (init?.method === 'POST') { posts.push(JSON.parse(String(init.body))); return { ok: true, status: 200, json: async () => ({ ok: true, notes: [] }) }; }
+    return { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ people: [{ email: 'a@example.com', slack: 'U0AAAA01', admin: true }, { email: 'b@example.com' }], generation: '7', can_admin: can }) };
+  }));
+  render(<People p="crew" />);
+  expect(((await screen.findByLabelText('Person 2 is a team admin')) as HTMLInputElement).disabled).toBe(true);
+  cleanup(); useTs.setState({ ppl: null }); can = true;
+  render(<People p="crew" />);
+  fireEvent.click(await screen.findByLabelText('Person 2 is a team admin'));
+  await act(async () => { fireEvent.click(screen.getByText('Save')); });
+  expect(posts[0]).toEqual({ people: [{ email: 'a@example.com', github: '', admin: true }, { email: 'b@example.com', github: '', admin: true }], generation: '7' });
+});
+type J2 = Record<string, unknown>;

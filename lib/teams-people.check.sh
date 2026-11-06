@@ -71,16 +71,17 @@ check("a viewer who is not that team's admin: 403, and no email in the answer", 
 check("no signed user: 401", 401, call("GET", P)[0])
 check("crew's record admin cannot read another team's people", 403, call("GET", "/api/teams/rusty/people", user="crew@example.com")[0])
 st, b = call("GET", P, user="crew@example.com")
-check("crew's record admin reads its people and the generation", (200, {"people": [{"email": "old@example.com", "slack": "U0OLD001", "github": "old-gh"}], "generation": "7"}),
-      (st, json.loads(b)))
-check("a TEAM_ADMINS email reads them too", 200, call("GET", P, user="admin@example.com")[0])
+check("crew's record admin reads one list: its people, then each team admin with no person row, marked admin; it may not change admins",
+      (200, {"people": [{"email": "old@example.com", "slack": "U0OLD001", "github": "old-gh"}, {"email": "crew@example.com", "slack": "U1234567", "admin": True}],
+             "generation": "7", "can_admin": False}), (st, json.loads(b)))
+check("a TEAM_ADMINS email reads them too, and may change admins", (200, True), (lambda r: (r[0], json.loads(r[1])["can_admin"]))(call("GET", P, user="admin@example.com")))
 
 asked.clear()
-rows = [{"email": "old@example.com", "github": "old-gh"}, {"email": "New@Example.com", "github": "@new-gh", "slack": "U0FORGED"},
+rows = [{"email": "crew@example.com", "admin": True}, {"email": "old@example.com", "github": "old-gh"}, {"email": "New@Example.com", "github": "@new-gh", "slack": "U0FORGED"},
         {"email": "scope@example.com"}, {"email": "nouser@example.com", "github": "nu"}]
 st, b = call("POST", P, {"people": rows, "generation": "7"}, "crew@example.com")
 saved = json.load(open(f"{tmp}/record"))
-want = [{"email": "old@example.com", "slack": "U0OLD001", "github": "old-gh"}, {"email": "new@example.com", "slack": "U0NEW001", "github": "new-gh"},
+want = [{"email": "crew@example.com", "slack": "U1234567"}, {"email": "old@example.com", "slack": "U0OLD001", "github": "old-gh"}, {"email": "new@example.com", "slack": "U0NEW001", "github": "new-gh"},
         {"email": "scope@example.com"}, {"email": "nouser@example.com", "github": "nu"}]
 check("a save: a kept email keeps its Slack user with no lookup, a new email asks Slack (the client's slack is ignored), a failed lookup saves the row without slack",
       (200, want, 3, [{"email": "scope@example.com", "why": server.SLACK_WHY["missing_scope"]}, {"email": "nouser@example.com", "why": "no Slack user has this email"}]),
@@ -94,6 +95,14 @@ check("a bad email, a duplicate, a bad GitHub username or no generation is refus
           {"people": [{"email": "nope"}], "generation": "7"}, {"people": [{"email": "a@example.com"}, {"email": "A@example.com"}], "generation": "7"},
           {"people": [{"email": "a@example.com", "github": "bad name"}], "generation": "7"}, {"people": []})], len(ran())))
 check("a viewer cannot save people", (403, n), (call("POST", P, {"people": [], "generation": "7"}, "viewer@example.com")[0], len(ran())))
+check("the team's own admin cannot add or drop a team admin", ([403, 403], n),
+      ([call("POST", P, body, "crew@example.com")[0] for body in (
+          {"people": [{"email": "crew@example.com", "admin": True}, {"email": "old@example.com", "admin": True}], "generation": "7"},
+          {"people": [{"email": "crew@example.com"}], "generation": "7"})], len(ran())))
+check("a team admin needs a Slack user", (400, n), (call("POST", P, {"people": [{"email": "nouser@example.com", "admin": True}], "generation": "7"}, "admin@example.com")[0], len(ran())))
+st, b = call("POST", P, {"people": [{"email": "crew@example.com", "admin": True}, {"email": "old@example.com", "admin": True}], "generation": "7"}, "admin@example.com")
+check("a dashboard admin makes a person a team admin: the record's admins list follows the marks",
+      (200, [{"slack": "U1234567", "email": "crew@example.com"}, {"slack": "U0OLD001", "email": "old@example.com"}]), (st, json.load(open(f"{tmp}/record"))["admins"]))
 del asked[:]
 (rows, notes), _ = server.people_rows([{"email": f"bulk{i}@example.com"} for i in range(60)], [])
 check("a save asks Slack at most 50 times; the rest wait for the next save", (50, 10), (len(asked), len(notes)))

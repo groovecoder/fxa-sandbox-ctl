@@ -276,6 +276,12 @@ function Setup({ t }: { t: J }) {
             </div>
             {f?.item !== 'repos' && btn('repos', 'Edit')}
           </div>
+          {rs.length > 1 && f?.item !== 'repos' && (
+            <details className="trepos">
+              <summary className="hint">Show the {rs.length} repos</summary>
+              <ul className="hint">{rs.map((r) => <li key={r.slug}><span className="mono">{r.slug}</span> · {r.role}</li>)}</ul>
+            </details>
+          )}
           {miss.length > 0 && f?.item !== 'repos' && <div className="alert warn"><span className="what wrap">An org owner installs the fxa-agent GitHub App on {miss.map((r) => r.slug).join(', ')}. Until then, its work ships as a diff.</span></div>}
           {f?.item === 'repos' && <ItemForm t={t} rec={rec} f={f} />}
         </div>
@@ -297,9 +303,9 @@ function Setup({ t }: { t: J }) {
           {c.runners != null && <p className="hint">At most {c.runners} runners at once.</p>}
         </div>
       </Card>
-      <More k="about" title="About the team" sub="name, admins and PR rules">
+      <More k="about" title="About the team" sub="name and PR rules">
         {rowv('name', 'Name shown', rec.label || teamCap(p), 'Change')}
-        {rowv('admins', 'Team admins', (rec.admins ?? []).length ? rec.admins.map((a: J) => a.email || a.slack).join(', ') : 'None', (rec.admins ?? []).length ? 'Change' : 'Add')}
+
         {rowv('pr', 'PR rules', prs.open === false ? 'Diffs only'
           : `Draft PRs${fx ? ', reviewers fxa-devs (built in)' : (prs.reviewers ?? []).length ? `, reviewers ${prs.reviewers.join(', ')}` : ''}${(prs.infra_checks ?? []).length ? `, ${plural(prs.infra_checks.length, 'CI infra rule')}` : ''}${(prs.users ?? []).length ? `, opened from Slack by ${prs.users.length} ${prs.users.length === 1 ? 'person' : 'people'} and the admins` : ''}, labels ${['auto', ...(prs.labels ?? [])].join(', ')}, ${plural(rounds, 'automatic review round')}, ${plural(prs.admin_review_rounds ?? 10, 'round')} for team admins, waits ${prs.review_quiet_minutes ?? 15} min for a reviewer`, 'Change')}
       </More>
@@ -325,25 +331,28 @@ export function People({ p }: { p: string }) {
   useEffect(() => {
     void loadPpl(p);
   }, [p]);
-  if (!P) return <Card><h2>People</h2><p className="empty">loading…</p></Card>;
+  // Folded by default, like the other long sections: the list can hold hundreds of rows.
+  const sub = P ? `${P.rows.length} ${P.rows.length === 1 ? 'person' : 'people'}, ${P.rows.filter((r) => r.admin).length} team admins · email, Slack user, GitHub username` : 'loading…';
+  if (!P) return <More k="people" title="People" sub={sub}><p className="empty">loading…</p></More>;
   const cell = (i: number, k: string, label: string, ph: string) => (
     <input className={`input${k === 'email' ? ' mono' : ''}`} value={P.rows[i]?.[k] ?? ''} aria-label={`${label} of person ${i + 1}`} placeholder={ph}
       onChange={(e) => editPpl((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: e.target.value, ...(k === 'email' ? { slack: undefined } : {}) } : r)))} />
   );
   return (
-    <Card>
+    <More k="people" title="People" sub={sub}>
       <div className="stack sm" data-people>
-        <h2>People</h2>
-        <p className="hint">Type an email and a GitHub username. Save finds the Slack user from the email. The pipeline maps a team admin's GitHub comments with this list.</p>
+        <p className="hint">Type an email and a GitHub username. Save finds the Slack user from the email. A team admin gets the team's alerts and every control in its Slack threads, and the pipeline counts their GitHub comments as an admin's.{P.canAdmin ? '' : ' Only a dashboard admin changes who is a team admin.'}</p>
         {P.rows.length > 0 && (
           <div className="tscroll">
-            <table className="ttable"><thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col">GitHub username</th><th scope="col"><span className="vh">Remove</span></th></tr></thead>
+            <table className="ttable"><thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col">GitHub username</th><th scope="col">Team admin</th><th scope="col"><span className="vh">Remove</span></th></tr></thead>
               <tbody>
                 {P.rows.map((r, i) => (
                   <tr key={i}>
                     <td>{cell(i, 'email', 'Email', 'name@example.com')}</td>
                     <td>{r.slack ? <span className="mono">{r.slack}</span> : <span className="na">{r.email ? 'none' : 'after save'}</span>}</td>
                     <td>{cell(i, 'github', 'GitHub username', 'login')}</td>
+                    <td><input type="checkbox" checked={!!r.admin} disabled={!P.canAdmin} aria-label={`Person ${i + 1} is a team admin`}
+                      onChange={(e) => editPpl((rs) => rs.map((x, j) => (j === i ? { ...x, admin: e.target.checked } : x)))} /></td>
                     <td><button type="button" className="linkbtn" aria-label={`Remove person ${i + 1}`} onClick={() => editPpl((rs) => rs.filter((_, j) => j !== i))}>Remove</button></td>
                   </tr>
                 ))}
@@ -359,7 +368,7 @@ export function People({ p }: { p: string }) {
         <Said ok={P.ok} msg={P.msg} />
         {P.notes.length > 0 && <ul className="hint">{P.notes.map((n) => <li key={n.email}><span className="mono">{n.email}</span>: {n.why}</li>)}</ul>}
       </div>
-    </Card>
+    </More>
   );
 }
 
