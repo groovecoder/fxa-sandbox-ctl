@@ -584,7 +584,7 @@ EOF
       return 0
     fi
     local pr_url
-    pr_url="$(FXA_SHIP_CHECK="$key" finish_push_and_pr "$worktree_path" "$create_pr")" || { [ "$rebase" != true ] || pipeline_rebase_end "$key"; return 1; }
+    pr_url="$(FXA_SHIP_CHECK="$key" finish_push_and_pr "$worktree_path" "$create_pr")" || { [ "$rebase" != true ] || { _jira_rebase_push_failed "$key" "$worktree_path"; pipeline_rebase_end "$key"; }; return 1; }
     [ "$rebase" != true ] || pipeline_rebase_end "$key"
     # Record the run here, on the host that ran it, while its transcript is in
     # the slot. The row lands in the state dir, which the GCS mirror carries to
@@ -610,6 +610,20 @@ EOF
 # Merge <base> into the ticket's branch on the host: the VM mounts .git read-only,
 # so the agent only edits the conflict. The attempts gate lives here because a
 # rule only in a skill file does not survive a cron-fired pass.
+# _jira_rebase_push_failed KEY WORKTREE   A rebase round that could not push: keep the resolved merge as
+# <KEY>.rebase.patch, reset the slot to the PR head (a dirty slot stops every later launch on it), and label
+# the ticket blocked rebases, so the pass stops relaunching it and the Board says why.
+_jira_rebase_push_failed() {
+  local key="$1" wt="$2" br="" patch="${PIPE_STATE_DIR}/${1}.rebase.patch" err=""
+  br="$(worktree_branch_for "$key")"
+  git -C "$wt" diff --cached --binary HEAD > "$patch" 2>/dev/null || true
+  git -C "$wt" merge --abort >/dev/null 2>&1 || true
+  git -C "$wt" reset -q --hard "origin/${br}" >&2 || echo "WARN: could not reset ${wt} to origin/${br}" >&2
+  err="$(grep -a '^ERROR' "$(pipeline_launch_log "$key")" 2>/dev/null | tail -1 | cut -c1-160 || true)"
+  cmd_label "$key" blocked rebases "the rebase push failed (${err:-see the launch log}); the resolved merge is in ${key}.rebase.patch" >/dev/null \
+    || echo "WARN: could not label ${key} blocked rebases" >&2
+}
+
 _jira_rebase_merge() {
   local key="$1" wt="$2" base="$3"
 
