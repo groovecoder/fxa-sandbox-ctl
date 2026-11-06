@@ -3426,6 +3426,7 @@ main() {
                   sync) teams_sync ;;
                   # reporters.tsv rows into the record's people; the default map is this pipeline's state dir.
                   people-import) [ -n "${2:-}" ] || { echo "usage: profile people-import <name> [<reporters.tsv>]" >&2; return 1; }; teams_people_import "$2" "${3:-}" ;;
+                  people-migrate) [ -n "${2:-}" ] || { echo "usage: profile people-migrate <name>" >&2; return 1; }; teams_people_migrate "$2" ;;
                   audit) [ -n "${2:-}" ] || { echo "usage: profile audit <name>" >&2; return 1; }; teams_audit "$2" ;;
                   test) [ -n "${2:-}" ] || { echo "usage: profile test <name>" >&2; return 1; }; teams_test "$2" ;;
                   # The value on stdin, never in argv: printf '%s' "$value" | profile secret-set <name> <secret>

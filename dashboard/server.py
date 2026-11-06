@@ -37,6 +37,7 @@ ERRORS_FILE = os.environ.get("FXA_ERRORS_FILE") or str(Path.home() / ".claude/st
 PROFILES_DIR = ROOT.parent / "profiles"
 sys.path.insert(0, str(ROOT.parent / "lib"))
 import fxadb  # noqa: E402  the controller's store: sessions as they change
+import team_record  # noqa: E402  the record rules: people roles fold the old admin and user lists
 import routine  # noqa: E402  the one reader of a team's spend against its caps
 import live  # noqa: E402  the /api/live hub, on only with FXA_LIVE=1
 
@@ -613,7 +614,9 @@ def team_record_admins(team):
         else:
             out = ctl_run(["profile", "get", team], timeout=60)
             rec = json.loads(out.stdout) if out.returncode == 0 else {}
-        emails = frozenset(a["email"].lower() for a in rec.get("admins", []) if isinstance(a, dict) and isinstance(a.get("email"), str))
+        # The old admins list and the people marked admin.
+        emails = frozenset(a["email"].lower() for a in rec.get("admins", []) + [p for p in rec.get("people") or [] if isinstance(p, dict) and p.get("admin") is True]
+                           if isinstance(a, dict) and isinstance(a.get("email"), str))
     except (OSError, ValueError, AttributeError, TimeoutError, subprocess.SubprocessError):
         emails = frozenset()
     _REC_ADMINS[team] = (time.time(), emails)
@@ -667,21 +670,30 @@ def slack_lookup(email):
 
 def people_rows(rows, old):
     """(the people to save, a note for each row whose Slack lookup failed) or (None, the error). A row keeps its stored
-    Slack user while its email stays; a new email asks Slack again, so the client never sets slack."""
+    Slack user while its email stays; a new email asks Slack again, so the client never sets slack. A stored person
+    with no email comes back by its Slack user. The roles admin, start and pr pass through as true or absent."""
     if not isinstance(rows, list) or len(rows) > 500:
         return None, "send people as a list of at most 500 rows"
     keep = {p["email"].lower(): p.get("slack") for p in old if isinstance(p, dict) and isinstance(p.get("email"), str)}
+    bare = {p.get("slack") for p in old if isinstance(p, dict) and not p.get("email") and p.get("slack")}
     out, notes, seen, asked, stop = [], [], set(), 0, None
     for r in rows:
         email = (r.get("email") if isinstance(r, dict) else None) or ""
         gh = (r.get("github") if isinstance(r, dict) else None) or ""
+        roles = {k: True for k in ("admin", "start", "pr") if isinstance(r, dict) and r.get(k) is True}
+        if not isinstance(gh, str) or (gh.strip() and not GITHUB_LOGIN.fullmatch(gh.strip().lstrip("@"))):
+            return None, f"not a GitHub username: {str(gh)[:80]}"
+        if not email and isinstance(r, dict) and r.get("slack") in bare:
+            if r["slack"] in seen:
+                return None, f"{r['slack']} is listed twice"
+            seen.add(r["slack"])
+            out.append({"slack": r["slack"], **({"github": gh.strip().lstrip("@")} if gh.strip() else {}), **roles})
+            continue
         if not isinstance(email, str) or not EMAIL.fullmatch(email.strip()):
             return None, f"not an email: {str(email)[:80]}"
         email = email.strip().lower()
         if email in seen:
             return None, f"{email} is listed twice"
-        if not isinstance(gh, str) or (gh.strip() and not GITHUB_LOGIN.fullmatch(gh.strip().lstrip("@"))):
-            return None, f"not a GitHub username: {str(gh)[:80]}"
         seen.add(email)
         # At most 50 lookups a save, and none after Slack rate-limits us: the request must end; a later save asks for the rest.
         if keep.get(email):
@@ -695,7 +707,7 @@ def people_rows(rows, old):
                 stop = "not asked: Slack rate-limited the lookups, save again later"
         if why:
             notes.append({"email": email, "why": why})
-        out.append({"email": email, **({"slack": slack} if slack else {}), **({"github": gh.strip().lstrip("@")} if gh.strip() else {})})
+        out.append({"email": email, **({"slack": slack} if slack else {}), **({"github": gh.strip().lstrip("@")} if gh.strip() else {}), **roles})
     return (out, notes), None
 
 
@@ -1116,37 +1128,32 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(rec, dict):
             self._json(404, {"error": f"no team record {name}"})
             return
-        old = rec.get("people") if isinstance(rec.get("people"), list) else []
-        admins = [a for a in rec.get("admins") or [] if isinstance(a, dict)]
-        by_mail = {str(a.get("email") or "").lower(): a for a in admins if a.get("email")}
+        # One list: the old admins, access.users and pr.users show as people roles, and a save stores them that way.
+        rec = team_record.migrate(rec)
+        old = rec["people"]
         if method == "GET":
-            # One list in the dashboard: the people, each team admin marked, and an admin with no person row added.
-            seen = {str(p.get("email") or "").lower() for p in old if isinstance(p, dict)}
-            rows = [{**p, **({"admin": True} if str(p.get("email") or "").lower() in by_mail else {})} for p in old if isinstance(p, dict)]
-            rows += [{"email": e, "slack": a.get("slack"), "admin": True} for e, a in by_mail.items() if e not in seen]
-            self._json(200, {"people": rows, "generation": str(rec.get("generation") or ""), "can_admin": user in team_admins()})
+            self._json(200, {"people": old, "generation": str(rec.get("generation") or ""), "can_admin": user in team_admins()})
             return
-        # An admin's stored Slack user counts as known, so the save does not ask Slack for it again.
-        known = old + [{"email": e, "slack": a.get("slack")} for e, a in by_mail.items()]
-        got, err = people_rows(body.get("people"), known)
+        got, err = people_rows(body.get("people"), old)
         if err:
             self._json(400, {"error": err})
             return
         rows, notes = got
-        want = {str(r.get("email") or "").strip().lower() for r in body["people"] if isinstance(r, dict) and r.get("admin") is True}
-        new_admins = [{"slack": r.get("slack", ""), "email": r["email"]} for r in rows if r["email"] in want]
-        if {a["email"] for a in new_admins} != set(by_mail) and user not in team_admins():
-            self._json(403, {"error": "only a dashboard admin (TEAM_ADMINS) changes who is a team admin"})
+
+        def roles(ps):
+            return {(str(p.get("email") or p.get("slack")).lower(), k) for p in ps for k in ("admin", "start", "pr") if p.get(k) is True}
+        # Who is an admin, who may start the team and who may open a PR: the same right as the rest of the record.
+        if roles(rows) != roles(old) and user not in team_admins():
+            self._json(403, {"error": "only a dashboard admin (TEAM_ADMINS) changes the team admins and who may start or open a PR"})
             return
-        if any(not a["slack"] for a in new_admins):
-            self._json(400, {"error": f"a team admin needs a Slack user, and Slack has none for {', '.join(a['email'] for a in new_admins if not a['slack'])}"})
+        lack = [r["email"] for r in rows if not r.get("slack") and any(r.get(k) for k in ("admin", "start", "pr"))]
+        if lack:
+            self._json(400, {"error": f"a team admin, or a person who may start or open a PR, needs a Slack user, and Slack has none for {', '.join(lack)}"})
             return
         for k in ("generation", "tested", "test_log"):
             rec.pop(k, None)
         rec["people"] = rows
-        # An admin listed by Slack ID only has no row here, so it stays.
-        rec["admins"] = [a for a in admins if not a.get("email")] + new_admins
-        self._team_ctl(user, ["set", name, None, "--generation", str(body["generation"])], rec, extra={"people": [{**r, **({"admin": True} if r["email"] in want else {})} for r in rows], "notes": notes})
+        self._team_ctl(user, ["set", name, None, "--generation", str(body["generation"])], rec, extra={"people": rows, "notes": notes})
 
     def _pipeline_write(self, path):
         """POST /api/teams/<name>/pipeline/<KEY>/rounds: a signed admin of the team gives a ticket blocked at its

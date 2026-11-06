@@ -116,6 +116,12 @@ printf '# name\tlogin\temail\nAda\tada-x\tada@example.com\nBo\tbo-x\t\nBad\tx;y\
 check "people-import copies each mapped email once, skips a blank email or bad login, and a rerun adds none" \
   'imported 1 people into team fxa|[{"email":"ada@example.com","github":"ada-x"}]|imported 0 people into team fxa' \
   "$(teams_people_import fxa "$tmp/rep.tsv" 2>&1 | tail -1)|$(jq -c '[.people[] | {email, github}]' "$FXA_TEAMS_DIR/fxa.json")|$(teams_people_import fxa "$tmp/rep.tsv" 2>&1 | tail -1)"
+# people-migrate: the admins become admin rows (joined by email), and the bot's index keeps the same admins.
+jq '.admins = [{"slack":"UADMINX1","email":"admin1@example.com"},{"slack":"UADMINX2","email":"Admin2@example.com"}] | .people = [{"email":"admin2@example.com","github":"a2"}]' "$FXA_TEAMS_DIR/fxa.json" > "$tmp/fxa3.json"
+teams_set fxa "$tmp/fxa3.json" >/dev/null 2>&1
+check "people-migrate moves admins into people roles, the index keeps them, and a rerun changes nothing" \
+  'moved the admins and user lists of team fxa into people|null|admin2@example.com UADMINX2 true;admin1@example.com UADMINX1 true|["UADMINX2","UADMINX1"]|team fxa has no old people fields' \
+  "$(teams_people_migrate fxa 2>&1 | tail -1)|$(jq -c .admins "$FXA_TEAMS_DIR/fxa.json")|$(jq -r '[.people[] | select(.admin) | "\(.email) \(.slack) \(.admin)"] | join(";")' "$FXA_TEAMS_DIR/fxa.json")|$(jq -c '.teams.fxa.admins' "$FXA_TEAMS_DIR/index.json")|$(teams_people_migrate fxa 2>&1 | tail -1)"
 
 # The live checks, with GitHub and Jira faked: a curl that answers by URL.
 curl() { local u="${@: -1}"

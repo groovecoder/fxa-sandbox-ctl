@@ -31,4 +31,6 @@ rm -f "$tmp/reporters.tsv"
 reporter='{"emailAddress":"ada@example.com","displayName":"Ada Row"}'
 check "with no reporters.tsv, people alone map the reporter and the admins" "ada-own|ada-own" \
   "$(jira_reporter_login FXA-1)|$(gh_admin_logins | paste -sd' ' -)"
+echo '{"people":[{"email":"dee@example.com","slack":"U4","github":"dee-gh","admin":true},{"slack":"U5","github":"eve-gh","admin":true},{"email":"fay@example.com","github":"fay-gh"}]}' > "$tmp/teams/fxa.json"
+check "people marked admin are admins, with or without an email; an unmarked person is not" "dee-gh eve-gh" "$(gh_admin_logins | paste -sd' ' -)"
 exit "$fail"

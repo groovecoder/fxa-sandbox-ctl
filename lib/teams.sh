@@ -268,6 +268,19 @@ teams_set() {
   return $rc
 }
 
+# teams_people_migrate <name>   Fold the record's admins, access.users and pr.users into people roles, once.
+teams_people_migrate() {
+  local name="$1" rec="${FXA_TEAMS_DIR}/$1.json" tmp="" rc=0
+  [ -f "$rec" ] || { echo "ERROR: no team ${name} here; run profile sync" >&2; return 1; }
+  tmp="$(mktemp "${TMPDIR:-/tmp}/fxa-team.XXXXXX")"
+  _TEAMS_PY migrate "$rec" > "$tmp" || { rm -f "$tmp"; return 1; }
+  if cmp -s <(jq -S . "$rec") <(jq -S . "$tmp"); then echo "team ${name} has no old people fields"; rm -f "$tmp"; return 0; fi
+  teams_set "$name" "$tmp" || rc=$?
+  rm -f "$tmp"
+  [ "$rc" = 0 ] && echo "moved the admins and user lists of team ${name} into people"
+  return "$rc"
+}
+
 # teams_people_import <name> [<reporters.tsv>]   Copy the map's rows with an email and a login into the
 # record's people (email and github), skipping an email it has. Writes through teams_set.
 teams_people_import() {

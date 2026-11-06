@@ -493,8 +493,10 @@ gh_admin_logins() {
       cat "$cache" 2>/dev/null || true
     fi
     # The first row for an email wins, so a person's own row beats reporters.tsv.
-    [ -f "$rec" ] && jq -r '.admins[]?.email // empty' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
+    [ -f "$rec" ] && jq -r '(.admins[]?.email // empty), (.people[]? | select(.admin == true) | .email // empty)' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
       | awk -F'\t' 'NR == FNR { a[$0] = 1; next } { e = tolower($1) } (e in a) && !(e in s) { s[e] = 1; print $2 }' - <(team_login_map)
+    # A person marked admin names their own login, with or without an email.
+    [ -f "$rec" ] && jq -r '.people[]? | select(.admin == true) | .github // empty' "$rec" 2>/dev/null
   } | grep -E '^[A-Za-z0-9-]+$' | sort -u || true
 }
 

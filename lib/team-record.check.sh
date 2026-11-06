@@ -318,10 +318,21 @@ r=""; for j in '"admin_review_rounds": 21' '"admin_review_rounds": true' '"revie
 check "refused: admin rounds 21 or true, a quiet window of 121, \"15\" or -1 minutes" "1 1 1 1 1" "${r# }"
 check "people: an email with a Slack ID and a GitHub login is valid; slack and github are optional" "" \
   "$(f6 ', "people": [ { "email": "ada@example.com", "slack": "U0ADA123", "github": "ada-x" }, { "email": "bo@example.com" } ]')"
-r=""; for j in '[ { "slack": "U0ADA123" } ]' '[ { "email": "not-an-email" } ]' '[ { "email": "a@example.com", "slack": "ada" } ]' \
+r=""; for j in '[ { "github": "ada-x" } ]' '[ { "email": "not-an-email" } ]' '[ { "email": "a@example.com", "slack": "ada" } ]' \
   '[ { "email": "a@example.com", "github": "x;y" } ]' '[ { "email": "a@example.com" }, { "email": "A@example.com" } ]' '[ { "email": "a@example.com", "role": "x" } ]' '{}'; do
   r="$r $(f6 ", \"people\": $j" | grep -c 'people\[0\].email must be\|people\[0\].slack must be\|people\[0\].github must be\|people lists A@example.com twice\|people\[0\].role is not a known key\|people must be a list')"; done
-check "refused: no email, a bad email, a bad Slack ID, a bad login, an email twice (case aside), an unknown key, not a list" "1 1 1 1 1 1 1" "${r# }"
+check "refused: no email or Slack ID, a bad email, a bad Slack ID, a bad login, an email twice (case aside), an unknown key, not a list" "1 1 1 1 1 1 1" "${r# }"
+check "people roles: a Slack-only person may be admin, start and pr" "" "$(f6 ', "people": [ { "slack": "U0ADA123", "admin": true, "start": true, "pr": true } ]')"
+r=""; for j in '[ { "email": "a@example.com", "admin": true } ]' '[ { "slack": "U0ADA123", "pr": false } ]' '[ { "slack": "U0ADA123" }, { "slack": "U0ADA123" } ]'; do
+  r="$r $(f6 ", \"people\": $j" | grep -c 'needs a Slack user to be a team admin\|people\[0\].pr must be true\|the Slack user U0ADA123 twice')"; done
+check "refused: a role with no Slack user, a role set to false, a Slack user twice" "1 1 1" "${r# }"
+r="$(python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import team_record as t
+m = t.migrate({"admins": [{"slack": "U0AAAAA1", "email": "a@example.com"}], "access": {"open": False, "users": ["U0AAAAA1", "U0BBBBB2"]}, "pr": {"users": ["U0CCCCC3"]},
+               "people": [{"email": "A@example.com", "github": "a-gh"}]})
+e = t.effective(m)
+print("admins" in m, "users" in m["access"], "users" in m["pr"], len(m["people"]), e["admins"], e["access"]["users"], e["pr"]["users"])' "$(dirname "$0")")"
+check "migrate folds the old fields into roles (joined by email or Slack ID), and effective gives them back" \
+  "False False False 3 [{'slack': 'U0AAAAA1', 'email': 'A@example.com'}] ['U0AAAAA1', 'U0BBBBB2'] ['U0CCCCC3']" "$r"
 rm -f "$T/f6.json"; rm -rf "$T/f6"
 
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"

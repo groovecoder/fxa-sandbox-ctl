@@ -7,6 +7,7 @@
   team_record.py unique <record.json> <dir>        clashes with the other records in <dir> and the built-in teams
   team_record.py stamp <record.json> <actor> <at> [<old record>]   the record with created and updated set
   team_record.py index <dir>                       the index of the records in <dir>, for the bot and the dashboard
+  team_record.py migrate <record.json>             the record with admins, access.users and pr.users folded into people roles
 
 A record names no host key (state, lock, URIs, credentials): pipeline_load derives those from the name.
 """
@@ -158,11 +159,14 @@ def check(rec, name=None):
     if not isinstance(people, list) or len(people) > 500:
         bad.append("people must be a list of at most 500 people")
         people = []
-    emails = set()
+    # A person is an email, a Slack user or both; the roles admin, start and pr feed admins, access.users and pr.users.
+    emails, slacks = set(), set()
     for i, p in enumerate(people):
-        p = obj(p, f"people[{i}]", {"email", "slack", "github"})
+        p = obj(p, f"people[{i}]", {"email", "slack", "github", "admin", "start", "pr"})
         e = p.get("email")
-        if not isinstance(e, str) or not EMAIL.fullmatch(e):
+        if e is None and "slack" in p:
+            pass
+        elif not isinstance(e, str) or not EMAIL.fullmatch(e):
             bad.append(f"people[{i}].email must be an email address")
         elif e.lower() in emails:
             bad.append(f"people lists {e} twice")
@@ -170,6 +174,15 @@ def check(rec, name=None):
             emails.add(e.lower())
         if "slack" in p and not USER.fullmatch(str(p["slack"])):
             bad.append(f"people[{i}].slack must be a Slack user ID")
+        elif "slack" in p and p["slack"] in slacks:
+            bad.append(f"people lists the Slack user {p['slack']} twice")
+        elif "slack" in p:
+            slacks.add(p["slack"])
+        for role in ("admin", "start", "pr"):
+            if role in p and p[role] is not True:
+                bad.append(f"people[{i}].{role} must be true, or left out")
+            elif p.get(role) is True and "slack" not in p:
+                bad.append(f"people[{i}] needs a Slack user to be {ROLE_WORDS[role]}")
         if "github" in p and (not isinstance(p["github"], str) or not GH_LOGIN.fullmatch(p["github"])):
             bad.append(f"people[{i}].github must be a GitHub login (letters, digits and -)")
 
@@ -373,6 +386,53 @@ def default_path(slug):
     return "/home/agent/" + re.sub(r"[^a-z0-9-]", "-", slug.split("/")[-1].lower())
 
 
+ROLE_WORDS = {"admin": "a team admin", "start": "able to start the team", "pr": "able to open a PR"}
+
+
+def effective(rec):
+    """The record with admins, access.users and pr.users derived from the people roles, joined with the old fields,
+    so the bot's index and every reader keep their shape while a record moves to roles."""
+    people = [p for p in rec.get("people") or [] if isinstance(p, dict)]
+    out = dict(rec)
+    admins = [a for a in rec.get("admins") or [] if isinstance(a, dict)]
+    have = {a.get("slack") for a in admins}
+    out["admins"] = admins + [{"slack": p["slack"], "email": p.get("email", "")} for p in people if p.get("admin") is True and p["slack"] not in have]
+
+    def ids(old, role):
+        seen = list(old or [])
+        return seen + [p["slack"] for p in people if p.get(role) is True and p["slack"] not in seen]
+    out["access"] = {**(rec.get("access") or {}), "users": ids((rec.get("access") or {}).get("users"), "start")}
+    out["pr"] = {**(rec.get("pr") or {}), "users": ids((rec.get("pr") or {}).get("users"), "pr")}
+    return out
+
+
+def migrate(rec):
+    """Fold the old admins, access.users and pr.users into people roles, and drop the old fields."""
+    people = [dict(p) for p in rec.get("people") or [] if isinstance(p, dict)]
+
+    def row(slack, email=""):
+        for p in people:
+            if p.get("slack") == slack or (email and str(p.get("email", "")).lower() == email.lower()):
+                p.setdefault("slack", slack)
+                return p
+        p = {**({"email": email} if email else {}), "slack": slack}
+        people.append(p)
+        return p
+    for a in rec.get("admins") or []:
+        row(a["slack"], a.get("email", ""))["admin"] = True
+    for u in (rec.get("access") or {}).get("users") or []:
+        row(u)["start"] = True
+    for u in (rec.get("pr") or {}).get("users") or []:
+        row(u)["pr"] = True
+    out = {k: v for k, v in rec.items() if k != "admins"}
+    out["people"] = people
+    if "access" in rec:
+        out["access"] = {k: v for k, v in rec["access"].items() if k != "users"}
+    if "pr" in rec:
+        out["pr"] = {k: v for k, v in rec["pr"].items() if k != "users"}
+    return out
+
+
 def env(rec):
     """The PIPE_* values the controller reads today, from a valid record."""
     # FxA's slug goes out as mozilla/fxa however the record wrote it: the runner's tree setup compares it as written.
@@ -513,6 +573,7 @@ def index(folder):
             continue
         if check(rec, f[:-5]):
             continue
+        rec = effective(rec)
         gen = ""
         try:
             with open(os.path.join(folder, f[:-5] + ".gen"), encoding="utf-8") as g:
@@ -557,7 +618,7 @@ def main(argv):
     if argv[1:] == ["options"]:
         print(json.dumps(options()))
         return 0
-    if len(argv) < 3 or argv[1] not in ("validate", "env", "prompts", "unique", "stamp", "index"):
+    if len(argv) < 3 or argv[1] not in ("validate", "env", "prompts", "unique", "stamp", "index", "migrate"):
         sys.exit(__doc__)
     cmd, path = argv[1], argv[2]
     if cmd == "index":
@@ -577,6 +638,8 @@ def main(argv):
     elif cmd == "stamp":
         old = load(argv[5]) if len(argv) > 5 and os.path.exists(argv[5]) else None
         print(json.dumps(stamp(rec, argv[3], argv[4], old), indent=1))
+    elif cmd == "migrate":
+        print(json.dumps(migrate(rec), indent=1))
     elif cmd == "env":
         for k, v in env(rec):
             print(f"{k}\t{v}")
