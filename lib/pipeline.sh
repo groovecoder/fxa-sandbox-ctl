@@ -15,12 +15,15 @@
 #   pipeline_skipped [KEY]      List recorded skips
 #   pipeline_skip_prune         Drop records whose ticket left the queue (queue keys on stdin)
 #   pipeline_attempts KEY [bump]  Read or increment the real-fix attempt counter
+#   pipeline_rebases KEY [bump]   Read or increment the rebase-round counter (cap _FXA_REBASE_CAP)
 #   pipeline_progress KEY       What the launcher actually did (authoritative)
 
 [ -n "${_FXA_PIPELINE_LOADED:-}" ] && return 0
 _FXA_PIPELINE_LOADED=1
-# Automatic rounds per PR (rebase attempts, review rounds): PRODUCT.md says they stop at 2. Not a profile key.
+# Automatic rounds per PR (CI-fix attempts, review rounds): PRODUCT.md says they stop at 2. Not a profile key.
 _FXA_ROUND_CAP=2
+# Rebase rounds per PR have their own counter: a conflict is main's churn, not a failed fix.
+_FXA_REBASE_CAP=5
 
 : "${FXA_PIPELINE:=fxa-ai-fixme}"
 # Team records (lib/team_record.py), cached on this host; config.sh sets the same default.
@@ -510,7 +513,7 @@ pipeline_env() {
 }
 
 # The kinds of a blocked label and of an admission skip (the pass skill names them; lib/skill-kinds.check.sh reads these).
-_PIPE_BLOCKED_KINDS="stalled dead_vm attempts rounds refused_ship frozen operator"
+_PIPE_BLOCKED_KINDS="stalled dead_vm attempts rounds rebases refused_ship frozen operator"
 _PIPE_SKIP_KINDS="needs_decision underspecified depends_on already_done"
 
 # pipeline_blocked_why <KEY> <state> [kind] [reason...]   Why the ticket is blocked, for the Board: one
@@ -659,6 +662,56 @@ pipeline_attempts() {
   echo "$n"
 }
 
+pipeline_rebases() {
+  pipeline_require || return 1
+  local key="${1:-}" bump="${2:-}"
+  [ -n "$key" ] || { echo "ERROR: rebases needs <KEY>" >&2; return 1; }
+  local f="${PIPE_STATE_DIR}/${key}.rebases"
+  local n; n="$(cat "$f" 2>/dev/null || echo 0)"
+  if [ "$bump" = "bump" ]; then n=$((n + 1)); echo "$n" >"$f"; fi
+  echo "$n"
+}
+
+# pipeline_rebase_refusal KEY   Prints why a rebase round may not start, and fails; silent and true when it may.
+# A blocked ticket gets one only for kind rounds or attempts: the code is fine, the limit was review or CI.
+pipeline_rebase_refusal() {
+  local key="${1:-}" n kind=""
+  n="$(pipeline_rebases "$key")" || return 1
+  if [ "${n:-0}" -ge "$_FXA_REBASE_CAP" ]; then
+    echo "ERROR: ${key} has used ${n} of ${_FXA_REBASE_CAP} rebases. Label it blocked rebases." >&2; return 1
+  fi
+  [ -f "${PIPE_STATE_DIR}/${key}.blocked-why" ] && kind="$(cut -f2 "${PIPE_STATE_DIR}/${key}.blocked-why")"
+  case "$kind" in
+    ""|rounds|attempts) return 0 ;;
+    *) echo "ERROR: ${key} is blocked (${kind}); a rebase round runs only for blocked rounds or attempts." >&2; return 1 ;;
+  esac
+}
+
+# pipeline_rebase_end KEY   A rebase round ended: drop its marker and free its branch. It never labels.
+pipeline_rebase_end() {
+  [ -f "${PIPE_STATE_DIR}/${1:-}.rebasing" ] || return 0
+  rm -f "${PIPE_STATE_DIR}/${1}.rebasing"
+  worktree_release_branch "$(worktree_branch_for "$1" 2>/dev/null)" >/dev/null 2>&1 || true
+}
+
+# pipeline_rebasing_keys   The keys a live rebase round holds, one a line.
+pipeline_rebasing_keys() {
+  local f k
+  for f in "${PIPE_STATE_DIR}"/*.rebasing; do
+    [ -e "$f" ] || continue; k="$(basename "$f" .rebasing)"
+    pipeline_rebasing "$k" && printf '%s\n' "$k"
+  done
+  return 0
+}
+
+# pipeline_rebasing KEY   True while a rebase round holds the ticket: <KEY>.rebasing is younger than
+# FXA_REBASE_TTL_S (7200). The label does not change in a round, so this marker owns the runner.
+pipeline_rebasing() {
+  local f="${PIPE_STATE_DIR}/${1:-}.rebasing" at=""
+  at="$(cat "$f" 2>/dev/null || true)"
+  [[ "$at" =~ ^[0-9]+$ ]] && [ $(( $(date +%s) - at )) -lt "${FXA_REBASE_TTL_S:-7200}" ]
+}
+
 # pipeline_launch_started <log>   The run's start (epoch): the launcher's first
 # line, else the file's birth time. A copy to another host (the state mirror)
 # keeps the line but not the birth time.
@@ -776,7 +829,8 @@ pipeline_launches_24h() {
   local ledger="${PIPE_STATE_DIR}/launches.log"
   # awk exits 2 on a missing file, and under set -e that killed the launch silently.
   [ -f "$ledger" ] || return 0
-  awk -v t="$(( $(date +%s) - 86400 ))" '$1 >= t { print $1 }' "$ledger" | sort -n
+  # A rebase round's line ends in "rebase": it is in the ledger for telemetry, not in the budget.
+  awk -v t="$(( $(date +%s) - 86400 ))" '$1 >= t && $4 != "rebase" { print $1 }' "$ledger" | sort -n
 }
 
 # _pipeline_next_pass   The pass timer's next run as an epoch; "off" for a timer that is not active;

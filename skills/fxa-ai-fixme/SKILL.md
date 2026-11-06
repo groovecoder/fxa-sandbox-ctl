@@ -53,7 +53,7 @@ token comes from `~/.circleci/cli.yml`. Never print it.
    label `inflight`, launch with `$CTL launch KEY <slot> <ctx>`.
    **Label and launch one ticket at
    a time; never re-read `inflight` to pick slots** (JQL lags a label write by seconds). At most
-   `$CTL launchcap` launches per pass; feedback and rebase rounds count. `slots` shows VM state,
+   `$CTL launchcap` launches per pass; feedback rounds count, rebase rounds do not. `slots` shows VM state,
    not availability; on GCE a ticket owns a slot only while its runner is up. `freeslots` is the
    test. A free slot is claimable while another ticket is inflight. When the prompt gives a state
    block (`newtickets`, `focus`, `freeslots`, `launchcap`, `queue`, `inflight`, `done-keys`), use it
@@ -66,24 +66,29 @@ token comes from `~/.circleci/cli.yml`. Never print it.
 ## Merge conflicts
 
 Green does not mean mergeable (INCIDENTS: Conflicts). Conflicts are churn: clearing them once
-does not keep them clear.
-
-A human review does not block a rebase: the repo keeps approvals across pushes. Say in the Jira
-comment that the branch was rebased after review.
+does not keep them clear. Rebase only on a conflict. A PR that is only behind (`BEHIND`, on a
+repo that requires an up-to-date branch) gets a GitHub update-branch from `precheck`; do nothing.
 
 `$CTL conflicts KEY` prints the class and files (`git merge-tree`, no worktree, no slot).
-`lockfile`: `precheck` fixes it itself with `$CTL relock KEY`: merge main in a temporary
-worktree, take main's `yarn.lock`, `yarn install --mode=update-lockfile`, and push the merge as a
-fast-forward, with no force-push. It counts as an attempt. A failed relock
-shows as a work line; report it. `source`: `$CTL launch KEY <slot> --rebase`. The host merges
-the base in after checkout, the agent resolves markers as file edits, the host squashes onto the
-base and pushes `--force-with-lease`. It refuses at `attempts` 2, and
-refuses to commit a surviving marker. It renders its own goal, not the ticket's.
+`lockfile`: `precheck` fixes it itself with `$CTL relock KEY`: merge the base in a temporary
+worktree, take the base's lockfile (`yarn.lock`, or `Cargo.lock` when the host has cargo),
+regenerate it, and push the merge as a fast-forward. A relock costs nothing: no slot, no cap. A
+failed relock shows as a work line; report it. `source`: `$CTL launch KEY <slot> --rebase`. The
+host merges the base in after checkout, the agent resolves markers as file edits, and the host
+commits the merge and pushes it. It refuses to commit a surviving marker. It renders its own
+goal, not the ticket's.
 
-Rules: a rebase counts against `launchcap`; cap 2 per PR via `$CTL attempts`, then `blocked`;
-`--force-with-lease` only; `deps.sh gate <pr>` after the push; **never resolve by dropping the
-branch's change**. Prefer a rebase round over an idle pool, and a new ticket over a rebase when
-the queue has work.
+A `CONFLICT blocked:<kind>` line is a `blocked rounds` or `blocked attempts` ticket: rebase it
+the same way. Do not change its label.
+
+Rules: a rebase round needs a free slot, but not `launchcap` and not the 24 h budget. Do not
+label a rebase round; the ticket keeps `done` or `blocked`. The cap is 5 per PR on its own
+counter (`$CTL rebases KEY`); at 5, `launch --rebase` refuses and `precheck` labels the ticket
+`blocked rebases`. On an FxA repo, run `deps.sh gate <pr>` after the push. **Never resolve by
+dropping the branch's change**. After the push, read `reviewDecision`. If it is not `APPROVED`,
+ask the reviewer for a new review, and say in the Jira comment that the branch merged the base
+after review. Prefer a rebase round over an idle pool, and a new ticket over a rebase when the
+queue has work.
 
 ## State machine
 
@@ -238,6 +243,7 @@ phone number in a context file, comment, or PR.
 | `skip KEY [kind] '<reason>'` / `skipped [KEY]` / `unskip KEY` | record, list and drop admission skips (operator: `unskip` after a 🤖 note) |
 | `comment KEY '<text>'` | post one Jira comment in the style under Comments |
 | `attempts KEY [bump]` | real-fix counter |
+| `rebases KEY [bump]` | rebase-round counter (cap 5) |
 | `ticket KEY` / `reporter KEY` | ground; resolve the assignee |
 | `lock` / `unlock` / `pause` / `resume` / `paused` | one pass at a time; kill switch |
 | `costs` | rebuild the cost rollup |

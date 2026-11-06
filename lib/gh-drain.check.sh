@@ -42,4 +42,8 @@ gh() { local q="" lim=""; while [ $# -gt 0 ]; do case "$1" in -q) q="$2"; shift 
 : > "$tmp/lims"
 check "a 504 at 200 PRs: drain reads 50 and reports" "FXA-2 2 MERGED|200,50" "$(gh_drain FXA-2 2>/dev/null | cut -d' ' -f1-3)|$(paste -sd, "$tmp/lims")"
 check "both reads fail: the error says why" "1" "$(OKLIM=10 gh_drain FXA-2 2>&1 >/dev/null | grep -c 'exit 1: HTTP 504')"
+# A base that requires an up-to-date branch: GitHub says BEHIND, and the drain reports it.
+gh() { local q=""; while [ $# -gt 0 ]; do case "$1" in -q) q="$2"; shift ;; esac; shift; done
+  jq -r "$q" <<< '[{"number":7,"state":"OPEN","headRefName":"fxa-7","statusCheckRollup":[],"mergeable":"MERGEABLE","mergeStateStatus":"BEHIND","headRefOid":"abc","isCrossRepository":false}]'; }
+check "an open PR that is only behind is a BEHIND row" "FXA-7 7 BEHIND" "$(gh_drain FXA-7 2>/dev/null)"
 exit "$fail"

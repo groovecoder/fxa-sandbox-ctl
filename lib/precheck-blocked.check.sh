@@ -30,5 +30,23 @@ check "a secret team whose repo is not confirmed private pauses before any read,
 check "with the repo confirmed, the gate ran in the pass's shell (its yes reaches the reads below)" "1" \
   "$( (PIPE_SECRET_TICKETS=1 PIPE_PROFILE=fxa-private cmd_precheck >/dev/null 2>&1; echo "${G_OK:-0}") )"
 
+# A PR blocked for its review rounds or fix attempts still gets rebases; other blocked kinds do not.
+: > "$tmp/labels"; _FXA_REBASE_CAP=5; pipeline_rebasing() { return 1; }; pipeline_rebases() { echo 0; }; PIPE_REPO_SLUG=mozilla/fxa PIPE_NAME=test
+_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"; }
+jira_keys_in_state() { [ "$1" = blocked ] && printf 'FXA-4\nFXA-5\nFXA-6\nFXA-7\n'; }
+gh_pr_state() { echo "$1 ${1#FXA-} OPEN ok=1"; }
+printf '1\trounds\t\n' > "$tmp/FXA-4.blocked-why"; printf '1\tattempts\t\n' > "$tmp/FXA-5.blocked-why"
+printf '1\tstalled\t\n' > "$tmp/FXA-6.blocked-why"; printf '1\tattempts\t\n' > "$tmp/FXA-7.blocked-why"
+gh() { echo "$*" >> "$tmp/gh"; case "$*" in *" 4 "*|*" 5 "*) echo "CONFLICTING DIRTY" ;; *" 7 "*) echo "MERGEABLE BEHIND" ;; *) echo "MERGEABLE CLEAN" ;; esac; }
+gh_conflicts() { case "$1" in FXA-4) echo "source a.ts" ;; *) echo "lockfile yarn.lock" ;; esac; }
+gh_relock() { echo "$1" >> "$tmp/relocked"; }; gh_update_branch() { echo "$1" >> "$tmp/updated"; }
+out="$(cmd_precheck 2>&1)"
+check "blocked rounds with a source conflict wakes the pass, a red blocked attempts lockfile is relocked, blocked stalled is not read" \
+  "1|FXA-5|0|7" "$(grep -c 'drain: FXA-4 4 CONFLICT blocked:rounds' <<< "$out")|$(cat "$tmp/relocked")|$(grep -c ' 6 ' "$tmp/gh")|$(cat "$tmp/updated")"
+check "the labels and the blocked reasons stay" "0|rounds" "$(grep -c . "$tmp/labels")|$(cut -f2 "$tmp/FXA-4.blocked-why")"
+check "the same blocked conflict on the next precheck is quiet" "0" "$(cmd_precheck 2>&1 | grep -c 'drain: FXA-4 4 CONFLICT blocked')"
+pipeline_rebases() { echo 5; }
+check "a blocked PR at 5 rebases does not wake, and is not labelled again" "0|0" "$(rm -f "$tmp/FXA-4.drain-noted"; cmd_precheck 2>&1 | grep -c '^drain: FXA-4')|$(grep -c . "$tmp/labels")"
+
 [ "$fail" = 0 ] && echo "all ok"
 exit "$fail"

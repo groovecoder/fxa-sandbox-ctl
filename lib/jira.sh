@@ -375,7 +375,9 @@ jira_owning_keys() {
   local out rc=0
   out="$(jira_inflight_keys)" || rc=$?
   if [ "$rc" -ne 0 ]; then printf 'UNKNOWN\n'; return 0; fi
-  printf '%s\n' "$out" | tr '[:lower:]' '[:upper:]'
+  # A rebase round keeps its done or blocked label, so its marker owns the runner too.
+  { printf '%s\n' "$out"; ! declare -F pipeline_rebasing_keys >/dev/null || pipeline_rebasing_keys; } \
+    | tr '[:lower:]' '[:upper:]' | grep . | sort -u || true
 }
 
 # jira_label_set <KEY> <STATE>

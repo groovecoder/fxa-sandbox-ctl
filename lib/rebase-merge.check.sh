@@ -6,10 +6,11 @@ set -u
 fail=0
 check() { if [ "$2" = "$3" ]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s: want [%s] got [%s]\n' "$1" "$2" "$3"; fail=1; fi; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-_FXA_ROUND_CAP=2
+_FXA_ROUND_CAP=2; _FXA_REBASE_CAP=5; PIPE_STATE_DIR="$tmp/state"; mkdir -p "$PIPE_STATE_DIR"
 eval "$(sed -n '/^_jira_rebase_merge() {/,/^}/p' "$(dirname "$0")/../fxa-sandbox-ctl")"
+eval "$(sed -n '/^pipeline_attempts() {/,/^}/p;/^pipeline_rebases() {/,/^}/p;/^pipeline_rebase_refusal() {/,/^}/p' "$(dirname "$0")/pipeline.sh")"
 worktree_filtered_status() { git -C "$1" status --porcelain | grep -v ' \.fxa-' || true; }
-pipeline_attempts() { echo 0; }
+pipeline_require() { :; }
 _retry() { "$@"; }
 g() { git -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false "$@"; }
 git init -q --bare "$tmp/origin.git"
@@ -40,6 +41,16 @@ done
 g clone -q -b fxa-1 "$tmp/origin.git" "$tmp/wt3" 2>/dev/null
 _jira_rebase_merge FXA-1 "$tmp/wt3" main >/dev/null 2>&1
 check "a relaunch resumes the branch with its conflicted merge open" "0|0|U" "$(_worktree_resume_branch "$tmp/wt3" fxa-1 2>/dev/null; echo $?)|$(_jira_rebase_merge FXA-1 "$tmp/wt3" main 2>/dev/null; echo $?)|$(git -C "$tmp/wt3" diff --name-only --diff-filter=U | sed 's/^d$/U/')"
+check "a conflicted merge counts one rebase, a resume and clean merges none, and attempts never" "1|none" \
+  "$(cat "$PIPE_STATE_DIR/FXA-1.rebases")|$(cat "$PIPE_STATE_DIR/FXA-1.attempts" 2>/dev/null || echo none)"
+echo 2 > "$PIPE_STATE_DIR/FXA-9.attempts"
+g clone -q -b fxa-1 "$tmp/origin.git" "$tmp/wt4" 2>/dev/null
+check "2 CI-fix attempts do not stop a rebase" "0|1" "$(_jira_rebase_merge FXA-9 "$tmp/wt4" main >/dev/null 2>&1; echo $?)|$(cat "$PIPE_STATE_DIR/FXA-9.rebases")"
+echo 5 > "$PIPE_STATE_DIR/FXA-9.rebases"
+out="$(_jira_rebase_merge FXA-9 "$tmp/wt4" main 2>&1; echo "rc=$?")"
+check "5 rebases refuse, and name the blocked kind" "rc=1|1" "$(tail -1 <<< "$out")|$(grep -c 'blocked rebases' <<< "$out")"
+printf '1\trounds\tx\n' > "$PIPE_STATE_DIR/FXA-10.blocked-why"; printf '1\tstalled\tx\n' > "$PIPE_STATE_DIR/FXA-11.blocked-why"
+check "blocked rounds may rebase, blocked stalled may not" "0|1" "$(pipeline_rebase_refusal FXA-10 2>/dev/null; echo $?)|$(pipeline_rebase_refusal FXA-11 2>/dev/null; echo $?)"
 eval "$(sed -n '/^_worktree_drop_foreign_merge() {/,/^}/p' "$(dirname "$0")/worktree.sh")"
 _worktree_drop_foreign_merge "$tmp/wt3" fxa-1 2>/dev/null
 check "the same ticket keeps its open merge" "yes" "$(git -C "$tmp/wt3" rev-parse -q --verify MERGE_HEAD >/dev/null && echo yes)"

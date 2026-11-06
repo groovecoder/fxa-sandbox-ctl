@@ -107,4 +107,9 @@ mb="$(g -C "$tmp/w2" rev-parse main)"; ph="$(g -C "$tmp/w2" rev-parse refs/remot
 check "squash goes back to the base; append stays on the PR head; a rebase round always starts at the base" "$mb|$ph|$mb" \
   "$(PIPE_REPO_SLUG=ex/a PIPE_APPEND_REPOS="ex/b" _finish_squash_base "$tmp/w2" pr "$mb" 2>/dev/null)|$(PIPE_REPO_SLUG=Ex/A PIPE_APPEND_REPOS="ex/b ex/a" _finish_squash_base "$tmp/w2" pr "$mb" 2>/dev/null)|$(PIPE_REPO_SLUG=ex/a PIPE_APPEND_REPOS="ex/a" _finish_squash_base "$tmp/w2" pr "$mb" 1 2>/dev/null)"
 
+# A rebase round's App push is a merge commit on every repo: its first parent is the PR head.
+eval "$(sed -n '/^_finish_merge_parent() {/,/^}/p' "$here/finish.sh")"
+check "a rebase round's first parent is the PR head; a normal round has none" "$ph|" \
+  "$(_finish_merge_parent "$tmp/w2" pr 1)|$(_finish_merge_parent "$tmp/w2" pr "")"
+
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"

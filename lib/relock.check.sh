@@ -13,7 +13,7 @@ source "$(dirname "$0")/github.sh"
 eval "$(grep '^_retry()' "$(dirname "$0")/config.sh")"
 pipeline_require() { :; }
 worktree_branch_for() { printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]'; }
-pipeline_attempts() { if [ "${2:-}" = bump ]; then echo bumped >>"$tmp/attempts"; else wc -l <"$tmp/attempts" 2>/dev/null | tr -d ' ' || echo 0; fi; }
+pipeline_attempts() { if [ "${2:-}" = bump ]; then echo bumped >>"$tmp/attempts"; else cat "$tmp/attempts" 2>/dev/null | wc -l | tr -d ' '; fi; }
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.com GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.com
 PIPE_RELOCK_SIGN=""
 printf '#!/bin/sh\necho resolved-branch-dep >> yarn.lock\necho "key=${ANTHROPIC_API_KEY:-} scripts=${YARN_ENABLE_SCRIPTS:-}" >> %s/yarn-env\n' "$tmp" >"$tmp/fake-yarn"; chmod +x "$tmp/fake-yarn"
@@ -43,7 +43,7 @@ check "branch now contains main" "yes" "$(g -C "$tmp/repo" merge-base --is-ances
 check "old branch head kept (no force-push)" "yes" "$(g -C "$tmp/repo" merge-base --is-ancestor "$(g -C "$tmp/seed" rev-parse fxa-1)" origin/fxa-1 && echo yes)"
 check "yarn.lock is main's plus the re-resolve" "lock-main resolved-branch-dep" "$(g -C "$tmp/repo" show origin/fxa-1:yarn.lock | tr '\n' ' ' | sed 's/ $//')"
 check "merges clean afterwards" "" "$(gh_conflicts FXA-1)"
-check "attempt recorded" "1" "$(pipeline_attempts FXA-1)"
+check "a relock counts against no cap: no attempt recorded" "0" "$(pipeline_attempts FXA-1)"
 check "temp worktree removed" "1" "$(g -C "$tmp/repo" worktree list | grep -c .)"
 
 before="$(g -C "$tmp/repo" rev-parse origin/fxa-2)"

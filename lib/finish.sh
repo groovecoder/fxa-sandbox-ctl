@@ -790,11 +790,8 @@ _finish_push_and_pr() {
     msg="$(printf '%s' "$pr_title"; [ -n "${commit_body//[[:space:]]/}" ] && printf '\n\n%s' "$commit_body")"
     # A fix run's commit lands on a public PR: a fixed host text, never the agent's title or body.
     [ -z "$fix" ] || msg="$(_finish_prfix_message "$fix" "$FXA_FINISH_PR")"
-    # An append repo's rebase round: a merge of the PR head and the base, so the push is no rewrite.
-    local first=""
-    if [ -n "$merging" ] && _finish_appends; then
-      first="$(git -C "$worktree" rev-parse -q --verify "refs/remotes/origin/${branch}" 2>/dev/null || true)"
-    fi
+    local first; first="$(_finish_merge_parent "$worktree" "$branch" "$merging")"
+    [ -z "$first" ] || msg="Merge ${base_ref#origin/} into ${branch}"
     new_sha="$(github_app_commit "$worktree" "$branch" "$merge_base" "$msg" $first)" || arc=$?
     if [ "$arc" != 0 ]; then
       [ "$arc" = 3 ] && _finish_prfix_why moved
@@ -1119,9 +1116,16 @@ _finish_appends() {
   done; return 1
 }
 
+# _finish_merge_parent <worktree> <branch> <merging>
+#   A rebase round's first parent, the PR head: the App push is a merge commit, so no rewrite and no force-push.
+_finish_merge_parent() {
+  [ -n "${3:-}" ] || return 0
+  git -C "$1" rev-parse -q --verify "refs/remotes/origin/$2" 2>/dev/null || true
+}
+
 # _finish_squash_base <worktree> <branch> <merge_base> <merging>
 #   Where the squash starts. A person's commits on the PR stay theirs: the change
-#   goes on top of the PR's head. A rebase round (merging) starts at the base; an append repo makes it a merge commit.
+#   goes on top of the PR's head. A rebase round (merging) starts at the base, and the App push makes it a merge commit.
 _finish_squash_base() {
   local wt="$1" branch="$2" base="$3" merging="${4:-}" head people
   head="$(git -C "$wt" rev-parse -q --verify "refs/remotes/origin/${branch}" 2>/dev/null || true)"

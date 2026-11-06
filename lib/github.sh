@@ -215,7 +215,7 @@ gh_drain() {
   local map jqx rc=0
   # A fork PR from a branch with a key's name is not ours (i619). Only the branch read asks for the field: in the
   # 200-PR list it made GitHub's GraphQL time out (HTTP 504).
-  jqx=".[] | select((.isCrossRepository // false) | not) | (${_GH_ROLLUP_JQ}) as \$r | \"\(.headRefName) \(.number) \(.state) \(\$r.ok) \(\$r.fail) \(\$r.run) \(.mergeable) \(.headRefOid)\""
+  jqx=".[] | select((.isCrossRepository // false) | not) | (${_GH_ROLLUP_JQ}) as \$r | \"\(.headRefName) \(.number) \(.state) \(\$r.ok) \(\$r.fail) \(\$r.run) \(.mergeable) \(.mergeStateStatus) \(.headRefOid)\""
   # `|| rc=$?` keeps `set -e` from killing the function before the guard below.
   # GitHub computes `mergeable` lazily and says UNKNOWN until then, but the
   # request starts the computation, so one re-poll resolves most of them.
@@ -224,11 +224,11 @@ gh_drain() {
   local err lim=200; err="$(mktemp)"
   _gh_drain_fetch() {
     gh pr list --repo "$PIPE_REPO_SLUG" --state all --limit "${1:-200}" \
-      --json number,state,headRefName,statusCheckRollup,mergeable,headRefOid \
+      --json number,state,headRefName,statusCheckRollup,mergeable,mergeStateStatus,headRefOid \
       -q "$jqx" 2>"$err"
   }
   map="$(_gh_drain_fetch)" || { rc=0; lim=50; map="$(_gh_drain_fetch 50)" || rc=$?; }
-  # mergeable is the next to last field (the head SHA ends the line), so ' UNKNOWN ' and not ' UNKNOWN$'.
+  # mergeable and the merge state come before the head SHA that ends the line, so ' UNKNOWN ' and not ' UNKNOWN$'.
   if [ "$rc" -eq 0 ] && printf '%s\n' "$map" | grep -q ' UNKNOWN '; then
     sleep 2
     local remap
@@ -242,24 +242,24 @@ gh_drain() {
     rm -f "$err"; return 1
   fi
   rm -f "$err"
-  local key br line num state ok bad run mrg sha
+  local key br line num state ok bad run mrg mst sha
   for key in $keys; do
     br="$(worktree_branch_for "$key")"
     # A here-string, not printf |: awk exits at the first match, and the printf's SIGPIPE error went to stderr.
-    line="$(awk -v b="$br" '$1 == b {print $2, $3, $4, $5, $6, $7, $8; exit}' <<< "$map")"
+    line="$(awk -v b="$br" '$1 == b {print $2, $3, $4, $5, $6, $7, $8, $9; exit}' <<< "$map")"
     # Older than the 200 newest PRs: read the branch alone. A failed read reports nothing, not a false `none`.
     if [ -z "$line" ]; then
       line="$(gh pr list --repo "$PIPE_REPO_SLUG" --state all --head "$br" --limit 5 \
-        --json number,state,headRefName,statusCheckRollup,mergeable,headRefOid,isCrossRepository -q "$jqx" 2>/dev/null)" \
+        --json number,state,headRefName,statusCheckRollup,mergeable,mergeStateStatus,headRefOid,isCrossRepository -q "$jqx" 2>/dev/null)" \
         || { echo "drain: could not read the PR of $key's branch" >&2; continue; }
-      line="$(awk -v b="$br" '$1 == b {print $2, $3, $4, $5, $6, $7, $8; exit}' <<< "$line")"
+      line="$(awk -v b="$br" '$1 == b {print $2, $3, $4, $5, $6, $7, $8, $9; exit}' <<< "$line")"
     fi
     if [ -z "$line" ]; then
       # Report a missing PR, do not relabel it: a human must look.
       echo "$key none -"
       continue
     fi
-    read -r num state ok bad run mrg sha <<<"$line"
+    read -r num state ok bad run mrg mst sha <<<"$line"
     case "$state" in
       OPEN)
         # Nothing else re-reads a done PR's checks or mergeability, so report
@@ -271,6 +271,9 @@ gh_drain() {
         elif [ "$mrg" = "UNKNOWN" ]; then
           # Still uncomputed after the re-poll, so do not call it clean.
           echo "$key $num CONFLICT? mergeability-uncomputed"
+        elif [ "$mst" = "BEHIND" ]; then
+          # GitHub says BEHIND only where the base requires an up-to-date branch before a merge.
+          echo "$key $num BEHIND"
         fi
         ;;
       *) echo "$key $num $state" ;;   # MERGED or CLOSED
@@ -459,26 +462,40 @@ gh_feedback_has_acted() {
 #   Classes:
 #     lockfile  only yarn.lock -- resolve by taking main's copy and reinstalling
 #     source    any real file  -- needs an agent to read both sides
+# The lockfiles the host relock regenerates: yarn.lock always, Cargo.lock when this host has cargo.
+# Any other conflicted file (package-lock.json too) is a source conflict for an agent round.
+_gh_lockfile_re() {
+  if command -v cargo >/dev/null 2>&1; then echo '(^|/)(yarn\.lock|Cargo\.lock)$'; else echo '(^|/)yarn\.lock$'; fi
+}
+
 gh_conflicts() {
   pipeline_require || return 1
   local key="${1:-}"; [ -n "$key" ] || { echo "ERROR: conflicts needs <KEY>" >&2; return 1; }
   local br; br="$(worktree_branch_for "$key")" || return 1
-  local repo="${PIPE_REPO:-$PWD}"
+  local repo="${PIPE_REPO:-$PWD}" base="${PIPE_BASE_BRANCH:-main}"
 
-  _retry git -C "$repo" fetch origin main "$br" -q 2>/dev/null || {
+  _retry git -C "$repo" fetch origin "$base" "$br" -q 2>/dev/null || {
     echo "ERROR: cannot fetch origin/${br}" >&2; return 1; }
 
   local files
   files="$(git -C "$repo" merge-tree --write-tree --name-only \
-             origin/main "origin/${br}" 2>/dev/null \
+             "origin/${base}" "origin/${br}" 2>/dev/null \
            | tail -n +2 | grep -vE '^(Auto-merging|CONFLICT|$)' || true)"
   [ -n "$files" ] || return 0
 
   local class="source"
-  if ! printf '%s\n' "$files" | grep -qvE '(^|/)(yarn\.lock|package-lock\.json)$'; then
+  if ! printf '%s\n' "$files" | grep -qvE "$(_gh_lockfile_re)"; then
     class="lockfile"
   fi
   echo "$class $(printf '%s' "$files" | tr '\n' ' ')"
+}
+
+# gh_update_branch NUM   Merge the base into a PR that is only behind, on GitHub's side: no VM, no counter.
+# GitHub makes and signs the merge commit, so it works where the base requires signed commits.
+gh_update_branch() {
+  local num="${1:-}"; [[ "$num" =~ ^[0-9]+$ ]] || { echo "ERROR: update-branch needs a PR number" >&2; return 1; }
+  if github_app_enabled; then printf '{}' | _gh_app_api PUT "pulls/${num}/update-branch" >/dev/null
+  else gh api -X PUT "repos/${PIPE_REPO_SLUG}/pulls/${num}/update-branch" >/dev/null; fi
 }
 
 # gh_relock KEY
@@ -492,8 +509,9 @@ gh_conflicts() {
 # some of them while it fetches, and the relock runs on the manager. Prints "<file> <name>@<spec>" per spec.
 _relock_bad_specs() {
   local br="$1" f old
-  git diff --name-only "origin/main...origin/${br}" -- 'package.json' '*/package.json' 2>/dev/null | while IFS= read -r f; do
-    old="$(git show "origin/main:${f}" 2>/dev/null | jq -c . 2>/dev/null)" || old=""; [ -n "$old" ] || old='{}'
+  local base="${PIPE_BASE_BRANCH:-main}"
+  git diff --name-only "origin/${base}...origin/${br}" -- 'package.json' '*/package.json' 2>/dev/null | while IFS= read -r f; do
+    old="$(git show "origin/${base}:${f}" 2>/dev/null | jq -c . 2>/dev/null)" || old=""; [ -n "$old" ] || old='{}'
     git show "origin/${br}:${f}" 2>/dev/null | jq -r --arg f "$f" --argjson old "$old" '
       def deps: [.dependencies, .devDependencies, .optionalDependencies, .peerDependencies, .resolutions] | map(. // {}) | add;
       ($old | deps) as $o | deps | to_entries[] | select($o[.key] != .value)
@@ -505,7 +523,7 @@ _relock_bad_specs() {
 gh_relock() {
   pipeline_require || return 1
   local key="${1:-}"; [ -n "$key" ] || { echo "ERROR: relock needs <KEY>" >&2; return 1; }
-  local br repo conf n wt rc=0
+  local br repo conf wt rc=0 base="${PIPE_BASE_BRANCH:-main}"
   br="$(worktree_branch_for "$key")" || return 1
   repo="${PIPE_REPO:-$PWD}"
 
@@ -515,10 +533,7 @@ gh_relock() {
     lockfile\ *) ;;
     *) echo "ERROR: ${key} conflicts outside the lockfile (${conf}); it needs a rebase round." >&2; return 1 ;;
   esac
-  n="$(pipeline_attempts "$key")"
-  if [ "${n:-0}" -ge "${_FXA_ROUND_CAP:-2}" ]; then
-    echo "ERROR: ${key} has ${n} attempts recorded; the cap is ${_FXA_ROUND_CAP:-2}." >&2; return 1
-  fi
+  # No counter and no cap: a relock runs on this host with no VM, and only when the base moved its lockfile.
 
   wt="$(mktemp -d "${TMPDIR:-/tmp}/relock-${br}.XXXXXX")"
   # Hooks off: the repo's post-checkout hook clones l10n into every new worktree.
@@ -527,22 +542,28 @@ gh_relock() {
   (
     set -e
     cd "$wt"
-    git -c core.hooksPath=/dev/null merge -q --no-edit origin/main >/dev/null 2>&1 || true
+    git -c core.hooksPath=/dev/null merge -q --no-edit "origin/${base}" >/dev/null 2>&1 || true
     locks="$(git diff --name-only --diff-filter=U)"
     [ -n "$locks" ] || { echo "ERROR: the merge left no conflicted paths." >&2; exit 1; }
-    if printf '%s\n' "$locks" | grep -qvE '(^|/)yarn\.lock$'; then
-      echo "ERROR: the merge conflicts outside yarn.lock: $(printf '%s ' $locks)" >&2; exit 1
+    if printf '%s\n' "$locks" | grep -qvE "$(_gh_lockfile_re)"; then
+      echo "ERROR: the merge conflicts outside the lockfiles: $(printf '%s ' $locks)" >&2; exit 1
     fi
     bad="$(_relock_bad_specs "$br")"
     [ -z "$bad" ] || { echo "ERROR: ${key} adds a dependency that yarn could run while it fetches, so the relock stops: $(printf '%s; ' $bad) A person relocks it by hand." >&2; exit 1; }
-    # In a merge of main into the branch, "theirs" is main.
+    # In a merge of the base into the branch, "theirs" is the base.
     printf '%s\n' "$locks" | xargs git checkout --theirs --
-    # No controller secret in yarn's env, and no install scripts.
-    env -i PATH="$PATH" HOME="$HOME" YARN_ENABLE_SCRIPTS=0 ${PIPE_RELOCK_CMD:-yarn install --mode=update-lockfile} >&2
+    # No controller secret in the resolver's env, and no install or build scripts.
+    if printf '%s\n' "$locks" | grep -qE '(^|/)yarn\.lock$'; then
+      env -i PATH="$PATH" HOME="$HOME" YARN_ENABLE_SCRIPTS=0 ${PIPE_RELOCK_CMD:-yarn install --mode=update-lockfile} >&2
+    fi
+    # cargo metadata re-resolves only what the branch's Cargo.toml changed, and runs no build script.
+    printf '%s\n' "$locks" | grep -E '(^|/)Cargo\.lock$' | while IFS= read -r l; do
+      ( cd "$(dirname "$l")" && env -i PATH="$PATH" HOME="$HOME" ${PIPE_RELOCK_CARGO_CMD:-cargo metadata --format-version 1} >/dev/null ) || exit 1
+    done
     printf '%s\n' "$locks" | xargs git add --
     # The manager has no signing key and no push login: there the App makes the merge commit.
     if github_app_enabled; then
-      github_app_commit "$wt" "$br" "$(git rev-parse origin/main)" "Merge origin/main into ${br}, re-resolve yarn.lock" "$(git rev-parse HEAD)" >/dev/null
+      github_app_commit "$wt" "$br" "$(git rev-parse "origin/${base}")" "Merge origin/${base} into ${br}, re-resolve $(printf '%s\n' "$locks" | xargs -n1 basename | sort -u | tr '\n' ' ' | sed 's/ $//')" "$(git rev-parse HEAD)" >/dev/null
     else
       git -c core.hooksPath=/dev/null commit -q --no-edit ${PIPE_RELOCK_SIGN--S}
       git push -q origin "HEAD:refs/heads/${br}" >&2
@@ -550,8 +571,7 @@ gh_relock() {
   ) || rc=1
   git -C "$repo" worktree remove --force "$wt" 2>/dev/null || rm -rf "$wt"
   [ "$rc" = 0 ] || return 1
-  pipeline_attempts "$key" bump >/dev/null
-  echo "${key}: merged origin/main and re-resolved yarn.lock; pushed ${br}."
+  echo "${key}: merged origin/${base} and re-resolved its lockfiles; pushed ${br}."
 }
 
 # gh_pr_states_json <KEYS>

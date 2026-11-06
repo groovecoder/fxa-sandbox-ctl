@@ -192,7 +192,8 @@ PIPELINE COMMANDS:
   unskip <KEY>                 Drop the skip record, so the next pass judges the ticket again
                                (after a pipeline note, which the skip fingerprint ignores)
   comment <KEY> <text>         Post a Jira comment; the text is the Markdown subset of lib/jira_adf.py
-  attempts <KEY> [bump]        Read or increment the real-fix attempt counter
+  attempts <KEY> [bump]        Read or increment the CI-fix attempt counter (cap 2)
+  rebases <KEY> [bump]         Read or increment the rebase-round counter (cap 5)
   lock / unlock                One pass at a time
   pause [reason] / resume      Kill switch: lock prints `paused` until resume.
                                Also writes PIPE_PAUSE_URI (gs://...) when set.
@@ -231,7 +232,8 @@ JIRA OPTIONS:
                                FXA_AGENT_RUNTIME / PIPE_AGENT_RUNTIME)
   --rebase                     Merge origin/<base> into the ticket's existing
                                branch, then run the agent on the conflict only.
-                               Refuses once `attempts` reaches 2.
+                               Refuses once `rebases` reaches 5, or for a
+                               ticket blocked other than rounds or attempts.
   --functional-tests           Pre-warm the FxA stack inside the VM (fxa-start
                                in the background) and require the test plan
                                to name the functional spec that /fxa-verify
@@ -521,7 +523,7 @@ EOF
 
   # Merge after the checkout: `git checkout` refuses a worktree with unmerged paths.
   if [ "$rebase" = "true" ]; then
-    _jira_rebase_merge "$key" "$worktree_path" "$base" || return 1
+    _jira_rebase_merge "$key" "$worktree_path" "$base" || { pipeline_rebase_end "$key"; return 1; }
   fi
 
   # Archive a handoff file a prior ticket left in this slot.
@@ -549,7 +551,7 @@ EOF
   check_prerequisites
   # A pipeline run reads CI only, on its work repos (mcp-token.sh); Codex runs get no MCP.
   export _FXA_SESSION_MCP="$(mcp_ci_only "${PIPE_MCP:-}")" _FXA_MCP_WORK_ONLY=1
-  agent_run "$worktree_path" "$name" "$prompt" "$cpu" "$memory" || { _jira_launch_failed "$key" "$name"; return 1; }
+  agent_run "$worktree_path" "$name" "$prompt" "$cpu" "$memory" || { [ "$rebase" != true ] || pipeline_rebase_end "$key"; _jira_launch_failed "$key" "$name"; return 1; }
 
   # Start the stack now so the functional-test step does not pay the cold start.
   if [ "$functional_tests" = "true" ]; then
@@ -582,7 +584,8 @@ EOF
       return 0
     fi
     local pr_url
-    pr_url="$(FXA_SHIP_CHECK="$key" finish_push_and_pr "$worktree_path" "$create_pr")" || return 1
+    pr_url="$(FXA_SHIP_CHECK="$key" finish_push_and_pr "$worktree_path" "$create_pr")" || { [ "$rebase" != true ] || pipeline_rebase_end "$key"; return 1; }
+    [ "$rebase" != true ] || pipeline_rebase_end "$key"
     # Record the run here, on the host that ran it, while its transcript is in
     # the slot. The row lands in the state dir, which the GCS mirror carries to
     # any host that labels the ticket later; that label's record is then a no-op.
@@ -610,13 +613,10 @@ EOF
 _jira_rebase_merge() {
   local key="$1" wt="$2" base="$3"
 
-  # A PR that conflicts a third time is churning faster than it is reviewed,
-  # which is a review-throughput problem a rebase cannot fix.
-  local n; n="$(pipeline_attempts "$key")"
-  if [ "${n:-0}" -ge "${_FXA_ROUND_CAP:-2}" ]; then
-    echo "ERROR: ${key} has ${n} attempts recorded; the cap is ${_FXA_ROUND_CAP:-2}. Label it blocked." >&2
-    return 1
-  fi
+  # cmd_launch checks this before its ledger line; again here for a direct `jira --rebase`.
+  pipeline_rebase_refusal "$key" || return 1
+  # The label does not change in a rebase round: this marker keeps the reaper and freeslots off the runner.
+  date +%s > "${PIPE_STATE_DIR}/${key}.rebasing"
 
   _retry git -C "$wt" fetch origin "$base" -q || {
     echo "ERROR: cannot fetch origin/${base}." >&2; return 1; }
@@ -645,7 +645,7 @@ _jira_rebase_merge() {
   # merged files ship as the slot's changes, as after a conflict.
   if git -C "$wt" -c core.hooksPath=/dev/null merge --no-commit --no-ff "origin/${base}" >&2; then
     echo "Merged origin/${base} cleanly; nothing for the agent to resolve." >&2
-    echo "The host will squash and force-push it on handoff." >&2
+    echo "The host will commit the merge and push it on handoff." >&2
     return 0
   fi
 
@@ -659,7 +659,7 @@ _jira_rebase_merge() {
 
   echo "Merged origin/${base}; $(printf '%s\n' "$conflicted" | grep -c .) file(s) conflict:" >&2
   printf '  %s\n' $conflicted >&2
-  pipeline_attempts "$key" bump >/dev/null
+  pipeline_rebases "$key" bump >/dev/null
   return 0
 }
 
@@ -686,13 +686,19 @@ The goal is met only when ALL of these are TRUE and visible in this conversation
    If the two genuinely cannot coexist, STOP, resolve nothing, and say so in
    the handoff. A reported impasse is a good outcome; a faked resolution is not.
 4. Change ONLY the conflicted files. Anything else is out of scope for a
-   rebase round.
-5. Unit tests pass for every package holding a conflicted file. Detect them
-   from the paths ('packages/<name>/'), then run 'npx nx test-unit <package>'.
-6. Lint passes for those same packages: 'npx nx lint <package>', exit 0.
+   rebase round. For a conflicted lockfile (yarn.lock, package-lock.json,
+   Cargo.lock, poetry.lock), never merge its text: take origin/${base}'s copy
+   ('git checkout --theirs -- <file>'), then run the repo's package manager to
+   re-resolve it (yarn install, npm install, cargo metadata, poetry lock).
+5. Unit tests pass for every package or crate holding a conflicted file. Use
+   the test command that the repo's CLAUDE.md or AGENTS.md names (in FxA:
+   'npx nx test-unit <package>' for 'packages/<name>/'; in a Rust repo:
+   'cargo test -p <crate>').
+6. Lint passes for those same packages, with the repo's lint command
+   (in FxA: 'npx nx lint <package>'; in a Rust repo: 'cargo clippy -p <crate>').
 7. **DO NOT COMMIT and DO NOT run 'git add'.** The parent .git is mounted
    read-only, so both fail. Leave the resolution as working-tree edits; the
-   host stages, commits, signs and force-pushes with --force-with-lease.
+   host commits the merge and pushes it.
 $(runtime_prompt_handoff_step)
 
 Verification budget: only the packages that had a conflict. CI runs the rest.
@@ -1482,6 +1488,23 @@ cmd_precheck() {
       _info "drain: $fp (reported before, unchanged)"
     else _work "drain: $fp"; printf '%s\n' "$fp" > "$noted"; fi
   }
+  # One conflicted PR. A lockfile-only conflict is fixed here, with no VM and no counter. A source
+  # conflict wakes the pass for a rebase round, unless a round runs now or the PR used its 5 rebases.
+  _precheck_conflict() {
+    local key="$1" num="$2" tag="${3:-}" cls n
+    cls="$(gh_conflicts "$key" 2>/dev/null | cut -d' ' -f1)" || true
+    if [ "$cls" = lockfile ]; then
+      if gh_relock "$key" >/dev/null 2>&1; then _info "drain: $key #$num lockfile conflict fixed (${PIPE_BASE_BRANCH:-main} merged, lockfile re-resolved)"
+      else _drain_wake "$key" "$key $num CONFLICT${tag} lockfile (relock FAILED; run: relock $key)"; fi
+    elif pipeline_rebasing "$key"; then
+      drain_seen="${drain_seen} ${key}"; _info "drain: $key #$num CONFLICT (a rebase round runs now)"
+    elif n="$(pipeline_rebases "$key")" && [ "${n:-0}" -ge "$_FXA_REBASE_CAP" ]; then
+      drain_seen="${drain_seen} ${key}"
+      if [ -n "$tag" ]; then _info "drain: $key #$num CONFLICT${tag} (used ${n} of ${_FXA_REBASE_CAP} rebases; a person resolves it)"
+      elif cmd_label "$key" blocked rebases "conflicts with ${PIPE_BASE_BRANCH:-main} after ${n} rebases" >/dev/null 2>&1; then _info "drain: $key #$num labelled blocked rebases (${n} of ${_FXA_REBASE_CAP} used)"
+      else _work "drain: $key #$num CONFLICT at the rebase cap (label blocked rebases FAILED)"; fi
+    else _drain_wake "$key" "$key $num CONFLICT${tag}"; fi
+  }
   # Held back; printed only when some line needs judgment.
   _info() { info="${info}${info:+$'\n'}$*"; }
   # Reconcile lines that need judgment. The rest were applied or are progress.
@@ -1539,10 +1562,10 @@ $(gh_drain "$inpr" 2>/dev/null | awk '$3 == "CONFLICT"' || true)"
                 if [ "$fp" = "$(cat "${PIPE_STATE_DIR}/${key}.red-noted" 2>/dev/null || true)" ]; then _info "drain: $line (reported before, unchanged)"
                 else _work "drain: $line"; printf '%s\n' "$fp" > "${PIPE_STATE_DIR}/${key}.red-noted"; fi
               fi ;;
-      CONFLICT)
-        if [ "$(gh_conflicts "$key" 2>/dev/null | cut -d' ' -f1)" = lockfile ]; then
-          if gh_relock "$key" >/dev/null 2>&1; then _info "drain: $key #$num lockfile conflict fixed (main merged, yarn.lock re-resolved)"; else _drain_wake "$key" "$line lockfile (relock FAILED; run: relock $key)"; fi
-        else _drain_wake "$key" "$line"; fi ;;
+      CONFLICT) _precheck_conflict "$key" "$num" ;;
+      # Only where the base requires an up-to-date branch: GitHub merges the base in, with no VM and no counter.
+      BEHIND) if gh_update_branch "$num" 2>/dev/null; then _info "drain: $key #$num was behind ${PIPE_BASE_BRANCH:-main}; branch updated"
+              else _drain_wake "$key" "$line (update-branch FAILED)"; fi ;;
       # Only a ticket key names a state file: drain's stderr is in this stream too (2>&1), and a
       # path there once became a key whose note file had no directory, which ended the pass.
       # A mergeability GitHub has not computed yet is the conflict it had: the same note, so a flip wakes nothing.
@@ -1550,6 +1573,27 @@ $(gh_drain "$inpr" 2>/dev/null | awk '$3 == "CONFLICT"' || true)"
       *)      if [[ "$key" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]]; then _drain_wake "$key" "$line"; else _drain_wake none "$line"; fi ;;
     esac
   done <<< "$drain_out"
+  # Drain reads only done tickets. A blocked ticket's PR can still be merged or closed by a person,
+  # and nothing else moves the ticket then. A PR blocked for its review rounds or fix attempts still
+  # gets rebases: its code is fine. Above the note cleanup, so its wake stays once an hour.
+  local bstate bkind bm
+  for key in $(jira_keys_in_state blocked 2>/dev/null || true); do
+    read -r _ num bstate _ <<< "$(gh_pr_state "$key" 2>/dev/null)"
+    case "$bstate" in
+      MERGED) if cmd_label "$key" merged >/dev/null 2>&1; then merged_n=$((merged_n + 1)); _info "drain: $key merged #$num while blocked (labelled, ticket closed)"; else _work "drain: $key blocked, #$num merged (label merged FAILED)"; fi ;;
+      CLOSED) if cmd_label "$key" rejected >/dev/null 2>&1; then rejected_n=$((rejected_n + 1)); _info "drain: $key rejected #$num while blocked (labelled)"; else _work "drain: $key blocked, #$num closed (label rejected FAILED)"; fi ;;
+      OPEN)
+        bkind="$(cut -f2 "${PIPE_STATE_DIR}/${key}.blocked-why" 2>/dev/null || true)"
+        case "$bkind" in rounds|attempts) ;; *) continue ;; esac
+        # Not gh_drain: it reports a red PR as RED and hides its conflict.
+        bm="$(gh pr view "$num" --repo "$PIPE_REPO_SLUG" --json mergeable,mergeStateStatus -q '"\(.mergeable) \(.mergeStateStatus)"' 2>/dev/null || true)"
+        case "$bm" in
+          CONFLICTING*) _precheck_conflict "$key" "$num" " blocked:${bkind}" ;;
+          *" BEHIND") if gh_update_branch "$num" 2>/dev/null; then _info "drain: $key #$num (blocked ${bkind}) was behind ${PIPE_BASE_BRANCH:-main}; branch updated"
+                      else _drain_wake "$key" "$key $num BEHIND blocked:${bkind} (update-branch FAILED)"; fi ;;
+        esac ;;
+    esac
+  done
   # A PR that is no longer red forgets its note, so a later red wakes a pass again. Only after a
   # drain that worked: a failed gh read shows no RED row, and would wipe every note.
   [ "$drain_rc" = 0 ] && for line in "${PIPE_STATE_DIR}"/*.red-noted; do
@@ -1559,16 +1603,6 @@ $(gh_drain "$inpr" 2>/dev/null | awk '$3 == "CONFLICT"' || true)"
   [ "$drain_rc" = 0 ] && for line in "${PIPE_STATE_DIR}"/*.drain-noted; do
     [ -e "$line" ] || continue; key="$(basename "$line" .drain-noted)"
     case " $drain_seen " in *" $key "*) ;; *) rm -f "$line" ;; esac
-  done
-  # Drain reads only done tickets. A blocked ticket's PR can still be merged or
-  # closed by a person, and nothing else moves the ticket then.
-  local bstate
-  for key in $(jira_keys_in_state blocked 2>/dev/null || true); do
-    read -r _ num bstate _ <<< "$(gh_pr_state "$key" 2>/dev/null)"
-    case "$bstate" in
-      MERGED) if cmd_label "$key" merged >/dev/null 2>&1; then merged_n=$((merged_n + 1)); _info "drain: $key merged #$num while blocked (labelled, ticket closed)"; else _work "drain: $key blocked, #$num merged (label merged FAILED)"; fi ;;
-      CLOSED) if cmd_label "$key" rejected >/dev/null 2>&1; then rejected_n=$((rejected_n + 1)); _info "drain: $key rejected #$num while blocked (labelled)"; else _work "drain: $key blocked, #$num closed (label rejected FAILED)"; fi ;;
-    esac
   done
   while IFS= read -r line; do [ -n "$line" ] && _work "reap: $line"; done < <(cmd_reap --stray 2>&1)
 
@@ -1717,6 +1751,7 @@ cmd_unskip()    { pipeline_skip_clear "$(_key "$1")"; }
 cmd_hold()      { pipeline_hold "$(_key "$1")" "$(_key "${2:-}")" "${@:3}"; }
 cmd_skipped()   { if [ -n "${1:-}" ]; then pipeline_skipped "$(_key "$1")"; else pipeline_skipped; fi; }
 cmd_attempts()  { pipeline_attempts "$(_key "$1")" "${@:2}"; }
+cmd_rebases()   { pipeline_rebases "$(_key "$1")" "${@:2}"; }
 cmd_usage_tokens() { telemetry_usage "$@"; }
 cmd_record()    { telemetry_record "$(_key "$1")"; }
 cmd_costs()     { if [ "${1:-}" = --reprice ]; then telemetry_reprice; else telemetry_costs; fi; }
@@ -1952,7 +1987,8 @@ cmd_label() {
     return 1
   fi
   jira_label_set "$key" "$state" || return 1
-  rm -f "${PIPE_STATE_DIR}/$(jira_normalize_key "$key" 2>/dev/null).needs-you"
+  # A label from a person or a pass ends any rebase round: the reaper may stop its runner now.
+  rm -f "${PIPE_STATE_DIR}/$(jira_normalize_key "$key" 2>/dev/null).needs-you" "${PIPE_STATE_DIR}/$(jira_normalize_key "$key" 2>/dev/null).rebasing"
   state="${state#${PIPE_LABEL_PREFIX}-}"
   [ "$state" = "$PIPE_LABEL_PREFIX" ] || [ "$state" = "${PIPE_QUEUE_LABEL:-$PIPE_LABEL_PREFIX}" ] && state="public"
   pipeline_blocked_why "$key" "$state" "${@:3}"
@@ -2102,11 +2138,14 @@ cmd_launch() {
     echo "ERROR: refusing to launch ${key}: newtickets is off and it has no PR. Run: fxa-sandbox-ctl newtickets on" >&2
     return 1
   fi
-  if [ "$n" -ge "${PIPE_MAX_LAUNCHES_PER_DAY:-20}" ]; then
+  # A rebase round has its own cap and is not in the 24 h budget; refuse before the ledger line.
+  if [ -n "$rebase" ]; then
+    pipeline_rebase_refusal "$key" || return 1
+  elif [ "$n" -ge "${PIPE_MAX_LAUNCHES_PER_DAY:-20}" ]; then
     echo "ERROR: refusing to launch ${key}: ${n} launches in 24 h, budget ${PIPE_MAX_LAUNCHES_PER_DAY:-20} (PIPE_MAX_LAUNCHES_PER_DAY)." >&2
     return 1
   fi
-  printf '%s %s %s\n' "$(date +%s)" "$key" "$slot" >> "$ledger"
+  printf '%s %s %s%s\n' "$(date +%s)" "$key" "$slot" "${rebase:+ rebase}" >> "$ledger"
   local args=(--pipeline "$PIPE_NAME" jira "$key" --create-pr --worktree "$slot" ${rebase:+--rebase})
   [ -n "${FXA_AGENT_RUNTIME:-${PIPE_AGENT_RUNTIME:-}}" ] && args+=(--runtime "${FXA_AGENT_RUNTIME:-$PIPE_AGENT_RUNTIME}")
   [ -n "$ctx" ] && args+=(--guardrails "$ctx")
@@ -3390,6 +3429,7 @@ main() {
     skip-changed) cmd_skip_changed "$@" ;;
     unskip)     cmd_unskip "$@" ;;
     attempts)   cmd_attempts "$@" ;;
+    rebases)    cmd_rebases "$@" ;;
     lock)       cmd_lock "$@" ;;
     snapshot)   cmd_snapshot "$@" ;;
     dashboard)  cmd_dashboard "$@" ;;

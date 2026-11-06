@@ -741,9 +741,11 @@ snapshot_json() {
   if [ "$inflight_items" = "null" ]; then
     freeslots="null"
   else
-    freeslots="$(worktree_free_slots "$(printf '%s\n' "$inflight_keys" | tr '[:lower:]' '[:upper:]')" \
+    # A rebase round holds its slot with a marker, not the inflight label.
+    freeslots="$(worktree_free_slots "$( { printf '%s\n' "$inflight_keys"; pipeline_rebasing_keys; } | tr '[:lower:]' '[:upper:]')" \
                  | jq -R -s 'split("\n") | map(select(length > 0))')"
   fi
+  local rebasing; rebasing="$(pipeline_rebasing_keys | jq -R -s 'split("\n") | map(select(length > 0))')"
 
   jq -n \
     --arg at "$(date -u +%FT%TZ)" \
@@ -764,6 +766,7 @@ snapshot_json() {
     --argjson skipped "$skipped" \
     --argjson pool "$pool" \
     --argjson freeslots "$freeslots" \
+    --argjson rebasing "$rebasing" \
     --argjson inflight "$inflight" \
     --argjson inflight_prs "$inflight_prs" \
     --argjson review "$review" \
@@ -810,7 +813,7 @@ snapshot_json() {
          inflight_fetch_failed: ($inflight_items == null),
          inflight_prs_failed: ($inflight_prs == null),
          done_fetch_failed: ($done_items == null),
-         pool: $pool, free_slots: $freeslots,
+         pool: $pool, free_slots: $freeslots, rebasing: $rebasing,
          inflight: [$inflight[] as $i
                     | $i
                       + {summary: ((($inflight_items // [])[] | select(.key == $i.key) | .summary) // null)}

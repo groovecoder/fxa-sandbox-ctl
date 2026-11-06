@@ -89,6 +89,7 @@ export const NEXT_STEP: Record<string, string> = {
   dead_vm: 'The sandbox died twice. Check the runner host, then relaunch the ticket.',
   attempts: 'Fix the PR by hand, or remove ai-fixme-blocked to give the agent a new try.',
   rounds: 'Fix the PR by hand, or remove ai-fixme-blocked to give the agent a new try.',
+  rebases: 'The PR conflicted with the base 5 times. Resolve the conflict by hand, or remove ai-fixme-blocked after main settles.',
   refused_ship: 'The change edits CI or Yarn or npm config. A human relaunches with FXA_ALLOW_TOOLING_EDITS=1 if the ticket asks for it.',
   frozen: 'The fix needs a frozen path. A human unfreezes it in _scripts/check-frozen.ts or fixes the ticket by hand.',
   operator: 'Do what the reason says, then remove ai-fixme-blocked.',
@@ -108,12 +109,12 @@ export const NEXT_STEP: Record<string, string> = {
   running: 'Nothing to do: the belt shows its progress.',
 };
 export const KIND_LABEL: Record<string, string> = {
-  stalled: 'stalled', dead_vm: 'dead VM', attempts: 'attempts', rounds: 'rounds', refused_ship: 'refused ship', frozen: 'frozen path', operator: 'operator',
+  stalled: 'stalled', dead_vm: 'dead VM', attempts: 'attempts', rounds: 'rounds', rebases: 'rebases', refused_ship: 'refused ship', frozen: 'frozen path', operator: 'operator',
   jira: 'blocked in Jira', other: 'other', needs_decision: 'needs a decision', underspecified: 'underspecified', already_done: 'already done',
   depends_on: 'depends on', ci_red: 'CI red', changes: 'changes requested', conflicts: 'conflicts', relock: 'relock failed', infra: 'infra red', fault: 'fault',
 };
 const WHO: Record<string, string> = {
-  stalled: 'the operator', dead_vm: 'the operator', attempts: 'the operator', rounds: 'the operator', refused_ship: 'the operator', frozen: 'the operator',
+  stalled: 'the operator', dead_vm: 'the operator', attempts: 'the operator', rounds: 'the operator', rebases: 'the operator', refused_ship: 'the operator', frozen: 'the operator',
   operator: 'the operator', jira: 'the operator', other: 'the operator', needs_decision: 'the reporter', underspecified: 'the reporter',
   already_done: 'the operator', infra: 'the operator', fault: 'the operator', ci_red: 'the agent, next pass', changes: 'the agent, next pass',
   conflicts: 'the agent, next pass', relock: 'the operator',
