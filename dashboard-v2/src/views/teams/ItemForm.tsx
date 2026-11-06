@@ -26,6 +26,7 @@ export function SlackSearch({ target, have, onAdd }: { target: string; have: str
       <input ref={box} id={`tf-pq-${target}`} className="input" data-tfpq={target} autoComplete="off" placeholder="Name, @handle or email"
         value={P?.q ?? ''} onChange={(e) => searchPeople(val(e))} />
       {P?.err ? <p className="unknown">{P.err}</p>
+        : P && P.q.trim().length >= 2 && P.at == null && target === 'ppl' ? <p className="hint">The bot has not listed the workspace's people yet. Use Add by email below: Save finds the Slack user from the email.</p>
         : P && P.q.trim().length >= 2 && P.at == null ? <p className="hint">The bot has not listed the workspace's people yet. Paste a member ID below: in Slack, open the profile, then More, then Copy member ID.</p>
         : P && P.at && !res.length ? <p className="hint">Nobody matches "{P.q}".</p> : null}
       {res.length > 0 && (

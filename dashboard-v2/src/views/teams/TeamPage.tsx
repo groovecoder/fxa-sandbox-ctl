@@ -54,7 +54,7 @@ export function TeamPage({ p, tab: want }: { p: string; tab: string }) {
         {tabs.map(([k, l]) => (
           <a key={k} href={`${base}${k === 'overview' ? '' : `/${k}`}`} aria-current={tab === k ? 'page' : undefined}>
             {l}
-            {k === 'settings' && draft && <span className="n">1 left</span>}
+            {k === 'settings' && draft && <span className="n">1 step left</span>}
             {k === 'routines' && r && <><span className="n">{r.routines}</span>{!!r.failed && <span className="n bad">{r.failed} failed</span>}</>}
           </a>
         ))}

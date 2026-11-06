@@ -94,14 +94,14 @@ function TestCard({ t, rec }: { t: J; rec: J }) {
     : st === 'passed' ? [who === 'Nobody' ? 'Passed. Activate it. Nobody can start it from Slack until you add people.' : `Passed. Activate it to let ${who.toLowerCase()} start it.`,
       <Tag label="Passed" tone="ok" />, <div className="row"><button ref={btn} type="button" onClick={() => void setStatus(p, 'active')}>Activate</button></div>]
     : st === 'failed' ? ['Failed. Read the log, change the setup, then test again.', <Tag label="Failed" tone="bad" />,
-      <>{lines.length > 0 && <pre className="log" aria-label="The last lines of the test log">{lines.join('\n')}</pre>}{go('Test and activate', true)}</>]
-    : [`${active ? 'No test on record. ' : ''}A test boots one runner with this setup. The first answer can take up to 20 minutes.`, null, go(active ? 'Test' : 'Test and activate', !active)];
+      <>{lines.length > 0 && <pre className="log" aria-label="The last lines of the test log">{lines.join('\n')}</pre>}{go(act ? 'Test and activate' : 'Test', true)}</>]
+    : [`${active ? 'No test on record. ' : ''}A test boots one runner with this setup. The first answer can take up to 20 minutes.${!active && !act ? ' It stays a draft when it passes.' : ''}`, null, go(active || !act ? 'Test' : 'Test and activate', !active)];
   return (
     <Card>
       <div className="stack">
         <div className="ck">
           {(st === 'passed' || st === 'failed') && <span className={`num ${st === 'passed' ? 'ok' : 'warn'}`} aria-hidden="true">{st === 'passed' ? '✓' : '!'}</span>}
-          <div className="who"><h3 className="nm">{active ? 'Test' : 'Test and activate'}</h3><span className="says">{says}</span></div>
+          <div className="who"><h3 className="nm">{active || !act ? 'Test' : 'Test and activate'}</h3><span className="says">{says}</span></div>
           {tag}
         </div>
         {body}
@@ -132,7 +132,7 @@ function Inputs({ t, rec, f, admin }: { t: J; rec: J; f: J; admin: boolean }) {
   const btn = (k: string, l: string) => <button type="button" className="linkbtn" data-tf={k} aria-label={`${l} ${k === 'access' ? 'Slack' : 'Jira queue'}`} disabled={!!f} onClick={() => openForm(p, k)}>{l}</button>;
   const go = <a className="lnk" href={`#teams/${p}/routines`}>Open Routines</a>;
   // The old access.users list and the people marked Can start.
-  const n = new Set([...(a.users ?? []), ...(rec.people ?? []).filter((x: J) => x.start === true).map((x: J) => x.slack)]).size, after = draft ? ' (after the test)' : '';
+  const n = new Set([...(a.users ?? []), ...(rec.people ?? []).filter((x: J) => x.start === true).map((x: J) => x.slack)]).size;
   const onTag = draft ? <Tag label="after the test" /> : <Tag label="on" tone="ok" />;
   const names = ch.map((id) => { const x = (chans ?? []).find((y: J) => y.id === id); return x ? `#${x.name}` : id; }).join(', ');
   const slack: [string, ReactNode] = a.open ? ['Anyone the bot allows can tag @fxa-agent', onTag]
@@ -152,7 +152,7 @@ function Inputs({ t, rec, f, admin }: { t: J; rec: J; f: J; admin: boolean }) {
   const depL = Array.isArray(list) ? list.filter((r: J) => r.data?.on === 'pr-label' && !r.paused).map((r: J) => `On for ${r.data.pr?.repo ?? (r.data.repos ?? [])[0] ?? 'its repo'}, label ${r.data.pr?.label ?? 'agent-help'}`) : [];
   return (
     <div className="stack sm">
-      {row('access', 'Slack', slack[1], [slack[0] + (a.open || n ? after : ''), keys.length ? `A message with ${keys.map((k) => `${k}-123`).join(' or ')} picks this team` : ''], btn('access', 'Change'))}
+      {row('access', 'Slack', slack[1], [slack[0], keys.length ? `A message with ${keys.map((k) => `${k}-123`).join(' or ')} picks this team` : ''], btn('access', 'Change'))}
       {row('jira', 'Jira queue', jira[1], [jira[0], j.project ? `Jira login: ${rec.secrets?.jira ? login : 'the shared bot login'}` : '', j.queue && j.usage === false ? 'The merged comment shows no time, tokens or cost' : '',
         j.board ? `A merged ticket goes into the active sprint of board ${j.board}${j.sprint ? ` whose name ${/^\^[\w ]+$/.test(j.sprint.trim()) ? `starts with ${j.sprint.trim().slice(1)}` : `matches ${j.sprint.trim()}`}` : ''}` : ''], btn('jira', j.project ? 'Change' : 'Set up'))}
       {rs && row('routines', 'Routines', on ? <Tag label="on" tone="ok" /> : <Tag label="off" />,
@@ -364,7 +364,7 @@ export function People({ p, open, active = true }: { p: string; open?: boolean; 
       <div className="stack sm" data-people>
         <p className="hint">
           A ticked box needs a Slack user. Save finds it from the email.
-          {open ? (active ? ' Everyone can start this team, so there is no start list.' : ' Everyone the bot allows can start it after the test passes.') : ''}{P.canAdmin ? '' : ' Only a dashboard admin changes the ticks.'}
+          {open ? (active ? ' Anyone the bot allows can start this team, so there is no start list.' : ' Anyone the bot allows can start it after the test passes.') : ''}{P.canAdmin ? '' : ' Only a dashboard admin changes the ticks.'}
         </p>
         {P.rows.length > 0 && (
           <div className="tppl-box"><table className="ttable tppl">
