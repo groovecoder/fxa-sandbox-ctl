@@ -16,6 +16,8 @@ check "the skill keeps kind operator to the operator's own prompt" "1" "$(grep -
 # Each example reason is one the shell can take inside single quotes: no apostrophe in it.
 check "no example reason has a single quote in it" "0" "$(grep -oE "for example '[^']*'[a-z]" "$f" | wc -l | tr -d ' ')"
 check "the decline rule asks for single quotes and no single quote" "1" "$(grep -c 'in single quotes, with no single quote in it and no text copied from the PR' <<< "$flat")"
+check "the fix round's trusted line sends a Playwright failure to its error-context.md first" "1" \
+  "$(grep -c '^| Failure is real |.*`CI is red on PR #<pr>\. [^`]*For a Playwright failure, read its error-context\.md with circleci__get_job_artifacts and circleci__get_artifact_text before you change code\.`' "$f")"
 kinds="$(sed -n 's/^_PIPE_BLOCKED_KINDS="\(.*\)"$/\1/p; s/^_PIPE_SKIP_KINDS="\(.*\)"$/\1/p' "$code")"
 check "the code has kind lists" "yes" "$([ -n "$kinds" ] && echo yes || echo no)"
 for k in $kinds; do check "the skill names the kind $k" "yes" "$(grep -qw -- "$k" <<< "$flat" && echo yes || echo no)"; done
