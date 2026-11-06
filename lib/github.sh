@@ -459,11 +459,18 @@ gh_feedback() {
   printf '%s\n' "$out"
 }
 
+# team_login_map   "email<TAB>login" lines: the team record's people first, then reporters.tsv
+# (displayName, login, email), the read fallback. Only rows with a valid login.
+team_login_map() {
+  jq -r '.people[]? | select(.github) | [.email, .github] | @tsv' "${FXA_TEAMS_DIR:-}/${PIPE_PROFILE:-}.json" 2>/dev/null || true
+  awk -F'\t' '$0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ { print $3 "\t" $2 }' "${PIPE_STATE_DIR:-}/reporters.tsv" 2>/dev/null || true
+}
+
 # gh_admin_logins   The GitHub logins of the team's admins: the repo's admins on GitHub (read once a day),
-# and each admin email in the team record mapped through reporters.tsv (displayName, login, email).
+# and each admin email in the team record mapped through team_login_map.
 # An unmapped admin has no login; never guess one.
 gh_admin_logins() {
-  local rec="${FXA_TEAMS_DIR:-}/${PIPE_PROFILE:-}.json" map="${PIPE_STATE_DIR:-}/reporters.tsv"
+  local rec="${FXA_TEAMS_DIR:-}/${PIPE_PROFILE:-}.json"
   local cache="${PIPE_STATE_DIR:-}/repo-admins.txt" got=""
   { if [ -n "${PIPE_REPO_SLUG:-}" ] && [ -n "${PIPE_STATE_DIR:-}" ]; then
       # A failed read keeps the last list: an empty cache would drop every admin for a day.
@@ -473,8 +480,9 @@ gh_admin_logins() {
       fi
       cat "$cache" 2>/dev/null || true
     fi
-    [ -f "$rec" ] && [ -f "$map" ] && jq -r '.admins[]?.email // empty' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
-      | awk -F'\t' 'NR == FNR { a[$0] = 1; next } $0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && (tolower($3) in a) { print $2 }' - "$map"
+    # The first row for an email wins, so a person's own row beats reporters.tsv.
+    [ -f "$rec" ] && jq -r '.admins[]?.email // empty' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
+      | awk -F'\t' 'NR == FNR { a[$0] = 1; next } { e = tolower($1) } (e in a) && !(e in s) { s[e] = 1; print $2 }' - <(team_login_map)
   } | grep -E '^[A-Za-z0-9-]+$' | sort -u || true
 }
 

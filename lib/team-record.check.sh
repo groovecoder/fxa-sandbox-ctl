@@ -308,4 +308,20 @@ check "repos[].commits: append lists the repo, squash or no key does not, anothe
   "$(f5 ', "commits": "append"' | sed -n 's/^PIPE_APPEND_REPOS\t//p')|$(f5 '' | grep -c '^PIPE_APPEND_REPOS')|$(f5 ', "commits": "merge"' | grep -c 'repos\[0\].commits must be squash or append')"
 rm -f "$T/f4.json" "$T/f5.json"
 
+# Review rounds and the quiet window: record values load, defaults 2, 10 and 900 s, and FxA's conf keeps them.
+f6() { printf '{ "schema": 1, "name": "f6", "repos": [ { "slug": "example/x", "role": "work" } ], "prompts": { "goal_md": "g" }%s }' "$1" > "$T/f6.json"; py validate "$T/f6.json" f6 2>&1; }
+rv() { printf '%s\n' "$1" | sed -n "s/^PIPE_REVIEW_ROUNDS=//p; s/^PIPE_ADMIN_REVIEW_ROUNDS=//p; s/^PIPE_REVIEW_QUIET_S=//p" | tr -d "'" | sort | paste -sd' ' -; }
+check "pr review fields load into PIPE_*, defaults fill the rest, and a conf profile gets the defaults" "1200 20 3|10 2 900|10 2 900" \
+  "$(f6 ', "pr": { "review_rounds": 3, "admin_review_rounds": 20, "review_quiet_minutes": 20 }' >/dev/null; rv "$(loaded f6)")|$(f6 '' >/dev/null; rv "$(loaded f6)")|$(rv "$( (PIPE_REVIEW_ROUNDS=4; loaded fxa-ai-fixme) )")"
+r=""; for j in '"admin_review_rounds": 21' '"admin_review_rounds": true' '"review_quiet_minutes": 121' '"review_quiet_minutes": "15"' '"review_quiet_minutes": -1'; do
+  r="$r $(f6 ", \"pr\": { $j }" | grep -c 'pr.admin_review_rounds must be 0 to 20\|pr.review_quiet_minutes must be 0 to 120')"; done
+check "refused: admin rounds 21 or true, a quiet window of 121, \"15\" or -1 minutes" "1 1 1 1 1" "${r# }"
+check "people: an email with a Slack ID and a GitHub login is valid; slack and github are optional" "" \
+  "$(f6 ', "people": [ { "email": "ada@example.com", "slack": "U0ADA123", "github": "ada-x" }, { "email": "bo@example.com" } ]')"
+r=""; for j in '[ { "slack": "U0ADA123" } ]' '[ { "email": "not-an-email" } ]' '[ { "email": "a@example.com", "slack": "ada" } ]' \
+  '[ { "email": "a@example.com", "github": "x;y" } ]' '[ { "email": "a@example.com" }, { "email": "A@example.com" } ]' '[ { "email": "a@example.com", "role": "x" } ]' '{}'; do
+  r="$r $(f6 ", \"people\": $j" | grep -c 'people\[0\].email must be\|people\[0\].slack must be\|people\[0\].github must be\|people lists A@example.com twice\|people\[0\].role is not a known key\|people must be a list')"; done
+check "refused: no email, a bad email, a bad Slack ID, a bad login, an email twice (case aside), an unknown key, not a list" "1 1 1 1 1 1 1" "${r# }"
+rm -f "$T/f6.json"; rm -rf "$T/f6"
+
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"

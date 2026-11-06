@@ -24,6 +24,7 @@ LABEL = re.compile(r"^[A-Za-z0-9 ._()-]{1,40}$")
 USER = re.compile(r"^[UW][A-Z0-9]{6,}$")
 CHANNEL = re.compile(r"^C[A-Z0-9]{6,}$")
 EMAIL = re.compile(r"^[^@\s]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,}$")
+GH_LOGIN = re.compile(r"^[A-Za-z0-9-]{1,39}$")
 PROJECT = re.compile(r"^[A-Z][A-Z0-9]{1,9}$")
 HOST = re.compile(r"^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 CONNECTOR = re.compile(r"^[a-z0-9-]{1,30}$")
@@ -40,7 +41,7 @@ SPRINT = re.compile(r"^\^?[A-Za-z0-9 ._:/()-]{1,60}$")
 INFRA = re.compile(r"^[A-Za-z0-9 ._:/()-]{1,80}=[A-Za-z0-9 ._:/()-]{1,120}$")
 
 KEYS = {"schema", "name", "label", "status", "admins", "access", "repos", "stack", "runner",
-        "egress", "mcp", "jira", "pr", "caps", "prompts", "skills", "boot", "secrets", "created", "updated"}
+        "egress", "mcp", "jira", "pr", "caps", "prompts", "skills", "boot", "secrets", "created", "updated", "people"}
 # A record names code only from this repo, where it is reviewed: skills/<name> on the catalog, and
 # boot/<script>.sh pinned by its SHA-256, so an edit to the script needs a new pin.
 REPO = os.environ.get("FXA_TEAM_REPO") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -152,6 +153,26 @@ def check(rec, name=None):
         if not EMAIL.fullmatch(str(a.get("email", ""))):
             bad.append(f"admins[{i}].email must be an email address")
 
+    # people: each person's Slack user and GitHub login, found by email; replaces reporters.tsv.
+    people = rec.get("people", [])
+    if not isinstance(people, list) or len(people) > 500:
+        bad.append("people must be a list of at most 500 people")
+        people = []
+    emails = set()
+    for i, p in enumerate(people):
+        p = obj(p, f"people[{i}]", {"email", "slack", "github"})
+        e = p.get("email")
+        if not isinstance(e, str) or not EMAIL.fullmatch(e):
+            bad.append(f"people[{i}].email must be an email address")
+        elif e.lower() in emails:
+            bad.append(f"people lists {e} twice")
+        else:
+            emails.add(e.lower())
+        if "slack" in p and not USER.fullmatch(str(p["slack"])):
+            bad.append(f"people[{i}].slack must be a Slack user ID")
+        if "github" in p and (not isinstance(p["github"], str) or not GH_LOGIN.fullmatch(p["github"])):
+            bad.append(f"people[{i}].github must be a GitHub login (letters, digits and -)")
+
     acc = obj(rec.get("access", {}), "access", {"open", "users", "channels", "jira_prefixes"})
     if "open" in acc:
         flag(acc["open"], "access.open")
@@ -252,7 +273,8 @@ def check(rec, name=None):
         if acc.get("jira_prefixes"):
             bad.append("a team that takes secret tickets cannot list access.jira_prefixes: a Slack tag of a key starts the public team's session")
 
-    pr = obj(rec.get("pr", {}), "pr", {"open", "reviewers", "users", "labels", "infra_checks", "review_rounds", "rerun_infra"})
+    pr = obj(rec.get("pr", {}), "pr", {"open", "reviewers", "users", "labels", "infra_checks", "review_rounds", "rerun_infra",
+                                        "admin_review_rounds", "review_quiet_minutes"})
     # pr.rerun_infra: false stops the one rerun of a red CI job that logs an outside fault (gh_red_rerun).
     if "rerun_infra" in pr:
         flag(pr["rerun_infra"], "pr.rerun_infra")
@@ -261,6 +283,12 @@ def check(rec, name=None):
         v = pr["review_rounds"]
         if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= 5:
             bad.append("pr.review_rounds must be 0 to 5")
+    # pr.admin_review_rounds: rounds for a team admin's comments; pr.review_quiet_minutes: no round while a person still reviews.
+    for k, most in (("admin_review_rounds", 20), ("review_quiet_minutes", 120)):
+        if k in pr:
+            v = pr[k]
+            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= most:
+                bad.append(f"pr.{k} must be 0 to {most}")
     # pr.infra_checks: "check=log text" rules; a failed check whose log has the text is the repo's fault, not the PR's.
     if "infra_checks" in pr:
         strs(pr["infra_checks"], "pr.infra_checks", INFRA, 5)
@@ -403,6 +431,9 @@ def env(rec):
         yield "PIPE_INFRA_CHECKS", ",".join(pr["infra_checks"])
     if pr.get("rerun_infra") is False:
         yield "PIPE_RERUN_INFRA", "0"
+    yield "PIPE_REVIEW_ROUNDS", str(pr.get("review_rounds", 2))
+    yield "PIPE_ADMIN_REVIEW_ROUNDS", str(pr.get("admin_review_rounds", 10))
+    yield "PIPE_REVIEW_QUIET_S", str(pr.get("review_quiet_minutes", 15) * 60)
     if rec.get("skills"):
         yield "PIPE_TEAM_SKILLS", " ".join(rec["skills"])
     if rec.get("boot"):

@@ -268,6 +268,25 @@ teams_set() {
   return $rc
 }
 
+# teams_people_import <name> [<reporters.tsv>]   Copy the map's rows with an email and a login into the
+# record's people (email and github), skipping an email it has. Writes through teams_set.
+teams_people_import() {
+  local name="$1" map="${2:-${PIPE_STATE_DIR:-}/reporters.tsv}" rec="${FXA_TEAMS_DIR}/$1.json" tmp="" n=0 rc=0
+  [ -f "$rec" ] || { echo "ERROR: no team ${name} here; run profile sync" >&2; return 1; }
+  [ -f "$map" ] || { echo "ERROR: no reporters.tsv at ${map}" >&2; return 1; }
+  tmp="$(mktemp "${TMPDIR:-/tmp}/fxa-team.XXXXXX")"
+  awk -F'\t' '$0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && $3 ~ /^[^@ ]+@[^@ ]+\.[A-Za-z]+$/ { print $3 "\t" $2 }' "$map" \
+    | jq -R -s --slurpfile r "$rec" '[split("\n")[] | select(length > 0) | split("\t") | {email: .[0], github: .[1]}] as $new
+        | $r[0] | .people = reduce $new[] as $p (.people // [];
+            if any(.[]; (.email | ascii_downcase) == ($p.email | ascii_downcase)) then . else . + [$p] end)' > "$tmp" \
+    || { rm -f "$tmp"; echo "ERROR: could not read ${map}" >&2; return 1; }
+  n=$(( $(jq '.people | length' "$tmp") - $(jq '.people // [] | length' "$rec") ))
+  if [ "$n" -gt 0 ]; then teams_set "$name" "$tmp" || rc=$?; fi
+  rm -f "$tmp"
+  [ "$rc" = 0 ] && echo "imported ${n} people into team ${name}"
+  return "$rc"
+}
+
 # _teams_runner_keys <old.json> <new.json>   The top-level keys that changed, other than the ones a
 # runner never reads (text, people, caps, Jira, PR rules, stamps).
 _teams_runner_keys() {
@@ -275,7 +294,7 @@ _teams_runner_keys() {
   jq -nr --slurpfile a "$1" --slurpfile b "$2" 'def host: if (.repos | type) == "array" then .repos |= map(if type == "object" then del(.commits) else . end) else . end;
     ($a[0] | host) as $o | ($b[0] | host) as $n
     | [(($o | keys) + ($n | keys)) | unique[]
-       | select(IN("schema", "name", "label", "status", "admins", "access", "jira", "pr", "caps", "prompts", "created", "updated") | not)
+       | select(IN("schema", "name", "label", "status", "admins", "access", "jira", "pr", "caps", "prompts", "people", "created", "updated") | not)
        | select($o[.] != $n[.])] | join(" ")'
 }
 

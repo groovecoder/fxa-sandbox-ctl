@@ -111,6 +111,11 @@ check "profile disable fxa and profile draft fxa are refused, and fxa stays acti
   "$(cli disable fxa)|$(cli draft fxa)|$(jq -r .status "$FXA_TEAMS_DIR/fxa.json")"
 check "profile set fxa with status draft is refused; an active edit writes" "1|0|FxA Two" \
   "$(jq '.status = "draft"' "$FXA_TEAMS_DIR/fxa.json" > "$tmp/fxa2.json"; teams_set fxa "$tmp/fxa2.json" 2>&1 | grep -c 'FxA team stays active')|$(jq '.label = "FxA Two"' "$FXA_TEAMS_DIR/fxa.json" > "$tmp/fxa2.json"; teams_set fxa "$tmp/fxa2.json" >/dev/null 2>&1; echo $?)|$(jq -r .label "$FXA_TEAMS_DIR/fxa.json")"
+# people-import: rows with an email and a valid login, once each, into the active fxa record with no new test.
+printf '# name\tlogin\temail\nAda\tada-x\tada@example.com\nBo\tbo-x\t\nBad\tx;y\tbad@example.com\nAda Again\tada-y\tADA@example.com\n' > "$tmp/rep.tsv"
+check "people-import copies each mapped email once, skips a blank email or bad login, and a rerun adds none" \
+  'imported 1 people into team fxa|[{"email":"ada@example.com","github":"ada-x"}]|imported 0 people into team fxa' \
+  "$(teams_people_import fxa "$tmp/rep.tsv" 2>&1 | tail -1)|$(jq -c '[.people[] | {email, github}]' "$FXA_TEAMS_DIR/fxa.json")|$(teams_people_import fxa "$tmp/rep.tsv" 2>&1 | tail -1)"
 
 # The live checks, with GitHub and Jira faked: a curl that answers by URL.
 curl() { local u="${@: -1}"

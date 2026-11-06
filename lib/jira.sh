@@ -428,31 +428,32 @@ jira_ticket() {
 }
 
 # jira_reporter_login <KEY>
-#   Print the GitHub login of whoever filed the ticket, from reporters.tsv in
-#   the state directory, or nothing. Never guesses. Match on displayName, the
-#   real name on both sides: an email local-part does not predict the handle.
+#   Print the GitHub login of whoever filed the ticket, or nothing. Never guesses.
+#   The reporter's email (when Jira shows it) through team_login_map, then the
+#   displayName in reporters.tsv: an email local-part does not predict the handle.
 jira_reporter_login() {
   pipeline_require || return 1
   local key="${1:-}"; [ -n "$key" ] || { echo "ERROR: reporter needs <KEY>" >&2; return 1; }
-  local map="${PIPE_STATE_DIR}/reporters.tsv"
-  [ -f "$map" ] || return 0
-  local name
-  name="$(acli jira workitem search --jql "key = ${key}" --fields key,reporter --json 2>/dev/null \
-    | jq -r '.[0].fields.reporter.displayName // empty' 2>/dev/null)" || name=""
-  [ -n "$name" ] || return 0
+  local map="${PIPE_STATE_DIR}/reporters.tsv" who="" email="" name="" login=""
+  who="$(acli jira workitem search --jql "key = ${key}" --fields key,reporter --json 2>/dev/null)" || who=""
+  email="$(jq -r '.[0].fields.reporter.emailAddress // empty' <<< "$who" 2>/dev/null)" || email=""
+  name="$(jq -r '.[0].fields.reporter.displayName // empty' <<< "$who" 2>/dev/null)" || name=""
+  if [ -n "$email" ]; then
+    login="$(team_login_map | awk -F'\t' -v e="$email" 'tolower($1) == tolower(e) {print $2; exit}')"
+    [ -z "$login" ] || { echo "$login"; return 0; }
+  fi
+  [ -n "$name" ] && [ -f "$map" ] || return 0
   awk -F'\t' -v n="$name" '$0 !~ /^#/ && $1 == n {print $2; exit}' "$map"
 }
 
 # jira_login_email <GITHUB_LOGIN>
-#   Read reporters.tsv in the other direction: GitHub login -> Jira email. Empty
-#   when the login has no row or no address, and the caller then leaves the
+#   GitHub login -> Jira email, through team_login_map (people, then reporters.tsv).
+#   Empty when the login has no row or no address, and the caller then leaves the
 #   ticket unassigned. Never guesses an address from the login.
 jira_login_email() {
   pipeline_require || return 1
   local login="${1:-}"; [ -n "$login" ] || return 0
-  local map="${PIPE_STATE_DIR}/reporters.tsv"
-  [ -f "$map" ] || return 0
-  awk -F'\t' -v l="$login" '$0 !~ /^#/ && $2 == l {print $3; exit}' "$map"
+  team_login_map | awk -F'\t' -v l="$login" '$2 == l {print $1; exit}'
 }
 
 # jira_active_sprint_id
