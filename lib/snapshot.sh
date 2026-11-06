@@ -205,13 +205,13 @@ _snapshot_agent_json() {
 
 # One pipeline run and one pass or triage job as a Stats row: for this pipeline and for each other team's.
 _STATS_RUN_ROW='def runrow: { at: .recorded_at, src: "pipeline", key: .issue, kind: (.kind // "not recorded"),
-  usd: (.cost_usd // 0 | . * 100 | round / 100), min: (if (.wall_seconds // 0) > 0 then (.wall_seconds / 60 | round) else null end), model: (.model // "" | if . == "<synthetic>" then "" else . end),
+  usd: (.cost_usd // 0 | . * 100 | round / 100), min: (if (.wall_seconds // 0) > 0 then (.wall_seconds / 60 | round) else null end), model: (.model // "" | if . == "<synthetic>" then "" else sub("\\[1m\\]$"; "") end),
   models: (.cost_models // null), main_only: ((.cost_source // "") != "proxy"), pr: ((.pr // "") != ""),
   prn: ([.pr // "" | strings | capture("/pull/(?<n>[0-9]+)$") | .n | tonumber] | first // null),
   prr: ([.pr // "" | strings | capture("github.com/(?<r>[^/]+/[^/]+)/pull/") | .r] | first // null),
   end: (if (.launched_at // 0) > 0 and (.wall_seconds // 0) > 0 then (.launched_at + .wall_seconds | floor) else (.recorded_at // "" | try fromdateiso8601 catch null) end) };'
 _STATS_JOB_ROW='def jobrow($llm): { at, src: "pass", key: .job, kind: .job, usd: (($llm.runs[.run // ""] // .cost_usd // 0) * 100 | round / 100),
-  min: ((.duration_ms // 0) / 60000 | round), model: ((((.models // []) | map(select(test("haiku") | not)) | first) // (.models // [])[0]) // ""), pr: false };'
+  min: ((.duration_ms // 0) / 60000 | round), model: ((((.models // []) | map(select(test("haiku") | not)) | first) // (.models // [])[0]) // "" | sub("\\[1m\\]$"; "")), pr: false };'
 
 # snapshot_stats_json   Run-log totals for the Stats page: weekly runs and
 # spend, three ranges of whole Monday weeks, run kinds, costliest tickets and
@@ -346,7 +346,7 @@ _stats_add_rows() {
     # A dependency fix (fix_pr) is its own source. Every viewer reads this feed, so its row has no PR or person.
     map(select(.owner != "U-DRYRUN" and .env != "dev") | ((.summary // "{}") | fromjson? // {}) as $s | ((.fix_pr // "" | tostring) != "") as $fx
       | { at: ((.created // 0) | floor | todate), src: (if $fx then "depfix" else "slack" end), key: .key, conv: (.key | root(0)), kind: "session", usd: ($llm.runs[.key] // $s.cost // 0),
-          min: ($s.minutes // null), model: (if .runtime == "codex" then $xm else $cm end), models: ($llm.run_models[.key] // null),
+          min: ($s.minutes // null), model: (if .runtime == "codex" then $xm else $cm | sub("\\[1m\\]$"; "") end), models: ($llm.run_models[.key] // null),
           main_only: ($llm.run_models[.key] == null), pr: (($fx | not) and (.pr_url // "") != ""), who: (if $fx then null else .owner_name // null end),
           prn: (if $fx then null else [.pr_url // "" | capture("/pull/(?<n>[0-9]+)$") | .n | tonumber] | first // null end),
           prr: (if $fx then null else [.pr_url // "" | capture("github.com/(?<r>[^/]+/[^/]+)/pull/") | .r] | first // null end),

@@ -5,6 +5,7 @@ set -u
 here="$(cd "$(dirname "$0")" && pwd)"; fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want [$2] got [$3]"; fail=1; fi; }
 eval "$(sed -n "/^_STATS_RUN_ROW='/,/};'\$/p" "$here/snapshot.sh")"
+eval "$(sed -n "/^_STATS_JOB_ROW='/,/};'\$/p" "$here/snapshot.sh")"
 eval "$(sed -n '/^_fc_state() {/,/^}/p' "$here/snapshot.sh")"
 row() { jq -c "$_STATS_RUN_ROW runrow" <<< "$1"; }
 r="$(row '{"recorded_at":"2026-10-16T22:23:20Z","issue":"EX-1","kind":"fix","cost_usd":3.86,"wall_seconds":1800,"launched_at":1792187901,"pr":"https://github.com/example/repo/pull/41"}')"
@@ -12,6 +13,8 @@ check "a run with launched_at and wall_seconds ends at their sum, and the row se
 check "the old keys and src stay" "pipeline|EX-1|fix|30|true" "$(jq -r '"\(.src)|\(.key)|\(.kind)|\(.min)|\(.pr)"' <<< "$r")"
 r="$(row '{"recorded_at":"2026-10-16T22:23:20Z","issue":"EX-2","kind":"fix","wall_seconds":0}')"
 check "a run with no launched_at ends at recorded_at" "1792189400|false" "$(jq -r '"\(.end)|\(.pr)"' <<< "$r")"
+check "a stats row names the 1M-context model as the model, as the proxy's per-model costs do" "claude-opus-5-5|claude-opus-5-5" \
+  "$(row '{"issue":"EX-3","model":"claude-opus-5-5[1m]"}' | jq -r .model)|$(jq -c '{job:"p",models:["claude-opus-5-5[1m]"]}' <<< '{}' | jq -r "$_STATS_JOB_ROW jobrow({}) | .model")"
 check "fc_state none with no host" "none" "$(FXA_FC_HOST= _fc_state)"
 check "fc_state up" "up" "$(_fc_up() { return 0; }; FXA_FC_HOST=10.0.0.9 _fc_state)"
 check "fc_state down" "down" "$(_fc_up() { return 1; }; FXA_FC_HOST=10.0.0.9 _fc_state)"
