@@ -20,6 +20,7 @@ gh() {
     *pulls/7/comments*)
       { [ -z "${BOT_AGO:-}" ] || echo "{\"id\":3,\"user\":{\"login\":\"Copilot\",\"type\":\"Bot\"},\"author_association\":\"NONE\",\"path\":\"a.ts\",\"line\":5,\"created_at\":\"$(ago "$BOT_AGO")\",\"body\":\"c\"}"
         [ -z "${HUMAN_AGO:-}" ] || echo "{\"id\":1,\"user\":{\"login\":\"member-a\",\"type\":\"User\"},\"author_association\":\"MEMBER\",\"path\":\"a.ts\",\"line\":3,\"created_at\":\"$(ago "$HUMAN_AGO")\",\"body\":\"fix\"}"
+        [ -z "${OUTSIDER_AGO:-}" ] || echo "{\"id\":5,\"user\":{\"login\":\"outsider\",\"type\":\"User\"},\"author_association\":\"CONTRIBUTOR\",\"path\":\"a.ts\",\"line\":4,\"created_at\":\"$(ago "$OUTSIDER_AGO")\",\"body\":\"x\"}"
       } | jq -s '.' ;;
     *issues/7/comments*|*pulls/7/reviews*) echo '[]' ;;
     *) return 1 ;;
@@ -40,6 +41,14 @@ fb="$(BOT_AGO=10 gh_feedback FXA-QUIET1)"
 check "a fresh bot comment alone never holds" "3|null" "$(jq -r '[.comments[].id] | join(" ")' <<<"$fb")|$(jq -c '.waiting' <<<"$fb")"
 check "the team's window comes from PIPE_REVIEW_QUIET_S" "2|null" \
   "$(PIPE_REVIEW_QUIET_S=30 HUMAN_AGO=60 BOT_AGO=3000 gh_feedback FXA-QUIET1 | jq -r '"\(.comments | length)|\(.waiting)"')"
+check "a fresh comment from an untrusted outsider does not hold" "1 3 5|null" \
+  "$(OUTSIDER_AGO=10 HUMAN_AGO=1000 BOT_AGO=3000 gh_feedback FXA-QUIET1 | jq -r '"\([.comments[].id] | sort | join(" "))|\(.waiting)"')"
+HUMAN_AGO=1000 BOT_AGO=3000 gh_feedback FXA-QUIET1 ack 3 >/dev/null
+check "ack with ids acks only those, so a comment that came during the launch stays" "1" \
+  "$(HUMAN_AGO=1000 BOT_AGO=3000 gh_feedback FXA-QUIET1 | jq -r '[.comments[].id] | join(" ")')"
+: > "$tmp/FXA-QUIET1.feedback-admin-rounds"
+check "an empty round counter reads 0, and a bump makes it 1" "0|1" \
+  "$(gh_feedback FXA-QUIET1 admin-rounds)|$(gh_feedback FXA-QUIET1 admin-rounds bump)"
 check "ack during the hold acks every comment; after it nothing holds or remains" "acked 2 comment(s) on #7|0|null" \
   "$(HUMAN_AGO=60 BOT_AGO=3000 gh_feedback FXA-QUIET1 ack)|$(HUMAN_AGO=60 BOT_AGO=3000 gh_feedback FXA-QUIET1 | jq -r '"\(.comments | length)|\(.waiting)"')"
 exit "$fail"

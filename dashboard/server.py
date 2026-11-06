@@ -671,7 +671,7 @@ def people_rows(rows, old):
     if not isinstance(rows, list) or len(rows) > 500:
         return None, "send people as a list of at most 500 rows"
     keep = {p["email"].lower(): p.get("slack") for p in old if isinstance(p, dict) and isinstance(p.get("email"), str)}
-    out, notes, seen = [], [], set()
+    out, notes, seen, asked, stop = [], [], set(), 0, None
     for r in rows:
         email = (r.get("email") if isinstance(r, dict) else None) or ""
         gh = (r.get("github") if isinstance(r, dict) else None) or ""
@@ -683,7 +683,16 @@ def people_rows(rows, old):
         if not isinstance(gh, str) or (gh.strip() and not GITHUB_LOGIN.fullmatch(gh.strip().lstrip("@"))):
             return None, f"not a GitHub username: {str(gh)[:80]}"
         seen.add(email)
-        slack, why = (keep[email], None) if keep.get(email) else slack_lookup(email)
+        # At most 50 lookups a save, and none after Slack rate-limits us: the request must end; a later save asks for the rest.
+        if keep.get(email):
+            slack, why = keep[email], None
+        elif stop or asked >= 50:
+            slack, why = None, stop or "not asked yet: save again to look up the next 50"
+        else:
+            asked += 1
+            slack, why = slack_lookup(email)
+            if why == "Slack said ratelimited":
+                stop = "not asked: Slack rate-limited the lookups, save again later"
         if why:
             notes.append({"email": email, "why": why})
         out.append({"email": email, **({"slack": slack} if slack else {}), **({"github": gh.strip().lstrip("@")} if gh.strip() else {})})
@@ -1264,7 +1273,7 @@ class Handler(BaseHTTPRequestHandler):
             self._team_ctl(user, ["set", name, None, "--id", rid, "--version", ver], rec, cmd="routine")
 
     def _team_write(self, path):
-        """POST /api/teams[/validate|/<name>[/status|/delete]]: a signed admin's change, JSON only, 64 KB at most."""
+        """POST /api/teams[/validate|/<name>[/status|/delete]]: a signed admin's change, JSON only, 256 KB at most."""
         m = re.fullmatch(rf"/api/teams(?:/(validate)|/({TEAM_NAME})(?:/(status|delete|test|test/stop|secret))?)?", path)
         if not m:
             self._json(404, {"error": "not found"})
@@ -1283,8 +1292,9 @@ class Handler(BaseHTTPRequestHandler):
         if n < 0:
             self._json(400, {"error": "bad Content-Length"})
             return
-        if n > 65536:
-            self._json(413, {"error": "the record is over 64 KB"})
+        # 256 KB: a record holds up to 500 people as well as its prompts.
+        if n > 262144:
+            self._json(413, {"error": "the record is over 256 KB"})
             return
         try:
             body = json.loads(self.rfile.read(n) or b"{}")

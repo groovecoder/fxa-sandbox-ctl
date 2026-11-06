@@ -33,8 +33,9 @@ Procedure:
    `author`) and start nothing. The hold ends when the PR has had no human comment for the quiet window.
    **Two caps per PR.** A round whose acted ids include an `admin: true` comment counts on
    `$CTL feedback KEY admin-rounds`. Its cap is the team's `pr.admin_review_rounds`, 10 by default
-   (`PIPE_ADMIN_REVIEW_ROUNDS` in `$CTL env`). Every other round counts on `$CTL feedback KEY rounds`:
-   bots (Copilot, CodeRabbit), CI, and trusted reviewers who are not admins. Its cap is the team's
+   (`PIPE_ADMIN_REVIEW_ROUNDS` in `$CTL env`). Every other review round counts on `$CTL feedback KEY rounds`:
+   bots (Copilot, CodeRabbit) and trusted reviewers who are not admins. A red-CI fix is not a
+   review round: it bumps only `attempts`, cap 2. The review round cap is the team's
    `pr.review_rounds`, 2 by default (`PIPE_REVIEW_ROUNDS` in `$CTL env`). Read the counter that the round would bump; at its cap, label
    `blocked rounds`. A round that fixed
    none of its comments, when only bots (Copilot, CodeRabbit) wrote them, does not count: the host
@@ -64,8 +65,9 @@ Procedure:
    Also ask for `open_questions`: the PR body's reviewer questions still open after the fix.
    The host posts the summary on the Jira ticket and the PR, and replaces only the body's
    "Questions for the reviewer" section with `open_questions`.
-5. Launch, then `feedback KEY ack`, `feedback KEY rounds bump`, `feedback KEY acted <id>...`
-   naming only the ids the agent will fix. When an acted id is `admin: true`, bump
+5. Launch, then `feedback KEY ack <id>...` with every id you read (acted and declined), then
+   `feedback KEY rounds bump`, `feedback KEY acted <id>...` naming only the ids the agent will fix.
+   Never run `ack` with no ids here: it also acks a comment posted while the round launched. When an acted id is `admin: true`, bump
    `feedback KEY admin-rounds bump` instead of `rounds bump`. **Record only after `launch` exits 0 and prints
    `launched on`.** Never chain the records after `launch` with `;`. A refused launch (daily
    budget, disk floor, newtickets) records nothing: the comments stay unhandled for the next

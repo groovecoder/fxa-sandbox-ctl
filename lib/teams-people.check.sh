@@ -49,8 +49,10 @@ def fake_urlopen(req, timeout=0):
         return real_urlopen(req, timeout=timeout)
     asked.append((req.full_url, req.get_header("Authorization")))
     email = req.full_url.split("email=", 1)[1]
+    if email.startswith("bulk"):
+        return Resp(json.dumps({"ok": True, "user": {"id": "U0BULK01"}}).encode())
     ans = {"new%40example.com": {"ok": True, "user": {"id": "U0NEW001"}}, "nouser%40example.com": {"ok": False, "error": "users_not_found"},
-           "scope%40example.com": {"ok": False, "error": "missing_scope"}}.get(email)
+           "scope%40example.com": {"ok": False, "error": "missing_scope"}, "rl%40example.com": {"ok": False, "error": "ratelimited"}}.get(email)
     if ans is None:
         raise OSError("down")
     return Resp(json.dumps(ans).encode())
@@ -92,5 +94,11 @@ check("a bad email, a duplicate, a bad GitHub username or no generation is refus
           {"people": [{"email": "nope"}], "generation": "7"}, {"people": [{"email": "a@example.com"}, {"email": "A@example.com"}], "generation": "7"},
           {"people": [{"email": "a@example.com", "github": "bad name"}], "generation": "7"}, {"people": []})], len(ran())))
 check("a viewer cannot save people", (403, n), (call("POST", P, {"people": [], "generation": "7"}, "viewer@example.com")[0], len(ran())))
+del asked[:]
+(rows, notes), _ = server.people_rows([{"email": f"bulk{i}@example.com"} for i in range(60)], [])
+check("a save asks Slack at most 50 times; the rest wait for the next save", (50, 10), (len(asked), len(notes)))
+del asked[:]
+(rows, notes), _ = server.people_rows([{"email": "rl@example.com"}, {"email": "bulk1@example.com"}], [])
+check("after Slack rate-limits, no more lookups in this save", (1, 2), (len(asked), len(notes)))
 sys.exit(fail)
 PY

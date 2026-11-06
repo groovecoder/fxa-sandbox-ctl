@@ -453,7 +453,7 @@ jira_reporter_login() {
 jira_login_email() {
   pipeline_require || return 1
   local login="${1:-}"; [ -n "$login" ] || return 0
-  team_login_map | awk -F'\t' -v l="$login" '$2 == l {print $1; exit}'
+  team_login_map | awk -F'\t' -v l="$login" 'tolower($2) == tolower(l) {print $1; exit}'
 }
 
 # jira_active_sprint_id

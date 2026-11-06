@@ -143,9 +143,9 @@ flowchart TD
     S8 -->|"real failure, under 2 attempts"| S3
     S8 -->|"cap reached"| BLOCK
     S9 --> FB
-    FB -->|"yes, under 2 rounds"| S3
+    FB -->|"yes, under the round cap"| S3
     FB -->|"none"| S10
-    FB -->|"2 rounds spent"| BLOCK
+    FB -->|"round cap spent"| BLOCK
     S10 -->|"still open and green"| S9
     S10 -->|"MERGED"| MERGED
     S10 -->|"CLOSED unmerged"| REJ

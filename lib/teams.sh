@@ -275,7 +275,8 @@ teams_people_import() {
   [ -f "$rec" ] || { echo "ERROR: no team ${name} here; run profile sync" >&2; return 1; }
   [ -f "$map" ] || { echo "ERROR: no reporters.tsv at ${map}" >&2; return 1; }
   tmp="$(mktemp "${TMPDIR:-/tmp}/fxa-team.XXXXXX")"
-  awk -F'\t' '$0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && $3 ~ /^[^@ ]+@[^@ ]+\.[A-Za-z]+$/ { print $3 "\t" $2 }' "$map" \
+  # The record's own email rule, so one bad row is skipped, not a refusal of the whole import.
+  awk -F'\t' '$0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && $3 ~ /^[^@ \t]+@[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z]+$/ && index($3, "@") <= 65 { print $3 "\t" $2 }' "$map" \
     | jq -R -s --slurpfile r "$rec" '[split("\n")[] | select(length > 0) | split("\t") | {email: .[0], github: .[1]}] as $new
         | $r[0] | .people = reduce $new[] as $p (.people // [];
             if any(.[]; (.email | ascii_downcase) == ($p.email | ascii_downcase)) then . else . + [$p] end)' > "$tmp" \

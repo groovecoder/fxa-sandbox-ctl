@@ -92,9 +92,9 @@ check("validate runs profile validate", (200, "profile validate"), (call("POST",
 check("an admin reads a record and its audit as JSON", ((200, {"name": "rusty", "generation": "7"}), (200, [{"action": "create"}])),
       (call("GET", "/api/teams/rusty", headers=sig(A, "GET", "/api/teams/rusty")), call("GET", "/api/teams/rusty/audit", headers=sig(A, "GET", "/api/teams/rusty/audit"))))
 check("a viewer cannot read a record, which names Slack users", 403, call("GET", "/api/teams/rusty", headers=sig("viewer@example.com", "GET", "/api/teams/rusty"))[0])
-check("a form post is refused (JSON only); a record over 64 KB too", (415, 413),
+check("a form post is refused (JSON only); a record over 256 KB too", (415, 413),
       (call("POST", "/api/teams", headers={**sig(A, "POST", "/api/teams"), "Content-Type": "application/x-www-form-urlencoded"}, raw=b"a=1")[0],
-       call("POST", "/api/teams", headers=sig(A, "POST", "/api/teams"), raw=b"x" * 70000)[0]))
+       call("POST", "/api/teams", headers=sig(A, "POST", "/api/teams"), raw=b"x" * 270000)[0]))
 check("a cross-site request is refused before the signature counts", 403, call("POST", "/api/teams", {"record": rec}, {**sig(A, "POST", "/api/teams"), "Origin": "https://evil.test"})[0])
 check("the page learns who it is for: an admin, a viewer, nobody signed",
       ({"user": A, "admin": True, "teams": []}, {"user": "viewer@example.com", "admin": False, "teams": []}, {"user": None, "admin": False, "teams": []}),

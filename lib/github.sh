@@ -307,8 +307,9 @@ gh_feedback() {
 
   if [ "$sub" = "rounds" ] || [ "$sub" = "admin-rounds" ]; then
     local f="${PIPE_STATE_DIR}/${key}.feedback-${sub}" n
-    n="$(cat "$f" 2>/dev/null || echo 0)"
-    if [ "${3:-}" = "bump" ]; then n=$((n + 1)); echo "$n" >"$f"; fi
+    # An empty or damaged file reads as 0, not as an error that skips a cap test.
+    n="$(tr -dc 0-9 <"$f" 2>/dev/null || true)"; n="${n:-0}"
+    if [ "${3:-}" = "bump" ]; then n=$((10#$n + 1)); echo "$n" >"$f"; fi
     echo "$n"; return 0
   fi
 
@@ -432,13 +433,20 @@ gh_feedback() {
   [ -n "$ok" ] && all="$(printf '%s' "$all" | jq -c --arg ok "$ok" \
     '($ok | split(" ") | map(select(length > 0))) as $w | map(if (.author | IN($w[])) then .trusted = true else . end)')"
   # A team admin's comment starts a round even on a blocked PR (precheck), so mark it; a bot is never one.
-  all="$(printf '%s' "$all" | jq -c --arg a "$(gh_admin_logins 2>/dev/null | tr '\n' ' ' || true)" \
-    '($a | split(" ") | map(select(length > 0))) as $w | map(.admin = ((.author | IN($w[])) and (.author | endswith("[bot]") | not)) | if .admin then .trusted = true else . end)')"
+  # GitHub logins ignore case, so compare them in lowercase.
+  all="$(printf '%s' "$all" | jq -c --arg a "$(gh_admin_logins 2>/dev/null | tr '[:upper:]\n' '[:lower:] ' || true)" \
+    '($a | split(" ") | map(select(length > 0))) as $w | map(.admin = ((.author | ascii_downcase | IN($w[])) and (.author | endswith("[bot]") | not)) | if .admin then .trusted = true else . end)')"
 
   if [ "$sub" = "ack" ]; then
-    printf '%s\n' "$all" | jq -r '.[].id' >>"$seen"
+    # With ids, ack only those: a comment posted while the round launched stays unseen for the next pass.
+    shift 2
+    if [ "$#" -gt 0 ]; then
+      printf '%s\n' "$all" | jq -r --arg ids "$*" '($ids | split(" ")) as $w | .[] | select(.id | IN($w[])) | .id' >>"$seen"
+    else
+      printf '%s\n' "$all" | jq -r '.[].id' >>"$seen"
+    fi
     sort -u -o "$seen" "$seen" 2>/dev/null || true
-    echo "acked $(printf '%s\n' "$all" | jq 'length') comment(s) on #${pr}"
+    echo "acked $( [ "$#" -gt 0 ] && echo "$#" || printf '%s\n' "$all" | jq 'length') comment(s) on #${pr}"
     return 0
   fi
 
@@ -448,7 +456,7 @@ gh_feedback() {
   # A person still reviewing holds every new comment, bots' too, so one round takes the whole review.
   out="$(printf '%s\n' "$all" | jq --argjson seen "$seen_json" --arg pr "$pr" --argjson now "$now" --argjson q "${PIPE_REVIEW_QUIET_S:-${_FXA_REVIEW_QUIET_S:-900}}" '
     [.[] | select(.id as $i | ($seen | index($i)) == null)] as $new
-    | ([$new[] | select(.author | test("\\[bot\\]$|^Copilot$") | not) | select(.created != null)] | max_by(.created)) as $last
+    | ([$new[] | select(.trusted) | select(.author | test("\\[bot\\]$|^Copilot$") | not) | select(.created != null)] | max_by(.created)) as $last
     | (if $last then ($now - ($last.created | fromdateiso8601)) else null end) as $age
     | if $age != null and $age < $q
       then {pr: ($pr|tonumber), comments: [], waiting: {author: $last.author, seconds_ago: $age, seconds_left: ($q - $age)}}
@@ -471,12 +479,16 @@ team_login_map() {
 # An unmapped admin has no login; never guess one.
 gh_admin_logins() {
   local rec="${FXA_TEAMS_DIR:-}/${PIPE_PROFILE:-}.json"
-  local cache="${PIPE_STATE_DIR:-}/repo-admins.txt" got=""
+  # Per repo: a team that changes its repo must not trust the old repo's admins.
+  local cache="${PIPE_STATE_DIR:-}/repo-admins.$(printf '%s' "${PIPE_REPO_SLUG:-}" | tr / _).txt" got="" now
   { if [ -n "${PIPE_REPO_SLUG:-}" ] && [ -n "${PIPE_STATE_DIR:-}" ]; then
+      now="$(date +%s)"
       # A failed read keeps the last list: an empty cache would drop every admin for a day.
-      if [ ! -f "$cache" ] || [ $(( $(date +%s) - $(_mtime "$cache" 2>/dev/null || echo 0) )) -ge 86400 ]; then
+      # It waits an hour before the next try, so a repo that answers 403 costs one read an hour.
+      if { [ ! -f "$cache" ] || [ $(( now - $(_mtime "$cache" 2>/dev/null || echo 0) )) -ge 86400 ]; } \
+         && [ $(( now - $(_mtime "${cache}.tried" 2>/dev/null || echo 0) )) -ge 3600 ]; then
         got="$(gh api "repos/${PIPE_REPO_SLUG}/collaborators?permission=admin&per_page=100" --paginate --jq '.[].login' 2>/dev/null)" \
-          && [ -n "$got" ] && printf '%s\n' "$got" > "$cache"
+          && [ -n "$got" ] && printf '%s\n' "$got" > "$cache" || touch "${cache}.tried"
       fi
       cat "$cache" 2>/dev/null || true
     fi
