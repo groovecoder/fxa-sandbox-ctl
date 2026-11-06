@@ -32,5 +32,11 @@ pipeline_launch_log() { :; }; _runner_postmortem() { :; }; llm_token_revoke() { 
 vm_stop() { echo stop >> "$tmp/ops"; }; vm_delete() { echo delete >> "$tmp/ops"; }; VM_SCREEN_SESSION=s
 for b in gce tart; do : > "$tmp/ops"; FXA_VM_BACKEND=$b agent_stop agent-y1 >/dev/null 2>&1; eval "ops_$b=\"\$(paste -sd, "$tmp/ops")\""; done
 check "agent_stop on gce deletes with no stop first; tart still stops first" "delete|stop,delete" "$ops_gce|$ops_tart"
+# The first ssh of a boot goes through gcloud: it gets VM_SSH_OPTS's time limits, so one hung IAP attempt cannot hold the boot wait.
+eval "$(sed -n '/^_gce_ssh() {/,/^}/p' "$here/vm-gce.sh")"
+_gce_zone() { printf '%s\n' "$@" > "$tmp/gargs"; }
+VM_SSH_OPTS="-o LogLevel=ERROR -o ConnectTimeout=30 -o ServerAliveInterval=10 -o ServerAliveCountMax=3" FXA_GCE_SSH_KEY=k _gce_ssh z1 --command true
+check "first-boot gcloud ssh: connect and keepalive limits, then the command" "--ssh-flag=-oConnectTimeout=30|--ssh-flag=-oServerAliveInterval=10|--ssh-flag=-oServerAliveCountMax=3|--command" \
+  "$(grep -E '^--(ssh-flag|command)' "$tmp/gargs" | paste -sd'|' -)"
 [ "$fail" = 0 ] && echo "all checks pass"
 exit "$fail"

@@ -57,7 +57,10 @@ _gce_ssh() {
     return "$rc"
   else
     local via=--tunnel-through-iap; [ "${FXA_GCE_SSH_DIRECT:-}" = 1 ] && via=--internal-ip
-    _gce_zone ssh "$(vm_name "$name")" "$via" --ssh-key-file "$FXA_GCE_SSH_KEY" "$@"
+    # VM_SSH_OPTS's time limits: one hung IAP attempt held a boot wait for 2 h, not 300 s.
+    local o lim=()
+    for o in $(grep -oE '(ConnectTimeout|ServerAlive[A-Za-z]+)=[0-9]+' <<< "$VM_SSH_OPTS"); do lim+=("--ssh-flag=-o$o"); done
+    _gce_zone ssh "$(vm_name "$name")" "$via" --ssh-key-file "$FXA_GCE_SSH_KEY" ${lim[@]+"${lim[@]}"} "$@"
   fi
 }
 
