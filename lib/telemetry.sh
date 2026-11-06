@@ -86,6 +86,12 @@ read -r -d '' _TELEMETRY_CODEX <<'CODEX' || true
 | { messages: ($tc|length), model: $model } + $t + { models: { ($model): $t }, source: "codex-session" }
 CODEX
 
+# telemetry_slot_reset <slot>   Empty the last run's transcripts before a launch: a run that
+#   fetches none of its own then records nothing, not the last ticket's tokens again.
+telemetry_slot_reset() {
+  local f; for f in .fxa-auto-session.jsonl .fxa-auto-claude.jsonl .fxa-auto-claude.log; do slot_write "$1/$f" < /dev/null 2>/dev/null || true; done
+}
+
 # telemetry_usage <KEY>
 #   Prefer the transcript copy in the slot: on GCE the runner is deleted the
 #   moment the PR opens, so the VM path only works mid-run. Fall back to the VM.

@@ -70,4 +70,12 @@ printf '%s\n' '{"type":"assistant","message":{"id":"x1","model":"claude-opus-5-5
 check "a result event keeps each model's 1-hour cache writes, once per message" "700|700|result" "$(jq -s "$_TELEMETRY_LOCAL" "$tmp/stream.jsonl" | jq -r '"\(.models["claude-opus-5-5"].cache_write_1h)|\(.cache_write_1h)|\(.source)"')"
 check "prices: sonnet-5-5 cache reads are half of sonnet-5, haiku-5-5 has a row" "0.10|0.20|0.10 0.50 0.125 0.01" \
   "$(_telemetry_price_for claude-sonnet-5-5 | awk '{print $4}')|$(_telemetry_price_for claude-sonnet-5 | awk '{print $4}')|$(_telemetry_price_for claude-haiku-5-5 | tr -s ' ')"
+# A new ticket on a slot whose last run left its transcripts: after the reset, a run that
+# fetched no transcript of its own records nothing, not the last ticket's tokens.
+slot_write() { cat > "$1"; }
+_telemetry_worktree_for_key() { echo "$tmp/slot"; }; echo "Run kind: fix" > "$(pipeline_launch_log FXA-5)"
+echo '{"type":"assistant","message":{"id":"m5","model":"claude-opus-5-5","usage":{"input_tokens":1,"output_tokens":1}}}' > "$tmp/slot/.fxa-auto-claude.jsonl"
+telemetry_slot_reset "$tmp/slot"
+telemetry_record FXA-5 >/dev/null 2>&1
+check "a slot reset leaves no transcript for the next ticket to record" "0" "$(jq -s 'map(select(.issue == "FXA-5")) | length' "$PIPE_RUNS_FILE")"
 exit "$fail"

@@ -532,9 +532,8 @@ EOF
     echo "Archiving prior handoff file in ${worktree_path}..." >&2
     mv "$done_file" "${done_file}.$(date +%s)" 2>/dev/null || rm -f "$done_file"
   }
-  # Truncate the agent stream log so `tail` starts fresh.
-  slot_write "${worktree_path}/.fxa-auto-claude.jsonl" < /dev/null 2>/dev/null || true
-  slot_write "${worktree_path}/.fxa-auto-claude.log" < /dev/null 2>/dev/null || true
+  # So `tail` starts fresh, and the last ticket's transcript is not recorded as this run.
+  telemetry_slot_reset "$worktree_path"
 
   # The /goal is capped, so it points at this file instead of embedding the context.
   local context_file="${worktree_path}/.fxa-jira-context.md"
