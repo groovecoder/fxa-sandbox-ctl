@@ -63,9 +63,14 @@ st, b = post(S)
 check("stop: an admin gets 202, and stop-run starts detached as the admin", (202, [str(server.CTL), "--pipeline", "fxa-ai-fixme", "stop-run", "FXA-1"], "admin@example.com"),
       (st, spawned[-1].args, spawned[-1].env["FXA_TEAM_ACTOR"]))
 check("stop: a second click while the stop runs (its pid lives): 409, nothing more started", (409, 1), (post(S)[0], len(spawned)))
-claimed(1); time.sleep(0.1)
-check("stop: the FxA snapshot refreshes after the stop ends", "full", claims[-1])
-check("stop: the pid file goes when the stop ends", False, os.path.exists(os.path.join(sys.argv[2], "fxa-ai-fixme", "FXA-1.stop.pid")))
+# Wait on the stop's own end, not on claims: a late claim of an earlier rounds post can land after the clear.
+pidf = os.path.join(sys.argv[2], "fxa-ai-fixme", "FXA-1.stop.pid")
+for _ in range(250):
+    if not os.path.exists(pidf): break
+    time.sleep(0.02)
+time.sleep(0.1)
+check("stop: the pid file goes when the stop ends", False, os.path.exists(pidf))
+check("stop: the FxA snapshot refreshes after the stop ends", "full", claims[-1] if claims else None)
 check("stop: after the stop ended a new stop starts", (202, 2), (post(S)[0], len(spawned)))
 post("/api/teams/crew/pipeline/CR-7/stop")
 check("stop: another team stops on its own pipeline", ["--pipeline", "crew", "stop-run", "CR-7"], spawned[-1].args[1:])
