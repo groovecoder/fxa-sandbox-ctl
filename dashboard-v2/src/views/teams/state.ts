@@ -13,6 +13,8 @@ export type Test = { team: string; activate: boolean; busy?: boolean; data?: J; 
 export type Say = { team: string; ok: boolean; msg: string };
 export type NewT = NewTeam & { errs: Record<string, string>; msg?: string; ok?: boolean; busy?: boolean };
 export type People = { q: string; at: unknown; people: J[]; err: string };
+// The People card: the rows as edited, the generation they loaded at, and the last save's Slack notes.
+export type Ppl = { team: string; rows: J[]; gen: string; notes: J[]; msg: string; ok: boolean; busy?: boolean };
 
 type TS = {
   rec: Rec | null;
@@ -26,6 +28,7 @@ type TS = {
   chans: { team: string; channels: J[] } | null;
   opts: J | null;
   people: People | null;
+  ppl: Ppl | null;
   names: Record<string, J | null>;
   newt: NewT;
   json: { name: string; text: string; msg: string; ok: boolean } | null;
@@ -38,7 +41,7 @@ type TS = {
 const NEWT0: NewT = { name: '', repo: '', stack: '', goal: '', errs: {} };
 export const useTs = create<TS>(() => ({
   rec: null, loading: '', form: null, test: null, msg: null, more: [], audit: null, arm: '', chans: null,
-  opts: null, people: null, names: {}, newt: NEWT0, json: null, tact: '', bad: '',
+  opts: null, people: null, ppl: null, names: {}, newt: NEWT0, json: null, tact: '', bad: '',
 }));
 const set = useTs.setState, get = useTs.getState;
 const enc = encodeURIComponent;
@@ -83,6 +86,30 @@ export function onTeam(team: string) {
     arm: s.arm.startsWith(`${team}:`) ? s.arm : '',
     people: s.form?.team === team ? s.people : null,
   }));
+}
+
+// A team's people (email, Slack user, GitHub username): that team's admins read and save them.
+export async function loadPpl(team: string) {
+  const g = await getJson<J>(`/api/teams/${enc(team)}/people`);
+  set({ ppl: 'data' in g ? { team, rows: g.data.people ?? [], gen: String(g.data.generation ?? ''), notes: [], msg: '', ok: true }
+    : { team, rows: [], gen: '', notes: [], msg: g.error, ok: false } });
+}
+export const editPpl = (f: (rows: J[]) => J[]) => set((s) => (s.ppl ? { ppl: { ...s.ppl, rows: f(s.ppl.rows) } } : {}));
+// The server fills slack from the email, so the client sends only the email and the GitHub username.
+export async function savePpl() {
+  const P = get().ppl;
+  if (!P || P.busy) return;
+  set({ ppl: { ...P, busy: true, msg: '' } });
+  const rows = P.rows.filter((r) => String(r.email ?? '').trim()).map((r) => ({ email: String(r.email).trim(), github: String(r.github ?? '').trim() }));
+  const r = await post(`/api/teams/${enc(P.team)}/people`, { people: rows, generation: P.gen });
+  if (!r.ok) {
+    return set((s) => ({ ppl: s.ppl && { ...s.ppl, busy: false, ok: false,
+      msg: r.status === 409 ? 'Someone changed this team after you loaded it. Load the people again and redo your edit.' : why(r) } }));
+  }
+  const notes: J[] = r.j.notes ?? [];
+  await loadPpl(P.team);
+  set((s) => ({ ppl: s.ppl && { ...s.ppl, notes, ok: true, msg: notes.length ? 'Saved. Some rows have no Slack user:' : 'Saved.' } }));
+  if (get().rec?.name === P.team) set({ rec: await readRecord(P.team) });
 }
 
 // The choices of the forms, the bot's channels and the names of people: each loads once.

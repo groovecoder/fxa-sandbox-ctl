@@ -28,6 +28,18 @@ test('an item form replaces its own keys only, and a key with no input survives'
   expect(save('goal', (d) => { d.goal = 'New.'; }).prompts.goal_md).toBe('New.');
 });
 
+test('the PR rules save the admin rounds and the quiet window, and an empty input leaves no key', () => {
+  const r = { ...rec, pr: { review_rounds: 2, admin_review_rounds: 10 } };
+  const pr = (edit: (d: Record<string, unknown>) => void) => {
+    const d = teamItemDraft('pr', r);
+    edit(d);
+    return teamApply(r, teamPatch({ item: 'pr', d }, r, 'example')).pr;
+  };
+  expect(pr((d) => { d.admin_review_rounds = '12'; d.review_quiet_minutes = '30'; })).toMatchObject({ review_rounds: 2, admin_review_rounds: 12, review_quiet_minutes: 30 });
+  expect(pr((d) => { d.admin_review_rounds = ''; })).not.toHaveProperty('admin_review_rounds');
+  expect(teamItemDraft('pr', r)).toMatchObject({ admin_review_rounds: 10, review_quiet_minutes: '' });
+});
+
 test('a change to a key that a runner reads needs a new test; the goal does not', () => {
   expect(teamRetest(rec, save('skills', (d) => { d.skills = ['fxa-verify']; }))).toBe(true);
   expect(teamRetest(rec, save('goal', (d) => { d.goal = 'New.'; }))).toBe(false);

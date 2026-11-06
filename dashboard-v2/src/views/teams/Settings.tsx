@@ -10,7 +10,7 @@ import { ItemForm } from './ItemForm';
 import { FXA_RO, minsSince, plural, repoShip, teamCap, teamTestState, teamTools, teamWho } from './lib';
 import { Said } from './parts';
 import {
-  activateOnPass, arm, deleteTeam, jsonAct, loadAudit, loadChans, loadRecord, openForm, openJson, readTest, setSecret, setStatus, startTest,
+  activateOnPass, arm, deleteTeam, editPpl, jsonAct, loadAudit, loadChans, loadPpl, loadRecord, openForm, openJson, readTest, savePpl, setSecret, setStatus, startTest,
   stopTest, toggleMore, useTs,
 } from './state';
 
@@ -301,7 +301,7 @@ function Setup({ t }: { t: J }) {
         {rowv('name', 'Name shown', rec.label || teamCap(p), 'Change')}
         {rowv('admins', 'Team admins', (rec.admins ?? []).length ? rec.admins.map((a: J) => a.email || a.slack).join(', ') : 'None', (rec.admins ?? []).length ? 'Change' : 'Add')}
         {rowv('pr', 'PR rules', prs.open === false ? 'Diffs only'
-          : `Draft PRs${fx ? ', reviewers fxa-devs (built in)' : (prs.reviewers ?? []).length ? `, reviewers ${prs.reviewers.join(', ')}` : ''}${(prs.infra_checks ?? []).length ? `, ${plural(prs.infra_checks.length, 'CI infra rule')}` : ''}${(prs.users ?? []).length ? `, opened from Slack by ${prs.users.length} ${prs.users.length === 1 ? 'person' : 'people'} and the admins` : ''}, labels ${['auto', ...(prs.labels ?? [])].join(', ')}, ${plural(rounds, 'automatic review round')}`, 'Change')}
+          : `Draft PRs${fx ? ', reviewers fxa-devs (built in)' : (prs.reviewers ?? []).length ? `, reviewers ${prs.reviewers.join(', ')}` : ''}${(prs.infra_checks ?? []).length ? `, ${plural(prs.infra_checks.length, 'CI infra rule')}` : ''}${(prs.users ?? []).length ? `, opened from Slack by ${prs.users.length} ${prs.users.length === 1 ? 'person' : 'people'} and the admins` : ''}, labels ${['auto', ...(prs.labels ?? [])].join(', ')}, ${plural(rounds, 'automatic review round')}, ${plural(prs.admin_review_rounds ?? 10, 'round')} for team admins, waits ${prs.review_quiet_minutes ?? 15} min for a reviewer`, 'Change')}
       </More>
       <More k="runs" title="How it runs" sub="a change needs a new test">
         {rowv('tools', 'Tools', teamTools(rec.mcp), 'Change')}
@@ -319,7 +319,52 @@ function Setup({ t }: { t: J }) {
   );
 }
 
+// The team's people: an email, the Slack user the server finds from it, and a GitHub username. That team's admins only.
+export function People({ p }: { p: string }) {
+  const P = useTs((s) => (s.ppl?.team === p ? s.ppl : null));
+  useEffect(() => {
+    void loadPpl(p);
+  }, [p]);
+  if (!P) return <Card><h2>People</h2><p className="empty">loading…</p></Card>;
+  const cell = (i: number, k: string, label: string, ph: string) => (
+    <input className={`input${k === 'email' ? ' mono' : ''}`} value={P.rows[i]?.[k] ?? ''} aria-label={`${label} of person ${i + 1}`} placeholder={ph}
+      onChange={(e) => editPpl((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: e.target.value, ...(k === 'email' ? { slack: undefined } : {}) } : r)))} />
+  );
+  return (
+    <Card>
+      <div className="stack sm" data-people>
+        <h2>People</h2>
+        <p className="hint">Type an email and a GitHub username. Save finds the Slack user from the email. The pipeline maps a team admin's GitHub comments with this list.</p>
+        {P.rows.length > 0 && (
+          <div className="tscroll">
+            <table className="ttable"><thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col">GitHub username</th><th scope="col"><span className="vh">Remove</span></th></tr></thead>
+              <tbody>
+                {P.rows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{cell(i, 'email', 'Email', 'name@example.com')}</td>
+                    <td>{r.slack ? <span className="mono">{r.slack}</span> : <span className="na">{r.email ? 'none' : 'after save'}</span>}</td>
+                    <td>{cell(i, 'github', 'GitHub username', 'login')}</td>
+                    <td><button type="button" className="linkbtn" aria-label={`Remove person ${i + 1}`} onClick={() => editPpl((rs) => rs.filter((_, j) => j !== i))}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!P.rows.length && P.ok && <p className="na">Nobody yet.</p>}
+        <div className="row">
+          <button type="button" className="linkbtn" onClick={() => editPpl((rs) => [...rs, { email: '', github: '' }])}>Add a person</button>
+          <button type="button" disabled={P.busy} onClick={() => void savePpl()}>Save</button>
+        </div>
+        <Said ok={P.ok} msg={P.msg} />
+        {P.notes.length > 0 && <ul className="hint">{P.notes.map((n) => <li key={n.email}><span className="mono">{n.email}</span>: {n.why}</li>)}</ul>}
+      </div>
+    </Card>
+  );
+}
+
 export function Settings({ t }: { t: J }) {
-  const admin = useApp((s) => s.viewer.admin);
-  return t.access?.record && admin ? <Setup t={t} /> : <Info t={t} />;
+  const admin = useApp((s) => s.viewer.admin), mine = useApp((s) => s.viewer.teams.includes(t.profile));
+  const main = t.access?.record && admin ? <Setup t={t} /> : <Info t={t} />;
+  return t.access?.record && (admin || mine) ? <>{main}<People p={t.profile} /></> : main;
 }

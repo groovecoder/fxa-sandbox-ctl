@@ -28,7 +28,7 @@ import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 ROOT = Path(__file__).resolve().parent
 CTL = ROOT.parent / "fxa-sandbox-ctl"
@@ -627,6 +627,69 @@ def admin_teams(user):
     return sorted(t["profile"] for t in rows if isinstance(t, dict) and isinstance(t.get("profile"), str) and user in team_record_admins(t["profile"]))
 
 
+GITHUB_LOGIN = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})")
+SLACK_WHY = {"users_not_found": "no Slack user has this email",
+             "missing_scope": "the bot token lacks the users:read.email scope, so the row has no Slack user"}
+
+
+def slack_token():
+    """The bot token: SLACK_BOT_TOKEN in this env, else the last one in the bot's .env (the file read_access reads)."""
+    tok = os.environ.get("SLACK_BOT_TOKEN") or ""
+    if tok:
+        return tok
+    try:
+        with open(os.environ.get("FXA_BOT_ENV") or str(ROOT.parent.parent / "fxa-agent-bot" / ".env")) as f:
+            for l in f:
+                if l.startswith("SLACK_BOT_TOKEN="):
+                    tok = l.split("=", 1)[1].strip().strip("'\"")
+    except OSError:
+        pass
+    return tok
+
+
+def slack_lookup(email):
+    """(the Slack user ID of this email, None) or (None, why) from users.lookupByEmail."""
+    tok = slack_token()
+    if not tok:
+        return None, "the dashboard has no Slack bot token"
+    req = urllib.request.Request("https://slack.com/api/users.lookupByEmail?" + urlencode({"email": email}), headers={"Authorization": f"Bearer {tok}"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            j = json.loads(r.read())
+    except (OSError, ValueError):
+        return None, "Slack did not answer"
+    uid = (j.get("user") or {}).get("id") if isinstance(j, dict) and j.get("ok") else None
+    if isinstance(uid, str) and re.fullmatch(r"[UW][A-Z0-9]{6,}", uid):
+        return uid, None
+    err = str(j.get("error") or "no user") if isinstance(j, dict) else "a bad answer"
+    return None, SLACK_WHY.get(err, f"Slack said {err[:60]}")
+
+
+def people_rows(rows, old):
+    """(the people to save, a note for each row whose Slack lookup failed) or (None, the error). A row keeps its stored
+    Slack user while its email stays; a new email asks Slack again, so the client never sets slack."""
+    if not isinstance(rows, list) or len(rows) > 200:
+        return None, "send people as a list of at most 200 rows"
+    keep = {p["email"].lower(): p.get("slack") for p in old if isinstance(p, dict) and isinstance(p.get("email"), str)}
+    out, notes, seen = [], [], set()
+    for r in rows:
+        email = (r.get("email") if isinstance(r, dict) else None) or ""
+        gh = (r.get("github") if isinstance(r, dict) else None) or ""
+        if not isinstance(email, str) or not EMAIL.fullmatch(email.strip()):
+            return None, f"not an email: {str(email)[:80]}"
+        email = email.strip().lower()
+        if email in seen:
+            return None, f"{email} is listed twice"
+        if not isinstance(gh, str) or (gh.strip() and not GITHUB_LOGIN.fullmatch(gh.strip().lstrip("@"))):
+            return None, f"not a GitHub username: {str(gh)[:80]}"
+        seen.add(email)
+        slack, why = (keep[email], None) if keep.get(email) else slack_lookup(email)
+        if why:
+            notes.append({"email": email, "why": why})
+        out.append({"email": email, **({"slack": slack} if slack else {}), **({"github": gh.strip().lstrip("@")} if gh.strip() else {})})
+    return (out, notes), None
+
+
 # What a private team's session keeps from a viewer who is not a team admin: its words and its screen.
 PRIVATE_FIELDS = ("request", "media", "last_text", "last_tool")
 
@@ -980,7 +1043,7 @@ class Handler(BaseHTTPRequestHandler):
         out = (proc.stdout if proc.returncode == 0 else proc.stderr or "failed").strip().replace(value, "<value>")[-500:]
         self._json(200 if proc.returncode == 0 else 400, {"ok": True, "out": out} if proc.returncode == 0 else {"error": out})
 
-    def _team_ctl(self, user, args, record=None, read=False, cmd="profile", refresh=True):
+    def _team_ctl(self, user, args, record=None, read=False, cmd="profile", refresh=True, extra=None):
         """Run a profile (or routine) command as the admin, the record in a private temp file; 409 for a stale
         generation or version. A read answers with the command's JSON; a write answers ok and refreshes the teams list."""
         f = None
@@ -1009,7 +1072,54 @@ class Handler(BaseHTTPRequestHandler):
             # Claim the refresh before the answer, so a client that has the answer finds the refresh claimed.
             if refresh and cmd == "profile" and TEAMS.claim():
                 threading.Thread(target=TEAMS.refresh, args=(True,), daemon=True).start()
-            self._json(200, {"ok": True, "out": proc.stdout.strip()[-2000:]})
+            self._json(200, {"ok": True, "out": proc.stdout.strip()[-2000:], **(extra or {})})
+
+    def _people(self, method, path, name):
+        """GET or POST /api/teams/<name>/people: that team's admins read and save the people list. A POST is
+        {people: [{email, github}], generation}; the server fills slack and saves the record through profile set."""
+        user = self._admin(method, path, team=name)
+        if not user:
+            return
+        body = {}
+        if method == "POST":
+            if (self.headers.get("Content-Type") or "").split(";")[0].strip() != "application/json":
+                self._json(415, {"error": "send JSON"})
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = -1
+            if n < 0 or n > 65536:
+                self._json(413 if n > 0 else 400, {"error": "send at most 64 KB"})
+                return
+            try:
+                body = json.loads(self.rfile.read(n) or b"{}")
+            except ValueError:
+                body = None
+            if not isinstance(body, dict) or not str(body.get("generation") or "").isdigit():
+                self._json(400, {"error": "send {\"people\": [...], \"generation\": \"<the one you loaded>\"}"})
+                return
+        try:
+            out = ctl_run(["profile", "get", name], timeout=60)
+            rec = json.loads(out.stdout) if out.returncode == 0 else None
+        except (OSError, ValueError, TimeoutError, subprocess.SubprocessError):
+            rec = None
+        if not isinstance(rec, dict):
+            self._json(404, {"error": f"no team record {name}"})
+            return
+        old = rec.get("people") if isinstance(rec.get("people"), list) else []
+        if method == "GET":
+            self._json(200, {"people": old, "generation": str(rec.get("generation") or "")})
+            return
+        got, err = people_rows(body.get("people"), old)
+        if err:
+            self._json(400, {"error": err})
+            return
+        rows, notes = got
+        for k in ("generation", "tested", "test_log"):
+            rec.pop(k, None)
+        rec["people"] = rows
+        self._team_ctl(user, ["set", name, None, "--generation", str(body["generation"])], rec, extra={"people": rows, "notes": notes})
 
     def _pipeline_write(self, path):
         """POST /api/teams/<name>/pipeline/<KEY>/rounds: a signed admin of the team gives a ticket blocked at its
@@ -1279,6 +1389,10 @@ class Handler(BaseHTTPRequestHandler):
         if re.fullmatch(rf"/api/teams/{TEAM_NAME}/pipeline/[A-Z][A-Z0-9]*-[0-9]{{1,9}}/rounds", path):
             self._pipeline_write(path)
             return
+        m = re.fullmatch(rf"/api/teams/({TEAM_NAME})/people", path)
+        if m:
+            self._people("POST", path, m.group(1))
+            return
         if path.startswith("/api/teams"):
             self._team_write(path)
             return
@@ -1426,6 +1540,11 @@ class Handler(BaseHTTPRequestHandler):
                         con.close()
                 except Exception:  # noqa: BLE001  no store, or no slack_users table yet: an empty list says so
                     self._json(200, {"at": None, "people": []})
+            return
+        # A team's people (emails): that team's admins only.
+        m = re.fullmatch(rf"/api/teams/({TEAM_NAME})/people", path)
+        if m:
+            self._people("GET", path, m.group(1))
             return
         # What the team forms offer (cap ceilings, skills, boot scripts, connector names): admins only.
         if path == "/api/teams/options":

@@ -15,7 +15,7 @@ import { connect } from '../../store';
 import type { Store } from '../../store/types';
 import { Card, CheckBars, EmptyBox, Tag } from '../../ui';
 import { cx } from '../../ui/tone';
-import { BELT_HINT, BELT_SUBS, GROUP_NAME, GROUPS, ageSecs, ageWords, beltTone, doneRows, mergesPerDay } from './data';
+import { BELT_HINT, BELT_SUBS, GROUP_NAME, GROUPS, ageSecs, ageWords, beltTone, doneRows, mergesPerDay, reviewHold } from './data';
 import { Flow } from './flow';
 import { WaitStrip } from './queue';
 import { Ext, SrcBadge, Tile, useOpen } from './parts';
@@ -282,8 +282,9 @@ function BeltDetails({ r, s, jh, ph }: { r: J; s: Store; jh: string; ph: string 
       : t.attempts != null || r.group === 'fixes' ? `Fix attempts ${t.attempts ?? 0} of ${lim}. Then it moves to Needs you.` : plainMd(r.l2)}</p>);
   const rv = ({ APPROVED: 'approved', CHANGES_REQUESTED: 'changes requested', REVIEW_REQUIRED: 'review required' } as Record<string, string>)[t.review] ?? t.review;
   const reqd = (t.reviewers ?? []).map((x: string) => x.replace(/^mozilla\//, '')).join(', ');
+  const hold = reviewHold(t, SNAP(s)?.limits);
   const review = !t.pr ? blk('Review: none yet', <p>A reviewer gets it after CI passes.</p>)
-    : blk(`Review: ${rv || 'none yet'}`, <p>{t.last_human_review ? `${t.last_human_review.login} reviewed ${ago(Math.round((days(t.last_human_review.at) ?? 0) * 86400))}` : `no human review${reqd ? ` · requested ${reqd}` : ''}`}</p>);
+    : blk(`Review: ${rv || 'none yet'}`, <><p>{t.last_human_review ? `${t.last_human_review.login} reviewed ${ago(Math.round((days(t.last_human_review.at) ?? 0) * 86400))}` : `no human review${reqd ? ` · requested ${reqd}` : ''}`}</p>{hold.map((h) => <p key={h} data-hold>{h}</p>)}</>);
   const runs = blk(`Agent runs: ${k ? k.runs : stats ? 'none' : '…'}`, (
     <p>{k ? [plural(k.turns, 'turn'), `${k.median_min} min`, usd(k.cost), plural(k.files, 'file')].join(' · ') : stats ? 'not in the run log: a run records only when it reaches handoff' : 'loading…'}</p>
   ));

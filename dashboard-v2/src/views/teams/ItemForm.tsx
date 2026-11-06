@@ -356,6 +356,12 @@ export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
           <Field k="review_rounds" label={<>Automatic review rounds {opt('· 0 to 5')}</>} hint="The rounds the bot runs by itself on a PR for Copilot, CodeRabbit and CI. After that it asks. Empty: 2.">
             <input id="tf-review_rounds" className="input" type="number" min={0} max={5} value={d.review_rounds} onChange={set('review_rounds')} />
           </Field>
+          <Field k="admin_review_rounds" label={<>Review rounds for a team admin {opt('· 0 to 20')}</>} hint="A round that acts on a team admin's comment counts here, not above. Empty: 10.">
+            <input id="tf-admin_review_rounds" className="input" type="number" min={0} max={20} value={d.admin_review_rounds} onChange={set('admin_review_rounds')} />
+          </Field>
+          <Field k="review_quiet_minutes" label={<>Wait for a reviewer {opt('· 0 to 120 minutes')}</>} hint="No round starts until the PR has had no human comment for this long. Empty: 15.">
+            <input id="tf-review_quiet_minutes" className="input" type="number" min={0} max={120} value={d.review_quiet_minutes} onChange={set('review_quiet_minutes')} />
+          </Field>
           <Field k="labels" label={<>Extra labels {opt('· comma separated, optional')}</>} hint="Every PR also gets auto, the label the pipeline finds its PRs by. coderabbit asks CodeRabbit for a review.">
             <input id="tf-labels" className="input mono" value={d.labels} placeholder="coderabbit" onChange={set('labels')} />
           </Field>

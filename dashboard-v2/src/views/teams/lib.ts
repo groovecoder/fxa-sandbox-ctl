@@ -174,7 +174,7 @@ export function teamItemDraft(item: string, rec: J): J {
     tools: () => ({ mcp: (rec.mcp ?? []).join(', '), dflt: !('mcp' in rec) }),
     caps: () => ({ usd_per_day: c.usd_per_day ?? '', usd_per_month: c.usd_per_month ?? '', runners: c.runners ?? '' }),
     pr: () => ({ open: p.open !== false, reviewers: (p.reviewers ?? []).join(', '), users: [...(p.users ?? [])], labels: (p.labels ?? []).join(', '),
-      infra: (p.infra_checks ?? []).join(', '), review_rounds: p.review_rounds ?? '' }),
+      infra: (p.infra_checks ?? []).join(', '), review_rounds: p.review_rounds ?? '', admin_review_rounds: p.admin_review_rounds ?? '', review_quiet_minutes: p.review_quiet_minutes ?? '' }),
   };
   return d[item]?.() ?? {};
 }
@@ -231,7 +231,8 @@ export function teamPatch(f: { item: string; d: J }, rec: J, team: string, opts?
     }
     case 'pr': return { pr: drop({ ...(rec.pr ?? {}), open: d.open, reviewers: many(list(d.reviewers)), users: many(list([...d.users, d.uid ?? ''].join(','))),
       // A label can hold a space and a rule has no comma, so both split on commas only.
-      labels: many(commas(d.labels)), infra_checks: many(commas(d.infra)), review_rounds: num(d.review_rounds) }) };
+      labels: many(commas(d.labels)), infra_checks: many(commas(d.infra)), review_rounds: num(d.review_rounds),
+      admin_review_rounds: num(d.admin_review_rounds), review_quiet_minutes: num(d.review_quiet_minutes) }) };
   }
   return {};
 }

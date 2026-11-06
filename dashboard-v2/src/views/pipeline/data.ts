@@ -86,6 +86,13 @@ export function flowGraph(g: J, snap: J, done: J[], now = Date.now()) {
 
 
 // How long a review row has waited: since the last human review, else since the PR opened.
+// The review lines of an open ticket: the admin rounds against their cap, and the quiet window a reviewer holds.
+export function reviewHold(t: J, lim: J): string[] {
+  const out: string[] = [];
+  if (t.admin_rounds > 0) out.push(`admin rounds ${t.admin_rounds} of ${lim?.admin_rounds ?? 10}`);
+  if (typeof t.review_waiting === 'number') out.push(`waiting for a reviewer, ${Math.max(1, Math.ceil(t.review_waiting / 60))} min left`);
+  return out;
+}
 export const waitDays = (r: J): number | null => days(r.last_human_review?.at ?? r.created ?? r.updated);
 export const WAIT_BINS: [string, number, number][] = [['under 1 day', 0, 1], ['1 to 3 days', 1, 3], ['3 to 7 days', 3, 7], ['7 days or more', 7, Infinity]];
 

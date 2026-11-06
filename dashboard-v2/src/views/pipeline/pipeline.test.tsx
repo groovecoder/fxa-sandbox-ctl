@@ -8,7 +8,7 @@ import { type Action, apply } from '../../live/reducers';
 import { beltGroups } from '../../model';
 import { store } from '../../store';
 import { Belts } from './belts';
-import { doneRows, flowGraph, median, mergesPerDay, ageWords } from './data';
+import { doneRows, flowGraph, median, mergesPerDay, ageWords, reviewHold } from './data';
 import { Done } from './done';
 import { Queue } from './queue';
 
@@ -60,6 +60,12 @@ describe('the pure parts', () => {
     expect(mergesPerDay(rows, 3, now)).toEqual([1, 0, 1]);
   });
 
+  it('shows the admin rounds against their cap and the minutes a reviewer still holds the round', () => {
+    expect(reviewHold({ admin_rounds: 3, review_waiting: 610 }, { admin_rounds: 12 })).toEqual(['admin rounds 3 of 12', 'waiting for a reviewer, 11 min left']);
+    expect(reviewHold({ admin_rounds: 1 }, undefined)).toEqual(['admin rounds 1 of 10']);
+    expect(reviewHold({ admin_rounds: 0, review_waiting: null }, {})).toEqual([]);
+    expect(reviewHold({ review_waiting: 0 }, {})).toEqual(['waiting for a reviewer, 1 min left']);
+  });
   it('gives each age its unit word', () => {
     expect(ageWords({ age: 1, t: {} })).toBe('1 day');
     expect(ageWords({ t: { elapsed_seconds: 720 } })).toBe('12 min');
