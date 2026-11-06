@@ -52,8 +52,19 @@ check "5 rebases refuse, and name the blocked kind" "rc=1|1" "$(tail -1 <<< "$ou
 printf '1\trounds\tx\n' > "$PIPE_STATE_DIR/FXA-10.blocked-why"; printf '1\tstalled\tx\n' > "$PIPE_STATE_DIR/FXA-11.blocked-why"
 check "blocked rounds may rebase, blocked stalled may not" "0|1" "$(pipeline_rebase_refusal FXA-10 2>/dev/null; echo $?)|$(pipeline_rebase_refusal FXA-11 2>/dev/null; echo $?)"
 eval "$(sed -n '/^_worktree_drop_foreign_merge() {/,/^}/p' "$(dirname "$0")/worktree.sh")"
+_worktree_pool_list() { printf '%s\n' "$tmp/wt3" "$tmp/wt5"; }
+worktree_key_for() { echo "$1" | tr a-z A-Z; }
 _worktree_drop_foreign_merge "$tmp/wt3" fxa-1 2>/dev/null
 check "the same ticket keeps its open merge" "yes" "$(git -C "$tmp/wt3" rev-parse -q --verify MERGE_HEAD >/dev/null && echo yes)"
 _worktree_drop_foreign_merge "$tmp/wt3" fxa-2 2>/dev/null
 check "another ticket's open merge is aborted, so its checkout works" "no|0" "$(git -C "$tmp/wt3" rev-parse -q --verify MERGE_HEAD >/dev/null && echo yes || echo no)|$(git -C "$tmp/wt3" checkout -q -b fxa-2 origin/main 2>/dev/null; echo $?)"
+# A detached slot with staged leftovers and an untracked file in the way: saved to a patch, then reset.
+g clone -q -b fxa-1 "$tmp/origin.git" "$tmp/wt5" 2>/dev/null
+( cd "$tmp/wt5" && g checkout -q --detach && echo y > c && echo z > new && g add c && echo w > stray )
+_worktree_drop_foreign_merge "$tmp/wt5" fxa-2 2>/dev/null
+p="$(ls "$PIPE_STATE_DIR"/wt5.leftover-*.patch 2>/dev/null | head -1)"
+check "a detached dirty pool slot is saved, then reset" "|3" "$(git -C "$tmp/wt5" status --porcelain | grep -v ' \.fxa-')|$(grep -c '^diff --git' "$p" 2>/dev/null)"
+cp -R "$tmp/wt5" "$tmp/wt6"; echo y > "$tmp/wt6/c"
+_worktree_drop_foreign_merge "$tmp/wt6" fxa-2 2>/dev/null
+check "a worktree outside the pool keeps its changes" "?? c" "$(git -C "$tmp/wt6" status --porcelain)"
 [ "$fail" = 0 ] && echo "all checks pass"; exit "$fail"
