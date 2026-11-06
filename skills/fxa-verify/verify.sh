@@ -3,10 +3,33 @@
 #   verify.sh [--run] [--no-types] [--no-lint] [--plan <test-plan.json>] [file...]
 #   verify.sh --revert [test file...]   the tests fail without the fix, pass with it
 #   verify.sh --failed   rerun only the rows that failed or ran nothing last time
+#   verify.sh --bg <the options above>   start that run in the background
+#   verify.sh wait [seconds]   wait for it (270 s by default, under the cache's 5 min): its verdict,
+#                              "still running" (exit 75), or that it died (exit 4)
 # With no files: the working diff against origin/main, untracked files included.
 # With --plan: the specs the test plan names (see /fxa-test-plan) first, then the
 # related specs of the changed files as a safety net, then any functional spec.
 set -u
+job="${FXA_VERIFY_JOB_DIR:-${FXA_WORKSPACE:-/workspace}/.fxa-verify-job}"
+running() { [ -f "${job}/pid" ] && [ ! -f "${job}/rc" ] && kill -0 "$(cat "${job}/pid")" 2>/dev/null; }
+if [ "${1:-}" = --bg ]; then
+  shift; running && { echo "a background run is still going; use: bash $0 wait" >&2; exit 2; }
+  rm -rf "$job"; mkdir -p "$job"
+  # The exit code goes to a file, so wait tells a finished run from a dead one; setsid outlives the Bash call.
+  nohup $(command -v setsid) bash -c 'bash "$0" "$@" > "'"$job"'/log" 2>&1; echo $? > "'"$job"'/rc"' "$0" "$@" </dev/null >/dev/null 2>&1 &
+  echo $! > "${job}/pid"; date +%s > "${job}/started"
+  echo "started in the background. Wait for it with: bash $0 wait"
+  exit 0
+fi
+if [ "${1:-}" = wait ]; then
+  [ -f "${job}/pid" ] || { echo "no background run; start one with: bash $0 --bg --run ..." >&2; exit 2; }
+  limit="${2:-270}"; t0=$(date +%s)
+  while running && [ $(( $(date +%s) - t0 )) -lt "$limit" ]; do sleep "${FXA_VERIFY_POLL_S:-5}"; done
+  ran=$(( $(date +%s) - $(cat "${job}/started" 2>/dev/null || echo "$t0") ))
+  if [ -f "${job}/rc" ]; then tail -40 "${job}/log"; exit "$(cat "${job}/rc")"; fi
+  if running; then echo "still running after ${ran}s. Last line: $(tail -1 "${job}/log" | cut -c1-200). Call: bash $0 wait"; exit 75; fi
+  echo "the run died after ${ran}s without a verdict. Last lines:"; tail -5 "${job}/log"; exit 4
+fi
 cd "${FXA_WORKSPACE:-/workspace}" || exit 2
 RUN=0 TYPES=1 LINT=1 MAX_RELATED=15 REVERT=0 FAILED=0
 files=() PLAN=""

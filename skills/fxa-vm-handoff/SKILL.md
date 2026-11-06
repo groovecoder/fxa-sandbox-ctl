@@ -89,6 +89,12 @@ Closes FXA-12345
 
 ## Step 4: Write the file
 
+The risk notes always start with the `Would not catch:` line (see `risk_notes` below):
+
+```bash
+printf '%s\n' "Would not catch: <what your checks miss, such as other locales or production data>" > /tmp/risk-notes.txt
+```
+
 ```bash
 cd /workspace
 jq -n \

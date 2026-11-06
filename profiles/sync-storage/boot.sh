@@ -44,6 +44,10 @@ native() { [ "$(od -An -tx1 -j18 -N1 "$1" 2>/dev/null | tr -d ' ')" = "$E" ]; }
 native "$CH/bin/cargo-nextest" || { curl -LsSf "https://get.nexte.st/latest/$NX" | tar zxf - -C "$CH/bin" && chmod a+rx "$CH/bin/cargo-nextest"; } \
   || die "could not install cargo-nextest"
 native "$CH/bin/cargo-nextest" || die "cargo-nextest is not a $(uname -m) build"
+# cargo audit checks the lockfile against RustSec (.cargo/audit.toml); sessions built it by hand.
+# In the background and not fatal: the build takes minutes, and the stack does not need it.
+native "$CH/bin/cargo-audit" || ( d="$(mktemp -d)"; RUSTUP_HOME=$RH CARGO_HOME=$CH CARGO_TARGET_DIR="$d" "$CH/bin/cargo" install -q --locked cargo-audit \
+  && chmod a+rx "$CH/bin/cargo-audit" && step "cargo-audit installed" || step "WARN: could not install cargo-audit"; rm -rf "$d" ) < /dev/null &
 
 # locked <poetry.lock> <name>...   pip pins for the named packages and their dependencies, at the
 # versions a poetry.lock fixes; with no name, the main dependencies of the pyproject.toml beside it.

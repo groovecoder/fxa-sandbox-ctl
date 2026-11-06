@@ -105,7 +105,7 @@ if [ -s "$done_file" ]; then
     fi
     # The PR's Risk section shows the agent's notes; the line the reviewer needs most is what the checks miss.
     [ ! -d packages/fxa-settings ] || jq -r '.risk_notes // ""' "$done_file" | grep -qi '^[-* ]*would not catch:' \
-      || style+=("risk_notes has no 'Would not catch: ...' line: say what your checks miss (SKILL.md Step 4)")
+      || style+=("risk_notes has no 'Would not catch: ...' line: say what your checks miss (SKILL.md Step 4). Add a line such as: Would not catch: other locales, or production data")
     # STE in the PR text. A script can be wrong about style, so these never stop a ship (exit 3).
     while IFS= read -r m; do style+=("$m"); done < <(jq -r '.pr_title, "", .pr_body' "$done_file" \
       | bash "$(dirname "$0")/ste.sh" --skip-lines-of .github/PULL_REQUEST_TEMPLATE.md | sed 's/^ste: /PR text, STE: /')

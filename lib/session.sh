@@ -495,8 +495,9 @@ straight to step 4.
    pr_body must reuse /workspace/.github/PULL_REQUEST_TEMPLATE.md. There is no
    Jira ticket; leave the ticket field empty and do not name this session.
 4. Write /workspace/.fxa-auto-done.json LAST, once the working tree holds exactly
-   what should ship, with keys {issue, branch, pr_title, pr_body, commit_body, media_paths, files}
-   (files: each changed file and one line on why it belongs to the request; only these files ship):
+   what should ship, with keys {issue, branch, pr_title, pr_body, commit_body, risk_notes, media_paths, files}
+   (files: each changed file and one line on why it belongs to the request; only these files ship;
+   risk_notes: a line 'Would not catch: <what your checks miss>', see fxa-vm-handoff Step 4):
    issue "$1"; branch from 'git branch --show-current'; pr_title a scoped
    conventional commit subject; commit_body the short commit body of
    fxa-vm-handoff Step 3b, at most 15 lines; media_paths the output of

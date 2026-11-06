@@ -14,8 +14,15 @@ included), plans one command per package, and with `--run` runs them:
     bash ~/.claude/skills/fxa-verify/verify.sh --run --plan /workspace/.fxa-test-plan.json
     bash ~/.claude/skills/fxa-verify/verify.sh --failed    # after a fix: rerun only what failed
 
-Run it in the foreground with a Bash timeout of 600000. Do not run it in the
-background. Only one run can write logs at a time: a second run exits 75 and
+A `--run` with `--plan`, or with a functional spec, can take longer than 4.5
+minutes. Start it with `--bg`, then call `wait` until it gives the verdict:
+
+    bash ~/.claude/skills/fxa-verify/verify.sh --bg --run --plan /workspace/.fxa-test-plan.json
+    bash ~/.claude/skills/fxa-verify/verify.sh wait   # verdict and exit code; 75: still running, call it again
+
+`wait` returns at once when the run ends or dies. Do not wait with your own
+`pgrep` or `tail --pid`. A short run, such as `--failed` on unit rows, can run in
+the foreground. Only one run can write logs at a time: a second run exits 75 and
 says so.
 
 After you fix a failure, use `--failed`. It reruns only the rows that failed or

@@ -44,6 +44,9 @@ description: Verify a syncstorage-rs change in the Sync Storage sandbox, the way
    "integration tests" command from the plan. To run one test, add `-k <name>` to that command.
    Use the boot's venv, `~/.syncstorage-it-venv`: the runner has no poetry, and do not make or
    change a venv, since the boot pins it to the tests' own lock.
+   For a dependency or security change, the boot installs `cargo audit` (a few minutes after boot;
+   the boot log says when): `export RUSTUP_HOME=/opt/rust/rustup PATH=/opt/rust/cargo/bin:$PATH`, then
+   `cargo audit` in `/home/agent/syncstorage`. Do not install it yourself.
 3. Fix each FAIL and run it again. Before the handoff, the whole run shows no FAIL. Print the
    verdict table (also in `/workspace/.fxa-verify-verdict.txt`) in your reply.
    A SKIP row is a test this runner cannot run (Postgres has no server here). Copy its reason and
