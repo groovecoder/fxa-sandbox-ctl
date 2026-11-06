@@ -123,7 +123,7 @@ describe('Belts', () => {
     expect(document.getElementById('belts-said')!.textContent).toBe('FXA-21 left the belts.');
   });
 
-  it('opens a row with the details region, and Watch the agent opens the terminal', () => {
+  it('opens a row with the details region, and Watch the agent opens the terminal in its own window', () => {
     load(undefined, '#pipeline/belts/FXA-20');
     render(<Belts />);
     const row = document.querySelector('[data-belt="FXA-20"] [data-focus="row"]')!;
@@ -131,11 +131,11 @@ describe('Belts', () => {
     expect(row.getAttribute('aria-controls')).toBe('bd-FXA-20');
     expect(screen.getByRole('region', { name: 'Details of FXA-20' })).toBeTruthy();
     expect(document.querySelector('[data-belt="FXA-21"] [data-focus="row"]')!.hasAttribute('aria-controls')).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Watch the agent' }));
-    const det = document.getElementById('lane-term-FXA-20') as HTMLDetailsElement;
-    expect(det.open).toBe(true);
-    expect(document.activeElement).toBe(det.querySelector('summary'));
-    expect(screen.getByRole('log', { name: /agent@sandbox: fxa-20 output/ })).toBeTruthy();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    fireEvent.click(screen.getByRole('link', { name: /Watch the agent/ }));
+    expect(open).toHaveBeenCalledWith('#lane/FXA-20', 'lane-FXA-20', 'popup,width=820,height=520');
+    expect(screen.queryByRole('log')).toBeNull();
+    open.mockRestore();
   });
 
   it('a ticket blocked at its round cap shows the rounds, and a team admin gives one more round', async () => {
@@ -255,5 +255,17 @@ describe('Done', () => {
     load(fx, '#pipeline/done');
     render(<Done />);
     expect(screen.getByText('No merged ticket yet.')).toBeTruthy();
+  });
+});
+
+describe('LaneTerm', () => {
+  it('shows one run in its window: the key, its stop and minutes, and the terminal of its tail', async () => {
+    const { default: LaneTerm } = await import('./LaneTerm');
+    load();
+    render(<LaneTerm laneKey="FXA-20" />);
+    expect(document.querySelector('.termbar .key')!.textContent).toBe('FXA-20');
+    expect(document.querySelector('.termbar .sxm')!.textContent).toMatch(/ · \d+ min$/);
+    expect(screen.getByRole('log', { name: /agent@sandbox: fxa-20 output/ })).toBeTruthy();
+    expect(document.title).toBe('FXA-20 terminal');
   });
 });

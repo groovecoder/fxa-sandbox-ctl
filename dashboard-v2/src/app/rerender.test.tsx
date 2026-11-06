@@ -74,7 +74,8 @@ test('a delta that only marks a routine or a history row repaints no view', () =
 
 test('a terminal line repaints only the views that show its terminal', () => {
   expect(repaints(at('e5a17c0d-43'))).toEqual([]);
-  expect(repaints({ id: 'e5a17c0d-61', event: 'tail', data: { key: 'EX-101', start: 0, lines: ['a line of a live belt'] } } as Frame)).toEqual(['pipeline']);
+  // A belt's terminal opens in its own window, so a line of it repaints no view of the shell.
+  expect(repaints({ id: 'e5a17c0d-61', event: 'tail', data: { key: 'EX-101', start: 0, lines: ['a line of a live belt'] } } as Frame)).toEqual([]);
 });
 
 test('an errors delta repaints Errors, and not the views without errors', () => {
