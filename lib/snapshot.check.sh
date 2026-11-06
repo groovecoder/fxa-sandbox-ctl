@@ -58,6 +58,12 @@ out="$(PIPE_STATE_DIR="$pd"; eval "$(sed -n '/^_stats_add_rounds() {/,/^}/p' "$(
   echo '{"tickets": {"FXA-1": {"runs": 1}, "FXA-2": {}, "FXA-4": {}}}' | _stats_add_rounds)"
 check "rounds: each ticket's attempts and feedback rounds; an empty or missing file is 0" "3|2|1|0|0|0" \
   "$(jq -r '.tickets | "\(.["FXA-1"].attempts)|\(.["FXA-1"].feedback_rounds)|\(.["FXA-1"].runs)|\(.["FXA-2"].attempts)|\(.["FXA-4"].attempts)|\(.["FXA-4"].feedback_rounds)"' <<< "$out")"
+echo 4 > "$pd/FXA-1.feedback-admin-rounds"; echo "$(( $(date +%s) + 300 ))" > "$pd/FXA-1.feedback-waiting"; echo "$(( $(date +%s) - 5 ))" > "$pd/FXA-2.feedback-waiting"
+out="$(PIPE_STATE_DIR="$pd"; eval "$(sed -n '/^_stats_add_rounds() {/,/^}/p' "$(dirname "$0")/snapshot.sh")"
+  echo '{"tickets": {"FXA-1": {}, "FXA-2": {}, "FXA-4": {}}}' | _stats_add_rounds)"
+check "rounds: admin rounds, and the seconds left in a review window; a past or missing window is null" "4|0|yes|null|null" \
+  "$(jq -r '.tickets | "\(.["FXA-1"].admin_rounds)|\(.["FXA-4"].admin_rounds)|\(if (.["FXA-1"].review_waiting | . > 290 and . <= 300) then "yes" else .["FXA-1"].review_waiting end)|\(.["FXA-2"].review_waiting)|\(.["FXA-4"].review_waiting)"' <<< "$out")"
+rm -f "$pd/FXA-1.feedback-admin-rounds" "$pd"/*.feedback-waiting
 # The jq calls do not grow with the tickets: a jq for each file took the stats feed past its 30 s limit.
 for i in $(seq 10 40); do echo "$now" > "$pd/FXA-$i.queued-at"; echo 1 > "$pd/FXA-$i.attempts"; echo '{}' > "$pd/FXA-$i.jira.json"; done
 echo '[]' > "$pd/prs.json"

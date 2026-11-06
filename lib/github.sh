@@ -285,7 +285,8 @@ gh_drain() {
 # gh_feedback <KEY> [sub] ...
 #   (no sub)   list unhandled review comments as JSON
 #   ack        mark every currently-open comment handled
-#   rounds [bump]   read or increment the feedback-round counter
+#   rounds [bump]   read or increment the feedback-round counter (bot rounds)
+#   admin-rounds [bump]   the same for rounds that act on a team admin's comment
 #   acted <id>...   WRITE(local): record the ids this round will fix
 #   thumbsup        WRITE(PR): react 👍 to those ids a later push made outdated, then clear them
 #   decline <id> <reason>   WRITE(PR): reply "Not changed: <reason>" on that comment, once
@@ -304,8 +305,8 @@ gh_feedback() {
   br="$(worktree_branch_for "$key")" || return 1
   seen="${PIPE_STATE_DIR}/${key}.feedback-seen"
 
-  if [ "$sub" = "rounds" ]; then
-    local f="${PIPE_STATE_DIR}/${key}.feedback-rounds" n
+  if [ "$sub" = "rounds" ] || [ "$sub" = "admin-rounds" ]; then
+    local f="${PIPE_STATE_DIR}/${key}.feedback-${sub}" n
     n="$(cat "$f" 2>/dev/null || echo 0)"
     if [ "${3:-}" = "bump" ]; then n=$((n + 1)); echo "$n" >"$f"; fi
     echo "$n"; return 0
@@ -402,13 +403,13 @@ gh_feedback() {
                        | select(.user.type != "Bot" or (.user.login | IN("Copilot","copilot-pull-request-reviewer[bot]","coderabbitai[bot]")))
                        | {id: (.id|tostring), author: .user.login, association: .author_association,
                           trusted: ((.author_association | IN("OWNER","MEMBER","COLLABORATOR")) or (.user.type == "Bot" and (.user.login | IN("Copilot","copilot-pull-request-reviewer[bot]","coderabbitai[bot]")))),
-                          path, line: (.line // .original_line), outdated: (.line == null), url: .html_url, body}]')"
+                          path, line: (.line // .original_line), outdated: (.line == null), url: .html_url, created: .created_at, body}]')"
   [ -n "$all" ] || all='[]'
   conv="$(gh api "repos/${PIPE_REPO_SLUG}/issues/${pr}/comments" --paginate 2>/dev/null \
          | jq -c '[.[] | select(.user.type != "Bot" and (.body | startswith("🤖") | not))
                        | {id: ("i" + (.id|tostring)), author: .user.login, association: .author_association,
                           trusted: (.author_association | IN("OWNER","MEMBER","COLLABORATOR")),
-                          path: null, line: null, url: .html_url, body}]')"
+                          path: null, line: null, url: .html_url, created: .created_at, body}]')"
   [ -n "$conv" ] || conv='[]'
   # A review's own text, such as a "Request changes" summary. Copilot's overview
   # repeats its inline comments, and each new review would read as new feedback.
@@ -416,7 +417,7 @@ gh_feedback() {
          | jq -c '[.[] | select(.user.type != "Bot" and (.body // "") != "" and (.body | startswith("🤖") | not))
                        | {id: ("r" + (.id|tostring)), author: .user.login, association: .author_association,
                           trusted: (.author_association | IN("OWNER","MEMBER","COLLABORATOR")),
-                          path: null, line: null, state, url: .html_url, body}]')"
+                          path: null, line: null, state, url: .html_url, created: .submitted_at, body}]')"
   [ -n "$reviews" ] || reviews='[]'
   all="$(jq -c -n --argjson a "$all" --argjson b "$conv" --argjson c "$reviews" '$a + $b + $c')"
   # A member whose org membership is private shows as CONTRIBUTOR to this host's
@@ -441,19 +442,40 @@ gh_feedback() {
     return 0
   fi
 
-  local seen_json
+  local seen_json out now left
   seen_json="$( { cat "$seen" 2>/dev/null || true; } | jq -R 'select(length>0)' | jq -s '.')"
-  printf '%s\n' "$all" | jq --argjson seen "$seen_json" --arg pr "$pr" \
-    '{pr: ($pr|tonumber), comments: [.[] | select(.id as $i | ($seen | index($i)) == null)]}'
+  now="$(date +%s)"
+  # A person still reviewing holds every new comment, bots' too, so one round takes the whole review.
+  out="$(printf '%s\n' "$all" | jq --argjson seen "$seen_json" --arg pr "$pr" --argjson now "$now" --argjson q "${PIPE_REVIEW_QUIET_S:-${_FXA_REVIEW_QUIET_S:-900}}" '
+    [.[] | select(.id as $i | ($seen | index($i)) == null)] as $new
+    | ([$new[] | select(.author | test("\\[bot\\]$|^Copilot$") | not) | select(.created != null)] | max_by(.created)) as $last
+    | (if $last then ($now - ($last.created | fromdateiso8601)) else null end) as $age
+    | if $age != null and $age < $q
+      then {pr: ($pr|tonumber), comments: [], waiting: {author: $last.author, seconds_ago: $age, seconds_left: ($q - $age)}}
+      else {pr: ($pr|tonumber), comments: $new} end')" || return 1
+  # The window's end on disk, so the snapshot shows the hold without a GitHub read.
+  left="$(printf '%s' "$out" | jq -r '.waiting.seconds_left // empty')"
+  if [ -n "$left" ]; then echo "$((now + left))" > "${PIPE_STATE_DIR}/${key}.feedback-waiting"; else rm -f "${PIPE_STATE_DIR}/${key}.feedback-waiting"; fi
+  printf '%s\n' "$out"
 }
 
-# gh_admin_logins   The GitHub logins of the team's admins: each admin's email in the team record,
-# mapped through reporters.tsv (displayName, login, email). An unmapped admin has no login; never guess one.
+# gh_admin_logins   The GitHub logins of the team's admins: the repo's admins on GitHub (read once a day),
+# and each admin email in the team record mapped through reporters.tsv (displayName, login, email).
+# An unmapped admin has no login; never guess one.
 gh_admin_logins() {
   local rec="${FXA_TEAMS_DIR:-}/${PIPE_PROFILE:-}.json" map="${PIPE_STATE_DIR:-}/reporters.tsv"
-  [ -f "$rec" ] && [ -f "$map" ] || return 0
-  jq -r '.admins[]?.email // empty' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
-    | awk -F'\t' 'NR == FNR { a[$0] = 1; next } $0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && (tolower($3) in a) { print $2 }' - "$map" | sort -u
+  local cache="${PIPE_STATE_DIR:-}/repo-admins.txt" got=""
+  { if [ -n "${PIPE_REPO_SLUG:-}" ] && [ -n "${PIPE_STATE_DIR:-}" ]; then
+      # A failed read keeps the last list: an empty cache would drop every admin for a day.
+      if [ ! -f "$cache" ] || [ $(( $(date +%s) - $(_mtime "$cache" 2>/dev/null || echo 0) )) -ge 86400 ]; then
+        got="$(gh api "repos/${PIPE_REPO_SLUG}/collaborators?permission=admin&per_page=100" --paginate --jq '.[].login' 2>/dev/null)" \
+          && [ -n "$got" ] && printf '%s\n' "$got" > "$cache"
+      fi
+      cat "$cache" 2>/dev/null || true
+    fi
+    [ -f "$rec" ] && [ -f "$map" ] && jq -r '.admins[]?.email // empty' "$rec" 2>/dev/null | tr '[:upper:]' '[:lower:]' \
+      | awk -F'\t' 'NR == FNR { a[$0] = 1; next } $0 !~ /^#/ && $2 ~ /^[A-Za-z0-9-]+$/ && (tolower($3) in a) { print $2 }' - "$map"
+  } | grep -E '^[A-Za-z0-9-]+$' | sort -u || true
 }
 
 # Does this ticket have recorded ids waiting for a 👍?

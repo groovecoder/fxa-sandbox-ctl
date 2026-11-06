@@ -177,7 +177,7 @@ PIPELINE COMMANDS:
   relock <ISSUE-KEY>           WRITE: fix a yarn.lock-only conflict on the host
                                (merge main, re-resolve, fast-forward push)
   feedback <KEY> [sub]         Unhandled review comments
-                               subs: ack | rounds [bump] | acted <id>... | thumbsup
+                               subs: ack | rounds [bump] | admin-rounds [bump] | acted <id>... | thumbsup
                                bundle: write /tmp/feedback/fxa-KEY-bundle.md with each comment
                                and the branch/main lines it cites
   rounds-give <KEY>            WRITE: one more review round for a ticket blocked at its
@@ -1604,8 +1604,10 @@ $(gh_drain "$inpr" 2>/dev/null | awk '$3 == "CONFLICT"' || true)"
       MERGED) if cmd_label "$key" merged >/dev/null 2>&1; then merged_n=$((merged_n + 1)); _info "drain: $key merged #$num while blocked (labelled, ticket closed)"; else _work "drain: $key blocked, #$num merged (label merged FAILED)"; fi ;;
       CLOSED) if cmd_label "$key" rejected >/dev/null 2>&1; then rejected_n=$((rejected_n + 1)); _info "drain: $key rejected #$num while blocked (labelled)"; else _work "drain: $key blocked, #$num closed (label rejected FAILED)"; fi ;;
       OPEN)
-        # A team admin's new comment starts one round on a blocked PR (feedback.md). Only an admin's: the repo can be public.
-        ids=""; [ -z "$badmin" ] || ids="$(gh_feedback "$key" 2>/dev/null | jq -r '(.comments // [])[] | select(.admin == true) | .id' 2>/dev/null | sort || true)"
+        # A team admin's new comment starts a round on a blocked PR (feedback.md), up to the admin round cap.
+        # Only an admin's: the repo can be public.
+        ids=""; [ -z "$badmin" ] || [ "$(gh_feedback "$key" admin-rounds 2>/dev/null || echo 0)" -ge "${PIPE_ADMIN_REVIEW_ROUNDS:-${_FXA_ADMIN_ROUND_CAP:-10}}" ] \
+          || ids="$(gh_feedback "$key" 2>/dev/null | jq -r '(.comments // [])[] | select(.admin == true) | .id' 2>/dev/null | sort || true)"
         noted="${PIPE_STATE_DIR}/${key}.feedback-noted"
         if [ -n "$ids" ] && [ "$ids" != "$(cat "$noted" 2>/dev/null || true)" ]; then
           _work "feedback: $key is blocked, and a team admin left new comments: $(echo $ids) (run: feedback $key bundle)"

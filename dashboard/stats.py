@@ -310,13 +310,17 @@ def _base(runs):
 
 def _rounds(s, con, f):
     r = {}
-    for p in sorted(glob.glob(os.path.join(f["state"], "*.attempts"))) + sorted(glob.glob(os.path.join(f["state"], "*.feedback-rounds"))):
+    for p in sum((sorted(glob.glob(os.path.join(f["state"], "*." + w)))
+                  for w in ("attempts", "feedback-rounds", "feedback-admin-rounds", "feedback-waiting")), []):
         m = re.fullmatch(r"(?P<k>[^/.:]+)\.(?P<w>[^/:]+)", os.path.basename(p))
         for n in lines(p) if m else []:
-            n = re.sub(r"[^0-9]", "", n)[0:9]
+            n = re.sub(r"[^0-9]", "", n)[0:10]
             r.setdefault(m["k"], {})[m["w"]] = int(n) if n else 0
+    now = int(time.time())
     for k, v in s["tickets"].items():
-        v.update(attempts=alt(g(r.get(k), "attempts"), 0), feedback_rounds=alt(g(r.get(k), "feedback-rounds"), 0))
+        left = alt(g(r.get(k), "feedback-waiting"), 0) - now
+        v.update(attempts=alt(g(r.get(k), "attempts"), 0), feedback_rounds=alt(g(r.get(k), "feedback-rounds"), 0),
+                 admin_rounds=alt(g(r.get(k), "feedback-admin-rounds"), 0), review_waiting=left if left > 0 else None)
     return s
 
 

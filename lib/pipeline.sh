@@ -24,6 +24,10 @@ _FXA_PIPELINE_LOADED=1
 _FXA_ROUND_CAP=2
 # Rebase rounds per PR have their own counter: a conflict is main's churn, not a failed fix.
 _FXA_REBASE_CAP=5
+# Review rounds that act on a team admin's comment have their own counter: a person asked for them.
+_FXA_ADMIN_ROUND_CAP=10
+# A person reviews in bursts: no round starts until the PR has had no human comment for this long.
+_FXA_REVIEW_QUIET_S=900
 
 : "${FXA_PIPELINE:=fxa-ai-fixme}"
 # Team records (lib/team_record.py), cached on this host; config.sh sets the same default.

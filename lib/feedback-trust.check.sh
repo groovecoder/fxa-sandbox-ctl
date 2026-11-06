@@ -28,6 +28,7 @@ gh() {
     *issues/7/comments*) echo '[{"id":9,"user":{"login":"member-a","type":"User"},"author_association":"CONTRIBUTOR","body":"please"}]' ;;
     *collaborators/member-a/permission*) echo admin ;;
     *collaborators/outsider/permission*) echo read ;;
+    *"collaborators?permission=admin"*) echo "$*" >> "$tmp/admin-reads"; [ -n "${REPO_ADMINS:-}" ] || return 1; printf '%s\n' $REPO_ADMINS ;;
     *) return 1 ;;
   esac
 }
@@ -51,6 +52,19 @@ check "an admin's comments are marked admin; a stranger's, Copilot's and CodeRab
   "$(jq -r '[.comments[] | select(.admin) | .id] | join(" ")' <<<"$fb")|$(jq -r '[.comments[] | select(.admin | not) | .id] | join(" ")' <<<"$fb")"
 rm -f "$tmp/reporters.tsv"
 check "with no reporters.tsv nobody is an admin" "0" "$(gh_feedback FXA-1 | jq '[.comments[] | select(.admin)] | length')"
+# Repo admins: read once a day into a cache; a failed read keeps the last list.
+_mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"; }
+echo outsider > "$tmp/repo-admins.txt"; rm -f "$tmp/admin-reads"
+check "a fresh cache of repo admins counts without a GitHub read" "outsider|0" \
+  "$(gh_admin_logins | paste -sd' ' -)|$(grep -c . "$tmp/admin-reads" 2>/dev/null || echo 0)"
+check "a repo admin's comment is marked admin and trusted" "true true" "$(gh_feedback FXA-1 | jq -r '.comments[] | select(.id == "2") | "\(.admin) \(.trusted)"')"
+touch -t 202001010000 "$tmp/repo-admins.txt"
+check "a stale cache with a failed read keeps the last list" "outsider|outsider|1" \
+  "$(gh_admin_logins | paste -sd' ' -)|$(cat "$tmp/repo-admins.txt")|$(grep -c . "$tmp/admin-reads")"
+touch -t 202001010000 "$tmp/repo-admins.txt"
+check "a stale cache with a good read takes the new list; a bad login is dropped" "member-a|member-a x;y" \
+  "$(REPO_ADMINS='member-a x;y' gh_admin_logins | paste -sd' ' -)|$(paste -sd' ' "$tmp/repo-admins.txt")"
+rm -f "$tmp/repo-admins.txt"
 check "without the thread list it stops, so precheck sees no changed comment set" "1|" \
   "$(out="$(NO_GRAPHQL=1 gh_feedback FXA-1 2>/dev/null)"; echo "$?|$out")"
 exit "$fail"

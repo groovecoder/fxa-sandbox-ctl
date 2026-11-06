@@ -59,6 +59,13 @@ out="$(cmd_precheck 2>&1)"
 check "a blocked PR with an admin comment wakes the pass with only that id; a stranger's comment does not" "1|0" \
   "$(grep -c '^feedback: FXA-8 is blocked, and a team admin left new comments: i1 (run: feedback FXA-8 bundle)' <<< "$out")|$(grep -c 'FXA-9 is blocked' <<< "$out")"
 check "the same admin comment on the next precheck is quiet" "0" "$(cmd_precheck 2>&1 | grep -c '^feedback: FXA-8')"
+# The admin wake stops at the team's admin round cap; below it, the comment still wakes.
+gh_feedback() { case "${2:-}" in admin-rounds) echo "${ADMIN_N:-0}" ;; *) echo '{"pr":8,"comments":[{"id":"i1","author":"member-a","admin":true}]}' ;; esac; }
+jira_keys_in_state() { [ "$1" = blocked ] && echo FXA-8; }
+rm -f "$tmp/FXA-8.feedback-noted"
+check "an admin comment does not wake the pass at 10 admin rounds, or at the team's 3" "0|0" \
+  "$(ADMIN_N=10 cmd_precheck 2>&1 | grep -c '^feedback: FXA-8')|$(ADMIN_N=3 PIPE_ADMIN_REVIEW_ROUNDS=3 cmd_precheck 2>&1 | grep -c '^feedback: FXA-8')"
+check "below the cap it wakes" "1" "$(ADMIN_N=9 cmd_precheck 2>&1 | grep -c '^feedback: FXA-8')"
 gh_admin_logins() { :; }; rm -f "$tmp/FXA-8.feedback-noted"
 check "with no admin logins, no blocked PR is read for feedback" "0" "$(cmd_precheck 2>&1 | grep -c '^feedback:')"
 

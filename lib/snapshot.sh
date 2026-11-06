@@ -458,10 +458,13 @@ _stats_add_pipeline() {
 # Fix attempts and feedback rounds live in the pipeline's state files.
 _stats_add_rounds() {
   # All the counter files in one jq; an empty file counts as 0, as a missing one does.
-  local rounds; rounds="$({ grep -H '' "${PIPE_STATE_DIR}"/*.attempts "${PIPE_STATE_DIR}"/*.feedback-rounds 2>/dev/null || true; } | jq -Rsc '
+  local rounds; rounds="$({ grep -H '' "${PIPE_STATE_DIR}"/*.attempts "${PIPE_STATE_DIR}"/*.feedback-rounds "${PIPE_STATE_DIR}"/*.feedback-admin-rounds "${PIPE_STATE_DIR}"/*.feedback-waiting 2>/dev/null || true; } | jq -Rsc '
     [split("\n")[] | capture("^(?:[^:]*/)?(?<k>[^/.:]+)\\.(?<w>[^/:]+):(?<n>.*)$")?]
-    | reduce .[] as $x ({}; .[$x.k][$x.w] = ($x.n | gsub("[^0-9]"; "") | .[0:9] | if . == "" then 0 else tonumber end))' 2>/dev/null)" || rounds='{}'
-  jq -c --argjson r "$rounds" '.tickets |= with_entries(.value += { attempts: ($r[.key].attempts // 0), feedback_rounds: ($r[.key]["feedback-rounds"] // 0) })'
+    | reduce .[] as $x ({}; .[$x.k][$x.w] = ($x.n | gsub("[^0-9]"; "") | .[0:10] | if . == "" then 0 else tonumber end))' 2>/dev/null)" || rounds='{}'
+  # review_waiting: seconds left in a person's review window (gh_feedback writes its end), null when none.
+  jq -c --argjson r "$rounds" --argjson now "$(date +%s)" '.tickets |= with_entries(.value += { attempts: ($r[.key].attempts // 0), feedback_rounds: ($r[.key]["feedback-rounds"] // 0),
+    admin_rounds: ($r[.key]["feedback-admin-rounds"] // 0),
+    review_waiting: (($r[.key]["feedback-waiting"] // 0) - $now | if . > 0 then . else null end) })'
 }
 
 _snapshot_telemetry() {
@@ -761,6 +764,7 @@ snapshot_json() {
     --argjson blocked "$blocked_items" \
     --argjson health "$(pipeline_health_json)" \
     --argjson roundcap "${_FXA_ROUND_CAP:-2}" \
+    --argjson fbcap "${PIPE_REVIEW_ROUNDS:-${_FXA_ROUND_CAP:-2}}" --argjson admincap "${PIPE_ADMIN_REVIEW_ROUNDS:-${_FXA_ADMIN_ROUND_CAP:-10}}" \
     --argjson facts "$facts" \
     --argjson lastpass "$(_snapshot_last_pass)" \
     --argjson skipped "$skipped" \
@@ -808,7 +812,7 @@ snapshot_json() {
          open_prs: $openprs,
          merged_prs: $mergedprs,
          health: $health,
-         limits: { attempts: $roundcap, feedback_rounds: $roundcap, merged_prs: $mcap },
+         limits: { attempts: $roundcap, feedback_rounds: $fbcap, admin_rounds: $admincap, merged_prs: $mcap },
          last_pass: $lastpass,
          inflight_fetch_failed: ($inflight_items == null),
          inflight_prs_failed: ($inflight_prs == null),
