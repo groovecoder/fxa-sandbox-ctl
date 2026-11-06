@@ -11,7 +11,7 @@ eval "$(sed -n '/^cmd_precheck() {/,/^}/p' "$(dirname "$0")/../fxa-sandbox-ctl")
 _mtime() { stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"; }
 PIPE_LOCK_DIR="$tmp/pass.lock" PIPE_STATE_DIR="$tmp" PIPE_NAME=test
 pipeline_lock() { :; }; pipeline_unlock() { :; }; db_ingest() { :; }
-cmd_drain() { :; }; cmd_reap() { :; }; cmd_label() { :; }
+cmd_drain() { :; }; cmd_reap() { :; }; cmd_label() { echo "$*" >> "$tmp/labels"; [ ! -e "$tmp/labelfail" ]; }
 jira_done_keys() { :; }; jira_inflight_keys() { :; }; jira_queue_keys() { :; }; jira_keys_in_state() { :; }
 pipeline_holding_new() { return 1; }; pipeline_focus_key() { :; }; jira_login_ok() { :; }
 gh_feedback() { echo '{}'; }
@@ -39,6 +39,18 @@ check "the same stall, only its minutes grew: quiet" "quiet: 0 q" "$(q)"
 : > "$tmp/line"; q >/dev/null
 echo "FXA-14820 error ERROR: check:frozen (origin/main's copy) rejects this change." > "$tmp/line"
 check "a run in error wakes the pass, once" "reconcile:|quiet: 0 q" "$(q)|$(q)"
+check "a frozen refusal is the pass's to label, not precheck's" "0" "$(cat "$tmp/labels" 2>/dev/null | grep -c .)"
+: > "$tmp/line"; q >/dev/null
+echo "FXA-7 error ERROR: gh pr create failed: HTTP 502" > "$tmp/line"
+out="$(cmd_precheck 2>&1 | head -1)"
+check "any other launch error: precheck labels it blocked launch_error with the line, and the pass wakes to report it" \
+  "FXA-7 blocked launch_error ERROR: gh pr create failed: HTTP 502|reconcile: FXA-7 labelled blocked launch_error: ERROR: gh pr create failed: HTTP 502" "$(tail -1 "$tmp/labels")|$out"
+: > "$tmp/labels"; echo "FXA-6 error ERROR: no ssh on fxa-auto-2 after 300s" > "$tmp/line"; q >/dev/null
+check "a boot failure is not labelled: the skill relaunches it once" "0" "$(grep -c . "$tmp/labels")"
+: > "$tmp/line"; q >/dev/null; touch "$tmp/labelfail"
+echo "FXA-5 error ERROR: nothing to ship" > "$tmp/line"
+check "a failed label falls back to the judgment line" "reconcile: FXA-5 error ERROR: nothing to ship" "$(cmd_precheck 2>&1 | head -1)"
+rm -f "$tmp/labelfail"
 echo "FXA-9 watching 40s (an error log line elsewhere)" > "$tmp/line"
 check "a progress line that only mentions an error does not wake it" "quiet: 0 q" "$(q)"
 exit "$fail"

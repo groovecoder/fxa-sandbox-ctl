@@ -92,6 +92,7 @@ export const NEXT_STEP: Record<string, string> = {
   rebases: 'The PR conflicted with the base 5 times. Resolve the conflict by hand, or remove ai-fixme-blocked after main settles.',
   refused_ship: 'The change edits CI or Yarn or npm config. A human relaunches with FXA_ALLOW_TOOLING_EDITS=1 if the ticket asks for it.',
   frozen: 'The fix needs a frozen path. A human unfreezes it in _scripts/check-frozen.ts or fixes the ticket by hand.',
+  launch_error: 'The launch failed with the error in the reason. Read fxa-sandbox-ctl progress KEY, fix the cause, then relaunch the ticket.',
   operator: 'Do what the reason says, then remove ai-fixme-blocked.',
   jira: 'Read the Jira history for who added the label.',
   other: 'Read the Jira history for who added the label.',
@@ -109,12 +110,12 @@ export const NEXT_STEP: Record<string, string> = {
   running: 'Nothing to do: the belt shows its progress.',
 };
 export const KIND_LABEL: Record<string, string> = {
-  stalled: 'stalled', dead_vm: 'dead VM', attempts: 'attempts', rounds: 'rounds', rebases: 'rebases', refused_ship: 'refused ship', frozen: 'frozen path', operator: 'operator',
+  stalled: 'stalled', dead_vm: 'dead VM', attempts: 'attempts', rounds: 'rounds', rebases: 'rebases', refused_ship: 'refused ship', frozen: 'frozen path', launch_error: 'launch error', operator: 'operator',
   jira: 'blocked in Jira', other: 'other', needs_decision: 'needs a decision', underspecified: 'underspecified', already_done: 'already done',
   depends_on: 'depends on', ci_red: 'CI red', changes: 'changes requested', conflicts: 'conflicts', relock: 'relock failed', infra: 'infra red', fault: 'fault',
 };
 const WHO: Record<string, string> = {
-  stalled: 'the operator', dead_vm: 'the operator', attempts: 'the operator', rounds: 'the operator', rebases: 'the operator', refused_ship: 'the operator', frozen: 'the operator',
+  stalled: 'the operator', dead_vm: 'the operator', attempts: 'the operator', rounds: 'the operator', rebases: 'the operator', refused_ship: 'the operator', frozen: 'the operator', launch_error: 'the operator',
   operator: 'the operator', jira: 'the operator', other: 'the operator', needs_decision: 'the reporter', underspecified: 'the reporter',
   already_done: 'the operator', infra: 'the operator', fault: 'the operator', ci_red: 'the agent, next pass', changes: 'the agent, next pass',
   conflicts: 'the agent, next pass', relock: 'the operator',
@@ -247,7 +248,7 @@ export function openPrCounts(s: Store): { total: number; parts: string } | null 
 export const BELT_GROUPS = [['working', 'Working now', 'an agent runs in a sandbox', 'k-live', 'No agent works now.'], ['needs', 'Needs you', 'only a person can move these', 'k-warn', 'Nobody needs to act.'],
   ['fixes', 'The agent fixes it', 'on the next pass', 'k-bad', 'Nothing for the agent to fix.'], ['review', 'Waits on review', 'oldest first', 'k-wait', 'No PR waits on review.']];
 // Kinds where something is broken (red), not waiting on a decision (amber).
-export const BROKEN = new Set(['stalled', 'dead_vm', 'attempts', 'rounds', 'infra', 'fault', 'ci_red', 'conflicts', 'relock']);
+export const BROKEN = new Set(['stalled', 'dead_vm', 'attempts', 'rounds', 'infra', 'fault', 'ci_red', 'conflicts', 'relock', 'launch_error']);
 // Each key goes to one group, from classify() through boardItems(), so the groups, the tab count and Needs you agree.
 export const beltGroups = memo((s) => [boardItems(s), laneRows(s), pipe(s), STATE(s), AGENTS(s), s.viewer], (s): J => {
   const snap = SNAP(s), items: J[] = snap ? boardItems(s) : [], byKey = Object.fromEntries(items.map((i) => [i.key, i]));

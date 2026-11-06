@@ -24,6 +24,8 @@ cmd_label FXA-3 blocked "the reporter must answer" 2>/dev/null
 check "no kind word: kind other, the whole reason kept" "other|the reporter must answer" "$(w FXA-3 | tr '\t' '|')"
 out="$(cmd_label FXA-4 blocked dead_vms twice 2>&1)"
 check "a near kind word warns, is other, and stays in the reason" "1|other|dead_vms twice" "$(grep -c 'not a blocked kind' <<< "$out")|$(w FXA-4 | tr '\t' '|')"
+cmd_label FXA-9 blocked launch_error "ERROR: gh pr create failed" 2>/dev/null
+check "a launch error is a kind, and its line is the reason" "launch_error|ERROR: gh pr create failed" "$(w FXA-9 | tr '\t' '|')"
 echo "1000	stalled	" > "$tmp/FXA-1.blocked-why"; cmd_label FXA-1 blocked stalled 2>/dev/null
 check "a repeat with the same kind keeps the first time" "1000" "$(cut -f1 "$tmp/FXA-1.blocked-why")"
 cmd_label FXA-1 blocked operator 2>/dev/null
