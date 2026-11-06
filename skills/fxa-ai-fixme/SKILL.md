@@ -239,7 +239,7 @@ phone number in a context file, comment, or PR.
 | `progress KEY` / `alive KEY` / `prstate KEY` | launcher log; live process; PR state |
 | `conflicts KEY` | conflict class and files |
 | `launch KEY <slot> --rebase` | resolve a source conflict |
-| `feedback KEY [ack\|rounds [bump]\|admin-rounds [bump]\|acted <id>..\|thumbsup\|decline <id> <reason>\|defer <id> <reason>\|answer <id> <text>]` | review comments; `rounds` is the bot cap (team `pr.review_rounds`, default 2), `admin-rounds` is a team admin's (cap 10) |
+| `feedback KEY [ack\|rounds [bump]\|admin-rounds [bump]\|acted <id>..\|thumbsup\|decline <id> <reason>\|defer <id> <reason>\|answer <id> <text>]` | review comments; `rounds` is the bot cap (team `pr.review_rounds`, default 2), `admin-rounds` is a team admin's (team `pr.admin_review_rounds`, default 10); `$CTL env` prints both caps |
 | `hold KEY BLOCKER '<reason>'` | record that KEY waits for BLOCKER to merge (both edit the same files, or the ticket says so); quiet until then, then a pass looks again |
 | `skip KEY [kind] '<reason>'` / `skipped [KEY]` / `unskip KEY` | record, list and drop admission skips (operator: `unskip` after a 🤖 note) |
 | `comment KEY '<text>'` | post one Jira comment in the style under Comments |

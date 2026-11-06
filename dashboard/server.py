@@ -668,8 +668,8 @@ def slack_lookup(email):
 def people_rows(rows, old):
     """(the people to save, a note for each row whose Slack lookup failed) or (None, the error). A row keeps its stored
     Slack user while its email stays; a new email asks Slack again, so the client never sets slack."""
-    if not isinstance(rows, list) or len(rows) > 200:
-        return None, "send people as a list of at most 200 rows"
+    if not isinstance(rows, list) or len(rows) > 500:
+        return None, "send people as a list of at most 500 rows"
     keep = {p["email"].lower(): p.get("slack") for p in old if isinstance(p, dict) and isinstance(p.get("email"), str)}
     out, notes, seen = [], [], set()
     for r in rows:

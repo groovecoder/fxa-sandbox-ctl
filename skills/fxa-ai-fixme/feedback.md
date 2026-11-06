@@ -32,9 +32,10 @@ Procedure:
    and no comments, list the ticket under ⚠️ as "feedback pending, waiting for <login>" (its
    `author`) and start nothing. The hold ends when the PR has had no human comment for the quiet window.
    **Two caps per PR.** A round whose acted ids include an `admin: true` comment counts on
-   `$CTL feedback KEY admin-rounds`, cap 10. Every other round counts on `$CTL feedback KEY rounds`:
+   `$CTL feedback KEY admin-rounds`. Its cap is the team's `pr.admin_review_rounds`, 10 by default
+   (`PIPE_ADMIN_REVIEW_ROUNDS` in `$CTL env`). Every other round counts on `$CTL feedback KEY rounds`:
    bots (Copilot, CodeRabbit), CI, and trusted reviewers who are not admins. Its cap is the team's
-   `pr.review_rounds`, 2 by default. Read the counter that the round would bump; at its cap, label
+   `pr.review_rounds`, 2 by default (`PIPE_REVIEW_ROUNDS` in `$CTL env`). Read the counter that the round would bump; at its cap, label
    `blocked rounds`. A round that fixed
    none of its comments, when only bots (Copilot, CodeRabbit) wrote them, does not count: the host
    takes it back from `rounds` when the round ends. At the cap, still judge each new comment. A
@@ -42,7 +43,7 @@ Procedure:
    **A team admin's comment** (`admin: true` in `feedback`, `team admin` in the bundle) starts rounds
    past the bot cap: precheck lists it as `feedback: KEY is blocked, and a team admin left new comments`
    when the ticket is `blocked` (any kind, a launch error too), the PR is open, and `admin-rounds` is
-   under 10. Treat it as feedback, and run a round for it even past the bot cap or the fix-attempt cap.
+   under its cap. Treat it as feedback, and run a round for it even past the bot cap or the fix-attempt cap.
    When it asks to
    fix CI, add `--ci` with `ci-cause` output as in the "Failure is real" row. Label `inflight` in the
    pass that launches it, and record the round as in step 5. Only `admin: true` counts: the repo is
