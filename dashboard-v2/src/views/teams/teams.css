@@ -105,3 +105,20 @@
 .tpage .ttimeline li::before { content: ""; position: absolute; left: calc(-1 * var(--s4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: 50%;
   background: var(--panel); border: 2px solid var(--link); }
 .tpage .ttimeline .when { color: var(--dim); font-variant-numeric: tabular-nums; }
+/* The People list, the folds and the long values: readable at every width. */
+.tpage .kv > span:first-child { flex: none; white-space: nowrap; }
+.tpage .tlines { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tpage .ck { flex-wrap: wrap; }
+.tpage .ck .who { flex: 1 1 14rem; }
+.tpage .tmore-card summary .tsum { display: inline; font-size: var(--t-body); font-weight: 600; margin: 0; }
+.tpage .ck h3.nm { font-size: inherit; margin: 0; }
+.tpage .tcheck { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; cursor: pointer; }
+.tpage .tppl td > input.mono { min-width: 12rem; }
+@media (max-width: 640px) {
+  .tpage .tppl thead { display: none; }
+  .tpage .tppl tr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s1) var(--s3); padding: var(--s2) 0; border-bottom: 1px solid var(--line); }
+  .tpage .tppl td { display: block; border: 0; padding: 0; }
+  .tpage .tppl td:first-child { grid-column: 1 / -1; }
+  .tpage .tppl td[data-l]::before { content: attr(data-l); display: block; color: var(--dim); font-size: var(--t-label); }
+  .tpage .tppl td > input.mono, .tpage .tppl td > .input { min-width: 0; width: 100%; }
+}

@@ -28,7 +28,7 @@ export function textSize(s: string | null | undefined, max: number) {
   return n >= 0.9 * max ? `${n} of ${max} bytes, ${max - n} left` : `${n} of ${max}`;
 }
 export const teamTools = (m: unknown, short?: boolean) =>
-  m == null ? (short ? 'bot default' : 'bot default (MCP_CONNECTORS)') : Array.isArray(m) && m.length ? m.join(', ') : 'none';
+  m == null ? (short ? 'bot default' : "the bot's default tools") : Array.isArray(m) && m.length ? m.join(', ') : 'none';
 // [tone, short word, full text] for a work repo's shipping.
 export const repoShip = (r: J): [string, string, string] =>
   r.why === APP_FAIL ? ['info', 'write unknown', 'GitHub App check failed; write unknown'] : r.write ? ['ok', '', 'opens a draft PR'] : ['warn', 'diff', 'ships as a diff'];
@@ -70,7 +70,8 @@ export function teamWho(t: J, rec?: J) {
   const a = rec?.access ?? null;
   if (t.access?.open === 'built-in') return 'Everyone';
   if (a ? a.open : t.access?.open === true) return 'Anyone the bot allows';
-  const n = a ? (a.users ?? []).length : t.access?.listed ?? t.access?.users ?? 0;
+  // The old access.users list and the people marked Can start.
+  const n = a ? new Set([...(a.users ?? []), ...(rec?.people ?? []).filter((p: J) => p.start === true).map((p: J) => p.slack)]).size : t.access?.listed ?? t.access?.users ?? 0;
   return n ? `${n} ${n === 1 ? 'person' : 'people'}` : 'Nobody';
 }
 
@@ -110,7 +111,7 @@ export function teamBanner(t: J, admin: boolean, r: J): { head: string; why: str
   const out: [string, string, [string, string, boolean?] | null][] = [];
   if (has(/spend cap reached/)) out.push(['The team reached its spend cap', 'Every new session and routine run of the team is refused until the cap resets or the operator raises it.', null]);
   if (t.access?.record && t.access.status !== 'active') out.push([`The team is ${t.access.status}`, 'Nobody can start it until it is tested and active.', [`${base}/settings`, 'Test and activate', true]]);
-  else if (has(/nobody can start it/)) out.push(['Nobody can start this team', 'It has no users and no channel rules, and it is not open.', [`${base}/settings`, 'Add users']]);
+  else if (has(/nobody can start it/)) out.push(['Nobody can start this team', 'It has no users and no channel rules, and it is not open.', [`${base}/settings`, 'Add people']]);
   if (admin && r?.routines && has(/spend cannot be read/)) out.push(['Routines are skipped', "The team's spend cannot be read, so each run is refused (fail closed).", null]);
   if (admin && r?.failed) out.push([`${plural(r.failed, 'routine')} failed`, r.last_failed ? `${r.last_failed.name ?? ''}: ${r.last_failed.reason ?? 'no reason recorded'}` : '', [`${base}/routines`, 'Open Routines']]);
   const f = out[0];
@@ -161,7 +162,7 @@ export function teamItemDraft(item: string, rec: J): J {
   const d: Record<string, () => J> = {
     repos: () => ({ repos: (rec.repos ?? []).map((r: J) => ({ ...r })) }),
     goal: () => ({ goal: rec.prompts?.goal_md ?? '' }),
-    access: () => ({ open: !!a.open, users: [...(a.users ?? [])], uid: '', chans: [...(a.channels ?? [])], other: '', prefixes: (a.jira_prefixes ?? []).join(', ') }),
+    access: () => ({ open: !!a.open, chans: [...(a.channels ?? [])], other: '', prefixes: (a.jira_prefixes ?? []).join(', ') }),
     name: () => ({ label: rec.label ?? '' }),
     admins: () => ({ admins: (rec.admins ?? []).map((x: J) => ({ slack: x.slack ?? '', email: x.email ?? '' })) }),
     runner: () => ({ kind: rec.stack?.kind ?? 'none', srepo: rec.stack?.repo ?? (rec.repos ?? []).find((r: J) => r.slug.toLowerCase() === 'mozilla/fxa')?.slug ?? (rec.repos ?? [])[0]?.slug ?? '',
@@ -173,7 +174,7 @@ export function teamItemDraft(item: string, rec: J): J {
     jira: () => ({ project: j.project ?? '', queue: !!j.queue, secret: !!j.secret, usage: j.usage !== false, launches_per_day: c.launches_per_day ?? '', board: j.board ?? '', sprint: j.sprint ?? '' }),
     tools: () => ({ mcp: (rec.mcp ?? []).join(', '), dflt: !('mcp' in rec) }),
     caps: () => ({ usd_per_day: c.usd_per_day ?? '', usd_per_month: c.usd_per_month ?? '', runners: c.runners ?? '' }),
-    pr: () => ({ open: p.open !== false, reviewers: (p.reviewers ?? []).join(', '), users: [...(p.users ?? [])], labels: (p.labels ?? []).join(', '),
+    pr: () => ({ open: p.open !== false, reviewers: (p.reviewers ?? []).join(', '), labels: (p.labels ?? []).join(', '),
       infra: (p.infra_checks ?? []).join(', '), review_rounds: p.review_rounds ?? '', admin_review_rounds: p.admin_review_rounds ?? '', review_quiet_minutes: p.review_quiet_minutes ?? '' }),
   };
   return d[item]?.() ?? {};
@@ -205,7 +206,7 @@ export function teamPatch(f: { item: string; d: J }, rec: J, team: string, opts?
   switch (f.item) {
     case 'repos': return { repos: d.repos.filter((r: J) => String(r.slug).trim()).map((r: J) => drop({ ...r, slug: String(r.slug).trim(), commits: r.commits === 'append' ? 'append' : undefined })) };
     case 'goal': return { prompts: { ...(rec.prompts ?? {}), goal_md: d.goal } };
-    case 'access': return { access: { ...(rec.access ?? {}), open: !!d.open, users: d.open ? rec.access?.users ?? [] : list([...d.users, d.uid ?? ''].join(',')),
+    case 'access': return { access: { ...(rec.access ?? {}), open: !!d.open,
       channels: d.open ? rec.access?.channels ?? [] : [...new Set([...d.chans, ...list(d.other)])], jira_prefixes: list(d.prefixes) } };
     case 'jira': {
       // From the record's jira, so a key with no input survives a save.
@@ -229,7 +230,7 @@ export function teamPatch(f: { item: string; d: J }, rec: J, team: string, opts?
       const rt = d.runtime.filter((r: J) => r.what.trim() || r.path.trim()).map((r: J) => ({ secret: pre + r.what.trim(), path: r.path.trim() }));
       return { secrets: some(drop({ jira: d.jira.trim() ? pre + d.jira.trim() : undefined, runtime: many(rt) })) };
     }
-    case 'pr': return { pr: drop({ ...(rec.pr ?? {}), open: d.open, reviewers: many(list(d.reviewers)), users: many(list([...d.users, d.uid ?? ''].join(','))),
+    case 'pr': return { pr: drop({ ...(rec.pr ?? {}), open: d.open, reviewers: many(list(d.reviewers)),
       // A label can hold a space and a rule has no comma, so both split on commas only.
       labels: many(commas(d.labels)), infra_checks: many(commas(d.infra)), review_rounds: num(d.review_rounds),
       admin_review_rounds: num(d.admin_review_rounds), review_quiet_minutes: num(d.review_quiet_minutes) }) };

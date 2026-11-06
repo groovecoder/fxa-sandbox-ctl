@@ -16,13 +16,13 @@ const Field = ({ k, label, hint, children }: { k: string; label: ReactNode; hint
 const opt = (t: ReactNode) => <span className="opt">{t}</span>;
 const val = (e: { target: { value: string } }) => e.target.value;
 
-// A people search: results with Add, for the access users, the PR users or the admins.
-function People({ target, have, onAdd }: { target: string; have: string[]; onAdd: (p: J) => void }) {
+// A people search of the bot's Slack list: results with Add.
+export function SlackSearch({ target, have, onAdd }: { target: string; have: string[]; onAdd: (p: J) => void }) {
   const P = useTs((s) => s.people), box = useRef<HTMLInputElement>(null);
   const res = (P?.people ?? []).filter((p) => !have.includes(p.id));
   return (
     <div className="field">
-      <label htmlFor={`tf-pq-${target}`}>Find a person</label>
+      <label htmlFor={`tf-pq-${target}`}>{target === "ppl" ? "Add a person from Slack" : "Find a person"}</label>
       <input ref={box} id={`tf-pq-${target}`} className="input" data-tfpq={target} autoComplete="off" placeholder="Name, @handle or email"
         value={P?.q ?? ''} onChange={(e) => searchPeople(val(e))} />
       {P?.err ? <p className="unknown">{P.err}</p>
@@ -41,26 +41,6 @@ function People({ target, have, onAdd }: { target: string; have: string[]; onAdd
     </div>
   );
 }
-
-function Users({ d }: { d: J }) {
-  const names = useTs((s) => s.names);
-  return d.users.length ? (
-    <ul className="plist">
-      {d.users.map((u: string) => (
-        <li key={u}>
-          <span>{personLabel(names, u)}{personLabel(names, u) !== u && <> <span className="mono hint">{u}</span></>}</span>
-          <button type="button" className="linkbtn" data-tfunpick="users" aria-label={`Remove ${personLabel(names, u)}`} onClick={() => editForm((x) => ({ ...x, users: x.users.filter((y: string) => y !== u) }))}>Remove</button>
-        </li>
-      ))}
-    </ul>
-  ) : null;
-}
-const addUser = (p: J) => editForm((x) => ({ ...x, users: [...new Set([...x.users, p.id])] }));
-const Uid = ({ d }: { d: J }) => (
-  <Field k="uid" label={<>Or paste a member ID {opt('· optional')}</>}>
-    <input id="tf-uid" className="input mono" value={d.uid ?? ''} placeholder="U0123ABCD" onChange={(e) => editForm((x) => ({ ...x, uid: val(e) }))} />
-  </Field>
-);
 
 export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
   const opts = useTs((s) => s.opts), chans = useTs((s) => (s.chans && s.chans.team === t.profile ? s.chans.channels : null)) ?? [], names = useTs((s) => s.names);
@@ -129,10 +109,8 @@ export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
           {!d.open && (
             <div className="fields2">
               <fieldset className="group field">
-                <legend className="lb">People {opt(`· ${d.users.length}`)}</legend>
-                {d.users.length ? <Users d={d} /> : <p className="hint">Nobody yet.</p>}
-                <People target="users" have={d.users} onAdd={addUser} />
-                <Uid d={d} />
+                <legend className="lb">People</legend>
+                <p className="hint">Tick Can start for each person in the People section of this page.</p>
               </fieldset>
               <fieldset className="group field">
                 <legend className="lb">Channels it watches</legend>
@@ -237,7 +215,7 @@ export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
               {pop('admins', i)}
             </div>
           ))}
-          <People target="admins" have={d.admins.map((a: J) => a.slack)} onAdd={(p) => editForm((x) => ({ ...x, admins: [...x.admins, { slack: p.id, email: p.email ?? '' }] }))} />
+          <SlackSearch target="admins" have={d.admins.map((a: J) => a.slack)} onAdd={(p) => editForm((x) => ({ ...x, admins: [...x.admins, { slack: p.id, email: p.email ?? '' }] }))} />
         </>
       );
       break;
@@ -354,24 +332,18 @@ export function ItemForm({ t, rec, f }: { t: J; rec: J; f: Form }) {
             <Field k="reviewers" label={<>Reviewers {opt('· comma separated, optional')}</>}><input id="tf-reviewers" className="input mono" value={d.reviewers} onChange={set('reviewers')} /></Field>
           )}
           <Field k="review_rounds" label={<>Automatic review rounds {opt('· 0 to 5')}</>} hint="The rounds the bot runs by itself on a PR for Copilot, CodeRabbit and CI. After that it asks. Empty: 2.">
-            <input id="tf-review_rounds" className="input" type="number" min={0} max={5} value={d.review_rounds} onChange={set('review_rounds')} />
+            <input id="tf-review_rounds" placeholder="2" className="input" type="number" min={0} max={5} value={d.review_rounds} onChange={set('review_rounds')} />
           </Field>
           <Field k="admin_review_rounds" label={<>Review rounds for a team admin {opt('· 0 to 20')}</>} hint="A round that acts on a team admin's comment counts here, not above. Empty: 10.">
-            <input id="tf-admin_review_rounds" className="input" type="number" min={0} max={20} value={d.admin_review_rounds} onChange={set('admin_review_rounds')} />
+            <input id="tf-admin_review_rounds" placeholder="10" className="input" type="number" min={0} max={20} value={d.admin_review_rounds} onChange={set('admin_review_rounds')} />
           </Field>
           <Field k="review_quiet_minutes" label={<>Wait for a reviewer {opt('· 0 to 120 minutes')}</>} hint="No round starts until the PR has had no human comment for this long. Empty: 15.">
-            <input id="tf-review_quiet_minutes" className="input" type="number" min={0} max={120} value={d.review_quiet_minutes} onChange={set('review_quiet_minutes')} />
+            <input id="tf-review_quiet_minutes" placeholder="15" className="input" type="number" min={0} max={120} value={d.review_quiet_minutes} onChange={set('review_quiet_minutes')} />
           </Field>
           <Field k="labels" label={<>Extra labels {opt('· comma separated, optional')}</>} hint="Every PR also gets auto, the label the pipeline finds its PRs by. coderabbit asks CodeRabbit for a review.">
             <input id="tf-labels" className="input mono" value={d.labels} placeholder="coderabbit" onChange={set('labels')} />
           </Field>
-          <fieldset className="group field">
-            <legend className="lb">Who can open a PR from Slack {opt(`· ${d.users.length}`)}</legend>
-            <p className="hint">Nobody listed: anyone who can steer the session. Team admins always can.</p>
-            <Users d={d} />
-            <People target="users" have={d.users} onAdd={addUser} />
-            <Uid d={d} />
-          </fieldset>
+          <p className="hint">Who can open a PR from Slack: tick Can open PRs in the People section. Nobody ticked: anyone who can steer the session. Team admins always can.</p>
           <Field k="infra" label={<>CI failures that are the repo's fault {opt('· comma separated, at most 5')}</>} hint="Each rule is check=log text. A failed check whose log has the text does not count against the PR.">
             <input id="tf-infra" className="input mono" value={d.infra} placeholder="extract=Bad credentials" onChange={set('infra')} />
           </Field>

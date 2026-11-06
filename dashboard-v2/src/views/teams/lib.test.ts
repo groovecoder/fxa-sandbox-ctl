@@ -22,7 +22,8 @@ test('an item form replaces its own keys only, and a key with no input survives'
   expect(save('caps', (d) => { d.usd_per_day = ''; d.runners = '3'; }).caps).toEqual({ launches_per_day: 40, runners: 3 });
   expect(save('jira', (d) => { d.launches_per_day = ''; }).jira).toEqual({ project: 'EX', queue: true, board: '7' });
   expect(save('jira', (d) => { d.secret = true; }).access).toMatchObject({ open: false, jira_prefixes: [] });
-  expect(save('access', (d) => { d.uid = 'UEXAMPLE2'; }).access.users).toEqual(['UEXAMPLE1', 'UEXAMPLE2']);
+  // The access form no longer lists people: Can start in People does; the stored list survives a save.
+  expect(save('access', (d) => { d.uid = 'UEXAMPLE2'; }).access.users).toEqual(['UEXAMPLE1']);
   expect(save('tools', (d) => { d.dflt = true; })).not.toHaveProperty('mcp');
   expect(save('secrets', (d) => { d.jira = 'JIRA'; }).secrets).toEqual({ jira: 'fxa-team-example--JIRA' });
   expect(save('goal', (d) => { d.goal = 'New.'; }).prompts.goal_md).toBe('New.');

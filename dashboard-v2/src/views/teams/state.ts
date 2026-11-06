@@ -14,7 +14,7 @@ export type Say = { team: string; ok: boolean; msg: string };
 export type NewT = NewTeam & { errs: Record<string, string>; msg?: string; ok?: boolean; busy?: boolean };
 export type People = { q: string; at: unknown; people: J[]; err: string };
 // The People card: the rows as edited, the generation they loaded at, and the last save's Slack notes.
-export type Ppl = { team: string; rows: J[]; gen: string; notes: J[]; msg: string; ok: boolean; busy?: boolean; canAdmin?: boolean };
+export type Ppl = { team: string; rows: J[]; gen: string; notes: J[]; msg: string; ok: boolean; busy?: boolean; canAdmin?: boolean; base: string };
 
 type TS = {
   rec: Rec | null;
@@ -91,8 +91,8 @@ export function onTeam(team: string) {
 // A team's people (email, Slack user, GitHub username): that team's admins read and save them.
 export async function loadPpl(team: string) {
   const g = await getJson<J>(`/api/teams/${enc(team)}/people`);
-  set({ ppl: 'data' in g ? { team, rows: g.data.people ?? [], gen: String(g.data.generation ?? ''), notes: [], msg: '', ok: true, canAdmin: g.data.can_admin === true }
-    : { team, rows: [], gen: '', notes: [], msg: g.error, ok: false } });
+  set({ ppl: 'data' in g ? { team, rows: g.data.people ?? [], base: JSON.stringify(g.data.people ?? []), gen: String(g.data.generation ?? ''), notes: [], msg: '', ok: true, canAdmin: g.data.can_admin === true }
+    : { team, rows: [], base: '[]', gen: '', notes: [], msg: g.error, ok: false } });
 }
 export const editPpl = (f: (rows: J[]) => J[]) => set((s) => (s.ppl ? { ppl: { ...s.ppl, rows: f(s.ppl.rows) } } : {}));
 // The server fills slack from the email, so the client sends only the email, the GitHub username and the admin mark.
@@ -100,7 +100,8 @@ export async function savePpl() {
   const P = get().ppl;
   if (!P || P.busy) return;
   set({ ppl: { ...P, busy: true, msg: '' } });
-  const rows = P.rows.filter((r) => String(r.email ?? '').trim()).map((r) => ({ email: String(r.email).trim(), github: String(r.github ?? '').trim(), ...(r.admin ? { admin: true } : {}) }));
+  const rows = P.rows.filter((r) => String(r.email ?? '').trim() || r.slack).map((r) => ({ email: String(r.email ?? '').trim(), github: String(r.github ?? '').trim(), ...(r.email ? {} : { slack: r.slack }),
+    ...Object.fromEntries(['admin', 'start', 'pr'].filter((k) => r[k]).map((k) => [k, true])) }));
   const r = await post(`/api/teams/${enc(P.team)}/people`, { people: rows, generation: P.gen });
   if (!r.ok) {
     return set((s) => ({ ppl: s.ppl && { ...s.ppl, busy: false, ok: false,
@@ -161,7 +162,6 @@ export function openForm(team: string, item: string) {
   const d = teamItemDraft(item, rec.rec);
   set({ form: { team, item, d }, people: null });
   if (item === 'access') loadChans(team);
-  if (item === 'access' || item === 'pr') loadNames(d.users);
   if (item === 'admins') loadNames(d.admins.map((a: J) => a.slack));
   if (['tools', 'caps', 'skills', 'boot', 'egress'].includes(item)) loadOpts();
 }

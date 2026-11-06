@@ -6,12 +6,12 @@ import type { J } from '../../model/base';
 import { APP_FAIL, rtSum, teamName } from '../../model/teams';
 import { useApp } from '../../store';
 import { Card, Kv, Tag } from '../../ui';
-import { ItemForm } from './ItemForm';
+import { ItemForm, SlackSearch } from './ItemForm';
 import { FXA_RO, minsSince, plural, repoShip, teamCap, teamTestState, teamTools, teamWho } from './lib';
 import { Said } from './parts';
 import {
-  activateOnPass, arm, deleteTeam, editPpl, jsonAct, loadAudit, loadChans, loadPpl, loadRecord, openForm, openJson, readTest, savePpl, setSecret, setStatus, startTest,
-  stopTest, toggleMore, useTs,
+  activateOnPass, arm, deleteTeam, editPpl, jsonAct, loadAudit, loadChans, loadNames, loadPpl, loadRecord, openForm, openJson, readTest, savePpl, setSecret, setStatus, startTest,
+  personLabel, stopTest, toggleMore, useTs,
 } from './state';
 
 const FIREFOX_READ = 'Firefox: read; a change comes back as a diff, never a push';
@@ -27,7 +27,7 @@ function RunsOn({ t }: { t: J }) {
 }
 
 // What a folder or env team gets, or a record team for a viewer who is not an admin.
-function Info({ t }: { t: J }) {
+function Info({ t, people }: { t: J; people?: boolean }) {
   const rec = !!t.access?.record, repos: J[] = t.repos ?? [];
   const where = t.access?.open === 'built-in' ? 'The operator changes the FxA team in profiles/fxa/ in the repo.' : rec ? 'A team admin changes this team. Ask the operator.'
     : `The operator changes this team in profiles/${t.profile}/ in the repo, and its access in the bot .env.`;
@@ -41,6 +41,7 @@ function Info({ t }: { t: J }) {
         <Kv label="Mode" value={t.read_only ? 'diffs only' : 'draft PRs'} />
         <p className="hint">{where}</p>
       </Card>
+      {people && <People p={t.profile} open={t.access?.open === true} />}
       <Card><h2>Runs on</h2><RunsOn t={t} /></Card>
     </>
   );
@@ -99,8 +100,8 @@ function TestCard({ t, rec }: { t: J; rec: J }) {
     <Card>
       <div className="stack">
         <div className="ck">
-          <span className={`num ${st === 'passed' ? 'ok' : st === 'failed' ? 'warn' : 'info'}`} aria-hidden="true">{st === 'passed' ? '✓' : '2'}</span>
-          <div className="who"><span className="nm">Test and activate</span><span className="says">{says}</span></div>
+          {(st === 'passed' || st === 'failed' || !active) && <span className={`num ${st === 'passed' ? 'ok' : st === 'failed' ? 'warn' : 'info'}`} aria-hidden="true">{st === 'passed' ? '✓' : st === 'failed' ? '!' : '2'}</span>}
+          <div className="who"><h3 className="nm">{active ? 'Test' : 'Test and activate'}</h3><span className="says">{says}</span></div>
           {tag}
         </div>
         {body}
@@ -130,17 +131,19 @@ function Inputs({ t, rec, f, admin }: { t: J; rec: J; f: J; admin: boolean }) {
   );
   const btn = (k: string, l: string) => <button type="button" className="linkbtn" data-tf={k} disabled={!!f} onClick={() => openForm(p, k)}>{l}</button>;
   const go = <a className="lnk" href={`#teams/${p}/routines`}>Open Routines</a>;
-  const n = (a.users ?? []).length, after = draft ? ' (after the test)' : '';
+  // The old access.users list and the people marked Can start.
+  const n = new Set([...(a.users ?? []), ...(rec.people ?? []).filter((x: J) => x.start === true).map((x: J) => x.slack)]).size, after = draft ? ' (after the test)' : '';
+  const onTag = draft ? <Tag label="after the test" /> : <Tag label="on" tone="ok" />;
   const names = ch.map((id) => { const x = (chans ?? []).find((y: J) => y.id === id); return x ? `#${x.name}` : id; }).join(', ');
-  const slack: [string, ReactNode] = a.open ? ['Anyone the bot allows can tag @fxa-agent', <Tag label="on" tone="ok" />]
-    : n ? [`${n} ${n === 1 ? 'person' : 'people'} can start it${ch.length ? ` · watches ${names}` : ''}`, <Tag label="on" tone="ok" />]
+  const slack: [string, ReactNode] = a.open ? ['Anyone the bot allows can tag @fxa-agent', onTag]
+    : n ? [`${n} ${n === 1 ? 'person' : 'people'} can start it${ch.length ? ` · watches ${names}` : ''}`, onTag]
     : ch.length ? [`Nobody can start it from Slack · watches ${plural(ch.length, 'channel')}`, <Tag label="add people" tone="warn" />]
     : ['Nobody can start it from Slack', <Tag label="off" />];
   // The bot routes a key by the team's prefixes and its project, unless the team takes secret tickets.
   const keys = [...new Set([...(a.jira_prefixes ?? []), ...(j.project && !j.secret ? [j.project] : [])])];
   const cap = c.launches_per_day != null ? ` · at most ${c.launches_per_day} launches a day` : ' · at most 20 launches a day (default)';
   const login = secrets?.[rec.secrets?.jira] === 'present' ? 'present' : 'missing';
-  const jira: [string, ReactNode] = !j.project ? ['Not used', <Tag label="off" />] : !j.queue ? [`Off · project ${j.project}`, <Tag label="off" />]
+  const jira: [string, ReactNode] = !j.project ? ['Set a Jira project to take tickets from a queue', <Tag label="off" />] : !j.queue ? [`Off · project ${j.project}`, <Tag label="off" />]
     : [`${j.secret ? `Takes only ${j.project} secret tickets (a security level, or a security or hackerone label)` : `Takes ${j.project} tickets with the ai-fixme label, every 5 minutes on weekdays, hourly on weekends, 07:04 to 19:59 New York time`}${cap}`, <Tag label="on" tone="ok" />];
   // Routines and dependency PR fixes come from the routine summary (admins only); a dependency fix runs on pr-label.
   const rs: J[] | null = sum ? Object.values(sum.routines ?? {}).filter((x: J) => x.team === p) : null;
@@ -150,11 +153,11 @@ function Inputs({ t, rec, f, admin }: { t: J; rec: J; f: J; admin: boolean }) {
   return (
     <div className="stack sm">
       {row('access', 'Slack', slack[1], [slack[0] + (a.open || n ? after : ''), keys.length ? `A message with ${keys.map((k) => `${k}-123`).join(' or ')} picks this team` : ''], btn('access', 'Change'))}
-      {row('jira', 'Jira queue', jira[1], [jira[0], j.project ? `Jira login: ${rec.secrets?.jira ? login : "the bot's"}` : '', j.queue && j.usage === false ? 'The merged comment shows no time, tokens or cost' : '',
-        j.board ? `A merged ticket goes into the active sprint of board ${j.board}${j.sprint ? ` whose name matches ${j.sprint.trim()}` : ''}` : ''], btn('jira', j.project ? 'Change' : 'Set up'))}
+      {row('jira', 'Jira queue', jira[1], [jira[0], j.project ? `Jira login: ${rec.secrets?.jira ? login : 'the shared bot login'}` : '', j.queue && j.usage === false ? 'The merged comment shows no time, tokens or cost' : '',
+        j.board ? `A merged ticket goes into the active sprint of board ${j.board}${j.sprint ? ` whose name ${/^\^[\w ]+$/.test(j.sprint.trim()) ? `starts with ${j.sprint.trim().slice(1)}` : `matches ${j.sprint.trim()}`}` : ''}` : ''], btn('jira', j.project ? 'Change' : 'Set up'))}
       {rs && row('routines', 'Routines', on ? <Tag label="on" tone="ok" /> : <Tag label="off" />,
-        [sched.length ? `${[on || !held ? `${on} on a schedule` : '', held ? `${held} paused` : ''].filter(Boolean).join(', ')}${nx < Infinity ? ` · next run ${stamp(nx)}` : ''}` : 'None'], go)}
-      {rs && row('depfix', 'Dependency PRs', depOn ? <Tag label="on" tone="ok" /> : <Tag label="off" />, [depOn ? (depL.length ? depL.join('; ') : `${depOn} on`) : 'Off'], go)}
+        [sched.length ? `${[on || !held ? `${on} on a schedule` : '', held ? `${held} paused` : ''].filter(Boolean).join(', ')}${nx < Infinity ? ` · next run ${stamp(nx)}` : ''}` : 'Turns on when you add a routine'], go)}
+      {rs && row('depfix', 'Dependency PRs', depOn ? <Tag label="on" tone="ok" /> : <Tag label="off" />, [depOn ? (depL.length ? depL.join('; ') : `${depOn} on`) : 'Turns on from Routines'], go)}
     </div>
   );
 }
@@ -163,7 +166,7 @@ function More({ k, title, sub, children }: { k: string; title: string; sub: stri
   const open = useTs((s) => s.more.includes(k));
   return (
     <details className="card tmore-card" open={open} onToggle={(e) => { const o = (e.target as HTMLDetailsElement).open; if (o !== open) toggleMore(k, o); }}>
-      <summary><b>{title}</b> <span className="hint">· {sub}</span></summary>
+      <summary><h3 className="tsum">{title}</h3> <span className="hint">· {sub}</span></summary>
       <div className="stack sm tmore">{children}</div>
     </details>
   );
@@ -246,10 +249,10 @@ function Setup({ t }: { t: J }) {
   if (!R.ok || !R.rec) return <Card><p className="unknown">The record did not load: {R.msg || 'no answer'}</p><div className="row"><button type="button" onClick={() => void loadRecord(p)}>Load the record</button></div></Card>;
   const rec = R.rec, active = rec.status === 'active', fx = p === 'fxa', ro = (k: string) => fx && FXA_RO.includes(k);
   const cli = <span className="hint">The operator changes this with the CLI</span>;
-  const btn = (k: string, l: string, link = false) => (ro(k) ? cli : <button type="button" className={link ? 'linkbtn' : undefined} data-tf={k} disabled={!!f} onClick={() => openForm(p, k)}>{l}</button>);
+  const btn = (k: string, l: string, link = false) => (ro(k) ? cli : <button type="button" className={link ? 'linkbtn' : undefined} data-tf={k} disabled={!!f} title={f ? 'Close the open form first' : undefined} onClick={() => openForm(p, k)}>{l}</button>);
   const rowv = (k: string, l: string, v: ReactNode, b: string) => (
     <>
-      <div className="kv"><span>{l}</span><span>{v} · {btn(k, b, true)}</span></div>
+      <div className="kv"><span>{l}</span><span>{v}{ro(k) ? null : <> · {btn(k, b, true)}</>}</span></div>
       {f?.item === k && <ItemForm t={t} rec={rec} f={f} />}
     </>
   );
@@ -274,7 +277,7 @@ function Setup({ t }: { t: J }) {
                 {` · ${rec.stack?.kind === 'fxa' ? 'the FxA stack' : 'no FxA stack'}`}
               </span>
             </div>
-            {f?.item !== 'repos' && btn('repos', 'Edit')}
+            {f?.item !== 'repos' && btn('repos', 'Change', true)}
           </div>
           {rs.length > 1 && f?.item !== 'repos' && (
             <details className="trepos">
@@ -287,29 +290,39 @@ function Setup({ t }: { t: J }) {
         </div>
       </Card>
       <TestCard t={t} rec={rec} />
-      <Card flat>{rowv('goal', 'What it works on', fx ? "FxA's built-in goal" : goal ? `${goal.slice(0, 80)}${goal.length > 80 ? '…' : ''}` : 'not set', 'Edit')}</Card>
+      <Card flat>{rowv('goal', 'What it works on', fx ? "FxA's built-in goal" : goal ? `${goal.slice(0, 80)}${goal.length > 80 ? '…' : ''}` : 'not set', 'Change')}</Card>
       <Card>
         <div className="stack sm">
           <h3>How work reaches this team</h3>
           <p className="hint">The ways a session can start. Each one has its own rule.</p>
           <Inputs t={t} rec={rec} f={f} admin />
-          <p className="hint">{active ? '' : 'Every input stops while the team is not active. '}Every input counts against the spend cap below.</p>
+          <p className="hint">{active ? '' : 'Every input stops while the team is not active. '}{c.usd_per_day != null || c.usd_per_month != null ? 'Every input counts against the spend cap below.' : ''}</p>
         </div>
       </Card>
+      <People p={p} open={rec.access?.open === true} />
       <Card flat>
         <div className="stack sm">
           <h3>Budget</h3>
           {rowv('caps', 'Spend cap', [c.usd_per_day != null ? `${usd(c.usd_per_day)} a day` : '', c.usd_per_month != null ? `${usd(c.usd_per_month)} a month` : ''].filter(Boolean).join(', ') || 'No spend cap', 'Change')}
-          {c.runners != null && <p className="hint">At most {c.runners} runners at once.</p>}
+          <p className="hint">{c.runners != null ? `At most ${c.runners} runners at once.` : 'Runners at once: the bot default.'}</p>
         </div>
       </Card>
-      <More k="about" title="About the team" sub="name and PR rules">
+      <Card flat>
+        <div className="stack sm">
+          <h3>Pull requests</h3>
+          {rowv('pr', 'PR rules', prs.open === false ? 'Diffs only' : (
+            <span className="tlines">
+              <span>Draft PRs{fx ? ', reviewers fxa-devs (built in)' : (prs.reviewers ?? []).length ? `, reviewers ${prs.reviewers.join(', ')}` : ''}</span>
+              <span>{plural(rounds, 'automatic review round')}, {plural(prs.admin_review_rounds ?? 10, 'round')} for team admins, waits {prs.review_quiet_minutes ?? 15} min for a reviewer</span>
+              <span>Labels {['auto', ...(prs.labels ?? [])].join(', ')}{(prs.infra_checks ?? []).length ? ` · ${plural(prs.infra_checks.length, 'CI infra rule')}` : ''}</span>
+            </span>), 'Change')}
+        </div>
+      </Card>
+      <More k="about" title="About the team" sub="the name shown">
         {rowv('name', 'Name shown', rec.label || teamCap(p), 'Change')}
 
-        {rowv('pr', 'PR rules', prs.open === false ? 'Diffs only'
-          : `Draft PRs${fx ? ', reviewers fxa-devs (built in)' : (prs.reviewers ?? []).length ? `, reviewers ${prs.reviewers.join(', ')}` : ''}${(prs.infra_checks ?? []).length ? `, ${plural(prs.infra_checks.length, 'CI infra rule')}` : ''}${(prs.users ?? []).length ? `, opened from Slack by ${prs.users.length} ${prs.users.length === 1 ? 'person' : 'people'} and the admins` : ''}, labels ${['auto', ...(prs.labels ?? [])].join(', ')}, ${plural(rounds, 'automatic review round')}, ${plural(prs.admin_review_rounds ?? 10, 'round')} for team admins, waits ${prs.review_quiet_minutes ?? 15} min for a reviewer`, 'Change')}
       </More>
-      <More k="runs" title="How it runs" sub="a change needs a new test">
+      <More k="runs" title="How it runs" sub={fx ? 'the operator changes these with the CLI' : 'a change needs a new test'}>
         {rowv('tools', 'Tools', teamTools(rec.mcp), 'Change')}
         {rowv('skills', 'Skills', (rec.skills ?? []).length ? rec.skills.join(', ') : 'The base skills only', 'Change')}
         {rowv('runner', 'Runner', `${rec.stack?.kind === 'fxa' ? `FxA stack from ${rec.stack.repo ?? 'mozilla/fxa'}` : 'No stack'}, ${rec.runner?.backend === 'firecracker' ? 'Firecracker' : 'GCE VM'}${rec.runner?.android ? ', Android' : ''}`, 'Change')}
@@ -325,45 +338,62 @@ function Setup({ t }: { t: J }) {
   );
 }
 
-// The team's people: an email, the Slack user the server finds from it, and a GitHub username. That team's admins only.
-export function People({ p }: { p: string }) {
-  const P = useTs((s) => (s.ppl?.team === p ? s.ppl : null));
+// The team's people, one list: email, Slack user, GitHub username, and the roles admin, start and pr. That team's admins only.
+const ROLES: [string, string][] = [['admin', 'Team admin'], ['start', 'Can start'], ['pr', 'Can open PRs']];
+export function People({ p, open }: { p: string; open?: boolean }) {
+  const P = useTs((s) => (s.ppl?.team === p ? s.ppl : null)), names = useTs((s) => s.names);
+  const tb = useRef<HTMLTableSectionElement>(null);
   useEffect(() => {
     void loadPpl(p);
   }, [p]);
-  // Folded by default, like the other long sections: the list can hold hundreds of rows.
-  const sub = P ? `${P.rows.length} ${P.rows.length === 1 ? 'person' : 'people'}, ${P.rows.filter((r) => r.admin).length} team admins · email, Slack user, GitHub username` : 'loading…';
+  useEffect(() => {
+    if (P?.rows) loadNames(P.rows.map((r) => String(r.slack ?? '')).filter(Boolean));
+  }, [P?.rows]);
+  // A team open to everyone has no start list, so its column hides.
+  const roles = ROLES.filter(([k]) => !(open && k === 'start'));
+  const admins = P ? P.rows.filter((r) => r.admin).length : 0;
+  const sub = P ? `${P.rows.length} ${P.rows.length === 1 ? 'person' : 'people'}, ${plural(admins, 'team admin')}` : 'loading…';
   if (!P) return <More k="people" title="People" sub={sub}><p className="empty">loading…</p></More>;
-  const cell = (i: number, k: string, label: string, ph: string) => (
-    <input className={`input${k === 'email' ? ' mono' : ''}`} value={P.rows[i]?.[k] ?? ''} aria-label={`${label} of person ${i + 1}`} placeholder={ph}
-      onChange={(e) => editPpl((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: e.target.value, ...(k === 'email' ? { slack: undefined } : {}) } : r)))} />
-  );
+  const dirty = JSON.stringify(P.rows) !== P.base;
+  const loaded = new Set((JSON.parse(P.base) as J[]).map((r) => String(r.email ?? '')));
+  const setRow = (i: number, x: J) => editPpl((rs) => rs.map((r, j) => (j === i ? { ...r, ...x } : r)));
   return (
     <More k="people" title="People" sub={sub}>
       <div className="stack sm" data-people>
-        <p className="hint">Type an email and a GitHub username. Save finds the Slack user from the email. A team admin gets the team's alerts and every control in its Slack threads, and the pipeline counts their GitHub comments as an admin's.{P.canAdmin ? '' : ' Only a dashboard admin changes who is a team admin.'}</p>
+        <p className="hint">
+          Each role needs a Slack user. Save finds it from the email. The pipeline knows a team admin's GitHub comments by the GitHub username.
+          {open ? ' Everyone can start this team, so there is no start list.' : ''}{P.canAdmin ? '' : ' Only a dashboard admin changes the roles.'}
+        </p>
         {P.rows.length > 0 && (
-          <div className="tscroll">
-            <table className="ttable"><thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col">GitHub username</th><th scope="col">Team admin</th><th scope="col"><span className="vh">Remove</span></th></tr></thead>
-              <tbody>
-                {P.rows.map((r, i) => (
+          <table className="ttable tppl">
+            <thead><tr><th scope="col">Email</th><th scope="col">Slack user</th><th scope="col">GitHub username</th>{roles.map(([k, w]) => <th key={k} scope="col">{w}</th>)}<th scope="col"><span className="vh">Remove</span></th></tr></thead>
+            <tbody ref={tb}>
+              {P.rows.map((r, i) => {
+                const who = r.email || personLabel(names, String(r.slack ?? '')) || `person ${i + 1}`;
+                return (
                   <tr key={i}>
-                    <td>{cell(i, 'email', 'Email', 'name@example.com')}</td>
-                    <td>{r.slack ? <span className="mono">{r.slack}</span> : <span className="na">{r.email ? 'none' : 'after save'}</span>}</td>
-                    <td>{cell(i, 'github', 'GitHub username', 'login')}</td>
-                    <td><input type="checkbox" checked={!!r.admin} disabled={!P.canAdmin} aria-label={`Person ${i + 1} is a team admin`}
-                      onChange={(e) => editPpl((rs) => rs.map((x, j) => (j === i ? { ...x, admin: e.target.checked } : x)))} /></td>
-                    <td><button type="button" className="linkbtn" aria-label={`Remove person ${i + 1}`} onClick={() => editPpl((rs) => rs.filter((_, j) => j !== i))}>Remove</button></td>
+                    <td data-l="Email">{r.email || !r.slack
+                      ? <input className="input mono" value={r.email ?? ''} aria-label={`Email of ${who}`} placeholder="name@example.com" onChange={(e) => setRow(i, { email: e.target.value, slack: undefined })} />
+                      : <span className="na">no email</span>}</td>
+                    <td data-l="Slack user">{r.slack ? personLabel(names, r.slack) : <span className="na">{r.email && loaded.has(r.email) ? 'not found' : 'found on save'}</span>}</td>
+                    <td data-l="GitHub username"><input className="input" value={r.github ?? ''} aria-label={`GitHub username of ${who}`} placeholder="login" onChange={(e) => setRow(i, { github: e.target.value })} /></td>
+                    {roles.map(([k, w]) => (
+                      <td key={k} data-l={w}><label className="tcheck"><input type="checkbox" checked={!!r[k]} disabled={!P.canAdmin} onChange={(e) => setRow(i, { [k]: e.target.checked || undefined })} /><span className="vh">{w}: {who}</span></label></td>
+                    ))}
+                    <td><button type="button" className="linkbtn" aria-label={`Remove ${who}`} onClick={() => editPpl((rs) => rs.filter((_, j) => j !== i))}>Remove</button></td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         )}
         {!P.rows.length && P.ok && <p className="na">Nobody yet.</p>}
+        <SlackSearch target="ppl" have={P.rows.map((r) => String(r.slack ?? ''))}
+          onAdd={(x) => editPpl((rs) => (rs.some((r) => r.email && r.email === x.email) ? rs : [...rs, { email: x.email ?? '', slack: x.id, github: '' }]))} />
         <div className="row">
-          <button type="button" className="linkbtn" onClick={() => editPpl((rs) => [...rs, { email: '', github: '' }])}>Add a person</button>
-          <button type="button" disabled={P.busy} onClick={() => void savePpl()}>Save</button>
+          <button type="button" className="linkbtn" onClick={() => { editPpl((rs) => [...rs, { email: '', github: '' }]); setTimeout(() => tb.current?.querySelector<HTMLInputElement>('tr:last-child input')?.focus(), 0); }}>Add by email</button>
+          <button type="button" disabled={P.busy || !dirty} onClick={() => void savePpl()}>Save</button>
+          {dirty && <span className="hint">Not saved</span>}
         </div>
         <Said ok={P.ok} msg={P.msg} />
         {P.notes.length > 0 && <ul className="hint">{P.notes.map((n) => <li key={n.email}><span className="mono">{n.email}</span>: {n.why}</li>)}</ul>}
@@ -374,6 +404,5 @@ export function People({ p }: { p: string }) {
 
 export function Settings({ t }: { t: J }) {
   const admin = useApp((s) => s.viewer.admin), mine = useApp((s) => s.viewer.teams.includes(t.profile));
-  const main = t.access?.record && admin ? <Setup t={t} /> : <Info t={t} />;
-  return t.access?.record && (admin || mine) ? <>{main}<People p={t.profile} /></> : main;
+  return t.access?.record && admin ? <Setup t={t} /> : <Info t={t} people={!!t.access?.record && mine} />;
 }
