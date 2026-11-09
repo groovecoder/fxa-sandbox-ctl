@@ -25,7 +25,7 @@ Chat sessions do not have it; do not report that it is missing.
     pool slot, shared into the VM. `node_modules` is bind-mounted from a local
     copy.
 - **User:** `agent`. Sudo covers only `systemctl start|stop|restart|status`
-  for `mysql`, `redis-server`, `firestore-emulator` and `goaws`, plus
+  for `mysql`, `redis-server`, `firestore-emulator`, `goaws` and `syncserver`, plus
   `sudo tee /etc/hosts`. You need no sudo for `mysql -u root` or `redis-cli`.
 - **Network:** an allowlist. You can reach `api.anthropic.com`,
   `statsig.anthropic.com`, `registry.yarnpkg.com`, `registry.npmjs.org`,
@@ -152,11 +152,11 @@ to 2026-10-03, the longest 10% of sessions used half of all tokens.
 
 Before it ships anything, the host checks the change. It refuses when:
 
-- The change touches `.github/`, `.circleci/`, `.husky/`, `_scripts/`,
-  lint-staged config, `.yarnrc*`, `.yarn/`, `.npmrc`, or the `scripts`,
-  `lint-staged` or `husky` keys of any `package.json`. A dependency bump is
-  allowed. If the ticket really needs a tooling change, say so in the PR body;
-  the operator can relaunch with permission.
+- The change touches `.github/`, `.circleci/`, `.yarnrc*`, `.yarn/` or
+  `.npmrc`. If the ticket really needs one of these, say so once in the PR
+  body; the operator can relaunch with permission. Everything else ships,
+  `_scripts/`, `.husky/` and `package.json` scripts included: do not warn
+  about them.
 - `origin/main`'s `_scripts/check-frozen.ts` rejects a path. Read that file
   before you edit near a frozen path.
 - A conflict marker is left in a file.
@@ -268,7 +268,10 @@ fxa-start --stop     # stop the services and nginx
 
 The runner has no Docker, on purpose: the Docker daemon is root, and container
 traffic skips the egress firewall. Each service here is a native process. Do
-not install Docker, and do not ask for it.
+not install Docker, and do not ask for it. When the change is to a Dockerfile,
+a compose file or an image tag, verify the same service natively (below for
+Sync). Then say once, in the PR body's risk notes, what you could not run here.
+Do not repeat it in each reply.
 
 FxA's Sync server (syncstorage-rs, storage and token server) is in the image
 but does not run until you start it: `sudo systemctl start syncserver` (about

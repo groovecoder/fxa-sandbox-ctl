@@ -928,8 +928,9 @@ stack and its ports, and how to verify.
 What trips agents most often:
 - You cannot commit or push, and there is no `gh`. The host commits, signs and
   pushes your working tree. Revert a file with `git checkout -- <path>`.
-- The host refuses changes to CI and tooling files (`.github/`, `.circleci/`,
-  `.husky/`, `_scripts/`, `package.json` scripts) and to frozen paths.
+- The host refuses changes to CI and package-manager config (`.github/`,
+  `.circleci/`, `.yarnrc*`, `.yarn/`, `.npmrc`) and to frozen paths. Other
+  scripts, `_scripts/` and hooks ship. Do not warn about them.
 - The network is an allowlist (Anthropic, npm and yarn, PyPI, GitHub, Playwright).
   Any other host is refused.
 - Run only the tests for what you changed, never a whole suite: it can run the
