@@ -147,7 +147,7 @@ finish_wait_for_done() {
   fi
   echo "(Ctrl-C stops the watcher; the agent keeps running.)" >&2
 
-  local wt found
+  local wt found name="" seen=0
   while [ "$elapsed" -lt "$timeout" ]; do
     found=""
     if [ -n "$done_file" ]; then
@@ -162,6 +162,14 @@ finish_wait_for_done() {
           break
         fi
       done < <(_worktree_pool_list)
+    fi
+    # A stop hook can send the agent back to work, and it can take the handoff back: wait for the exit, up to 15 min.
+    if [ -n "$found" ]; then
+      name="$(_worktree_agent_for_workspace "$(dirname "$found")")"
+      if [ -n "$name" ] && agent_alive "$name" 2>/dev/null; then
+        [ "$seen" -gt 0 ] || { seen="$(date +%s)"; printf '\nHandoff written; waiting for the agent to exit... ' >&2; }
+        [ $(( $(date +%s) - seen )) -ge 900 ] || found=""
+      fi
     fi
     if [ -n "$found" ]; then
       echo "" >&2
