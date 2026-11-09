@@ -125,7 +125,23 @@ git read-tree "$(git -C "$tmp/r" rev-parse "${base}^{tree}")"; echo a2 > a.txt; 
 : > "$tmp/calls"
 err="$(REMOTE_SHA="$(git -C "$tmp/them" rev-parse HEAD)" github_app_commit "$tmp/r" fxa-2 "$base" "m" 2>&1 >/dev/null)"
 check "a clash is refused" "0" "$(grep -c '^PATCH' "$tmp/calls")"
-check "a clash says how to recover" "1" "$(grep -c 'conflict with this change.*!restart' <<< "$err")"
+check "a clash names the file and says how to recover, as the last ERROR line" "ERROR: someone else pushed to the PR branch, and their change conflicts with mine in a.txt. Reply !restart to start again from the PR's head." \
+  "$(grep '^ERROR' <<< "$err" | tail -1)"
+
+# A person rewrote the branch (a rebase or force push), so our old head is not under theirs: merge from where they meet.
+old="$(git commit-tree "$(git rev-parse "${base}^{tree}")" -p "$base" -m "bot's old head")"
+( cd "$tmp/them" && g checkout -q -B fxa-4 "$base" && echo e > e.txt && g add e.txt && g commit -qm rewrite && g push -qf origin fxa-4 )
+rw="$(git -C "$tmp/them" rev-parse HEAD)"; git update-ref refs/remotes/origin/fxa-4 "$old"
+: > "$tmp/calls"
+REMOTE_SHA="$rw" github_app_commit "$tmp/r" fxa-4 "$base" "m" >/dev/null 2>&1
+check "a rewritten branch is rebuilt on their commit, and the branch moves once" "$rw|1" \
+  "$(grep '^POST git/commits' "$tmp/calls" | tail -1 | cut -d' ' -f3- | jq -r '.parents | join(",")')|$(grep -c '^PATCH git/refs/heads/fxa-4' "$tmp/calls")"
+( cd "$tmp/them" && echo a9 > a.txt && g commit -qam "rewrite clash" && g push -qf origin fxa-4 )
+git update-ref refs/remotes/origin/fxa-4 "$old"; git read-tree "$(git rev-parse "${base}^{tree}")"; echo a2 > a.txt; git add a.txt
+: > "$tmp/calls"
+err="$(REMOTE_SHA="$(git -C "$tmp/them" rev-parse HEAD)" github_app_commit "$tmp/r" fxa-4 "$base" "m" 2>&1 >/dev/null)"
+check "a rewritten branch that clashes is refused, and the last ERROR line names the file" "0|1" \
+  "$(grep -c '^PATCH' "$tmp/calls")|$(grep '^ERROR' <<< "$err" | tail -1 | grep -c 'their change conflicts with mine in a.txt\.')"
 
 # Media goes to the bucket: references rewritten in place, the rest appended.
 eval "$(sed -n '/^media_mp4() {/,/^}/p; /^_finish_bucket_cp() {/,/^}/p; /^_finish_play_frame() {/,/^}/p; /^_finish_media_to_bucket() {/,/^}/p' "$here/finish.sh")"

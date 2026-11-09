@@ -888,18 +888,24 @@ _gh_ref_enc() { jq -rn --arg b "$1" '$b | split("/") | map(@uri) | join("/")'; }
 
 # _gh_app_rebuild <worktree> <branch> <expected_sha> <remote_sha>
 #   Three-way merge of the staged change with the commits pushed since <expected_sha>.
-#   Clean: the index holds the result. A clash or a rewritten branch returns 1.
+#   Clean: the index holds the result. Each failure prints its own ERROR line and returns 1.
 _gh_app_rebuild() {
-  local wt="$1" branch="$2" expect="$3" remote="$4" ours merged
-  _retry git -C "$wt" fetch -q origin "+refs/heads/${branch}:refs/remotes/origin/${branch}" || return 1
-  [ "$(git -C "$wt" rev-parse -q --verify "refs/remotes/origin/${branch}")" = "$remote" ] || return 1
-  git -C "$wt" merge-base --is-ancestor "$expect" "$remote" || return 1
-  ours="$(git -C "$wt" commit-tree "$(git -C "$wt" write-tree)" -p "$expect" -m ours)" || return 1
-  if ! merged="$(git -C "$wt" merge-tree --write-tree --merge-base="$expect" "$ours" "$remote" 2>/dev/null)"; then
-    echo "ERROR: someone pushed to ${branch}, and their commits conflict with this change. Reply !restart to start again from the PR's head." >&2
+  local wt="$1" branch="$2" expect="$3" remote="$4" ours merged mb="" files=""
+  _retry git -C "$wt" fetch -q origin "+refs/heads/${branch}:refs/remotes/origin/${branch}" 2>/dev/null \
+    || { echo "ERROR: someone else pushed to the PR branch, and I could not fetch it to build on it. Try again." >&2; return 1; }
+  [ "$(git -C "$wt" rev-parse -q --verify "refs/remotes/origin/${branch}")" = "$remote" ] \
+    || { echo "ERROR: someone else is pushing to the PR branch right now. Try again in a minute." >&2; return 1; }
+  # A rewritten branch (a rebase or force push) has no <expected_sha>: merge from where the two meet, so their commits stay.
+  mb="$(git -C "$wt" merge-base "$expect" "$remote" 2>/dev/null)" \
+    || { echo "ERROR: someone else replaced the PR branch with unrelated history, so I cannot build on it. Reply !restart to start again from the PR's head." >&2; return 1; }
+  ours="$(git -C "$wt" commit-tree "$(git -C "$wt" write-tree)" -p "$expect" -m ours)" || { echo "ERROR: could not rebuild this change on the PR branch." >&2; return 1; }
+  if ! merged="$(git -C "$wt" merge-tree --write-tree --name-only --no-messages --merge-base="$mb" "$ours" "$remote" 2>/dev/null)"; then
+    # The lines after the tree id, up to the first blank one, name the conflicted files.
+    files="$(sed -n '2,$p' <<< "$merged" | sed '/^$/,$d' | sort -u | head -5 | paste -sd, - | sed 's/,/, /g')"
+    echo "ERROR: someone else pushed to the PR branch, and their change conflicts with mine in ${files:-the same files}. Reply !restart to start again from the PR's head." >&2
     return 1
   fi
-  git -C "$wt" read-tree "${merged%%$'\n'*}" || return 1
+  git -C "$wt" read-tree "${merged%%$'\n'*}" || { echo "ERROR: could not rebuild this change on the PR branch." >&2; return 1; }
   echo "  ${branch} moved to ${remote:0:10}: rebuilt this change on top of it." >&2
 }
 
@@ -973,7 +979,9 @@ github_app_commit() {
     # A change already built on the remote head is a fast forward, even when our tracking ref is stale.
     if [ "$remote" != "$expect" ] && ! git -C "$wt" merge-base --is-ancestor "$remote" "$parent" 2>/dev/null; then
       # Someone pushed to the branch: rebuild this change on top of their commits, once.
-      if [ -n "$expect" ] && [ -z "$first" ] && [ -z "${_GH_APP_REBUILT:-}" ] && _gh_app_rebuild "$wt" "$branch" "$expect" "$remote"; then
+      # The rebuild's own ERROR line is the last one, so the thread shows it and not the line below.
+      if [ -n "$expect" ] && [ -z "$first" ] && [ -z "${_GH_APP_REBUILT:-}" ]; then
+        _gh_app_rebuild "$wt" "$branch" "$expect" "$remote" || return 1
         _GH_APP_REBUILT=1 github_app_commit "$wt" "$branch" "$remote" "$msg"; return
       fi
       echo "ERROR: origin/${branch} moved to ${remote:0:10} (expected ${expect:0:10}); refusing to overwrite it." >&2; return 1
