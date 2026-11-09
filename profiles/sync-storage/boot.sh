@@ -7,7 +7,7 @@
 set -uo pipefail
 S=/home/agent/syncstorage RH=/opt/rust/rustup CH=/opt/rust/cargo V=/home/agent/.syncstorage-venv IT=/home/agent/.syncstorage-it-venv
 CONF=/home/agent/.syncstorage.toml LOG=/home/agent/.syncstorage.log
-FEATURES="--no-default-features --features=syncstorage-db/mysql --features=py_verifier"
+FEATURES="--no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier"
 # CI's Spanner build. It shares target/ with the MySQL one: a second dir built the gRPC library
 # and the common crates again and filled the runner's disk.
 SPANNER_FEATURES="--no-default-features --features=syncserver/spanner --features=py_verifier --features=syncserver/last_seen"

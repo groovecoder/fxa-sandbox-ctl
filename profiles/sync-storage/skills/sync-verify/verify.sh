@@ -9,11 +9,15 @@ SK="$(cd "$(dirname "$0")" && pwd)" W="${SYNC_WORKSPACE:-/workspace}" PY="$HOME/
 R="$W"; [ -f "$W/Cargo.toml" ] || R="${SYNC_REPO:-/home/agent/syncstorage}"
 cd "$R" || exit 2
 export RUSTUP_HOME=/opt/rust/rustup PATH=/opt/rust/cargo/bin:$PATH
-F="--no-default-features --features=syncstorage-db/mysql --features=py_verifier"
+# Name the tokenserver backend too: a change that drops syncserver's default MySQL tokenserver still builds.
+F="--no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier"
 # CI's other two backends, in the same target dir: a second dir built the gRPC library and the
 # common crates again and filled the runner's disk.
 SF="--no-default-features --features=syncserver/spanner --features=py_verifier --features=syncserver/last_seen"
-PF="--no-default-features --features=syncstorage-db/postgres --features=py_verifier"
+PF="--no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier"
+# CI runs the Makefile's clippy targets, and a change can edit their flags: take them from the tree when it has them.
+mkf() { local f; f="$(make -s -n "$1" 2>/dev/null | grep -m1 -o -- '--no-default-features.*' | tr ' ' '\n' | grep -E '^--(no-default-features|features=)' | tr '\n' ' ')"; echo "${f:-$2}"; }
+F="$(mkf clippy_mysql "$F")" PF="$(mkf clippy_postgres "$PF")"
 run=0 plan="" ff=1
 while [ $# -gt 0 ]; do
   case "$1" in --run) run=1 ;; --plan) plan="${2:-}"; shift ;; --no-firefox) ff=0 ;;

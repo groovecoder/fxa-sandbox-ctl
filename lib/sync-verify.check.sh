@@ -42,8 +42,13 @@ git -C "$tmp/p" update-ref refs/remotes/origin/main HEAD
 echo x > "$tmp/p/syncstorage-mysql/src/batch_commit.sql"
 check "a MySQL .sql change runs the shared crate's tests, and its Spanner ones" "1|1" \
   "$(plan | grep -c $'test syncstorage-db\t')|$(plan | grep -c "unit tests (spanner).*'package(syncstorage-db)'")"
-check "the Postgres clippy row has CI's features (no tokenserver-db/postgres)" "1|0" \
-  "$(plan | grep -c '^  clippy postgres')|$(plan | grep -c 'tokenserver-db/postgres')"
+check "with no Makefile, each build names its tokenserver backend" "1|1" \
+  "$(plan | grep -c '^  clippy postgres.*tokenserver-db/postgres')|$(plan | grep -c $'^  build\t.*tokenserver-db/mysql')"
+# A change that edits the Makefile's clippy flags gets them: CI runs those targets.
+printf 'clippy_mysql:\n\tcargo clippy --workspace --no-default-features --features=m/x -- -D warnings\nclippy_postgres:\n\tcargo clippy --workspace --no-default-features --features=p/y -- -D warnings\n' > "$tmp/p/Makefile"
+check "the Makefile's clippy flags win" "1|1|0" \
+  "$(plan | grep -c '^  clippy postgres.*--features=p/y')|$(plan | grep -c $'^  build\t.*--features=m/x')|$(plan | grep -c 'tokenserver-db/')"
+rm -f "$tmp/p/Makefile"
 git -C "$tmp/p" checkout -q -- . 2>/dev/null; rm -f "$tmp/p/syncstorage-mysql/src/batch_commit.sql"; echo x > "$tmp/p/tools/integration_tests/test_x.py"
 check "a change only in the e2e tests runs both e2e rows" "1|1" \
   "$(plan | grep -c $'^  integration tests\t')|$(plan | grep -c 'integration tests (spanner, offload)')"
