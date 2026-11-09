@@ -536,6 +536,7 @@ EOF
     mv "$done_file" "${done_file}.$(date +%s)" 2>/dev/null || rm -f "$done_file"
   }
   # So `tail` starts fresh, and the last ticket's transcript is not recorded as this run.
+  worktree_archive_run_files "$worktree_path"
   telemetry_slot_reset "$worktree_path"
 
   # The /goal is capped, so it points at this file instead of embedding the context.

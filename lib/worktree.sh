@@ -147,6 +147,22 @@ _worktree_pull_if_remote() {
 $1 ${now}"
 }
 
+# worktree_archive_run_files <slot>   Move the last run's output files out of a slot before a launch, into
+#   $LOG_DIR/scratch/<slot>-<epoch>. The host reads them (blocked reason, verdict, transcript), so a stale one
+#   speaks for the new run. Moved, not deleted: a run with no transcript archive has its only log here.
+worktree_archive_run_files() {
+  local f d="${LOG_DIR}/scratch/$(basename "$1")-$(date +%s)" moved=""
+  for f in .fxa-auto-blocked.txt .fxa-auto-done.json.held .fxa-verify-runs.jsonl .fxa-verify-verdict.txt \
+    .fxa-auto-claude.jsonl .fxa-auto-session.jsonl .fxa-auto-claude.log; do
+    [ -e "$1/$f" ] || [ -L "$1/$f" ] || continue
+    mkdir -p "$d" && mv -f "$1/$f" "$d/" && moved="${moved} ${f}"
+  done
+  [ -z "$moved" ] || echo "Moved the last run's files to ${d}:${moved}" >&2
+  # ponytail: keeps the newest 30 runs; a size cap if transcripts grow large.
+  ls -1dt "${LOG_DIR}/scratch/"*/ 2>/dev/null | tail -n +31 | while IFS= read -r f; do rm -rf "$f"; done
+  return 0
+}
+
 # worktree_filtered_status <path>
 #   `git status --porcelain` without our own files: .fxa-* (orchestration and
 #   agent scratch, once committed by finish), ai/, .claude/, newKey.json, and
