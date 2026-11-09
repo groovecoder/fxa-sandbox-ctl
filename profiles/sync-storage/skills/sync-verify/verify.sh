@@ -56,7 +56,8 @@ TESTENV="SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sync:test@127.0.0.1:3306/syncsto
 # row there would pass with none. The runner has no Postgres server, so Postgres tests are CI only.
 for c in $crates; do case "$c" in
   *spanner*|*postgres*) ;;
-  *) row "test $c" "$TESTENV cargo nextest run --workspace --color never -E 'package($c)'" ;;
+  # nextest exits 4 when a crate has no tests (tokenserver-mysql's live in tokenserver-db): a SKIP, not a missing tool.
+  *) row "test $c" "$TESTENV cargo nextest run --workspace --color never -E 'package($c)'; r=\$?; [ \$r = 4 ] && { echo 'no tests in $c'; exit 3; }; exit \$r" ;;
 esac; done
 for c in $crates; do case "$c" in *postgres*) row "test $c" "echo 'the runner has no Postgres server; CI runs $c tests'; exit 3" ;; esac; done
 if [ "$server" = 1 ] || [ -n "$plan" ]; then

@@ -52,6 +52,16 @@ rm -f "$tmp/p/Makefile"
 git -C "$tmp/p" checkout -q -- . 2>/dev/null; rm -f "$tmp/p/syncstorage-mysql/src/batch_commit.sql"; echo x > "$tmp/p/tools/integration_tests/test_x.py"
 check "a change only in the e2e tests runs both e2e rows" "1|1" \
   "$(plan | grep -c $'^  integration tests\t')|$(plan | grep -c 'integration tests (spanner, offload)')"
+# A changed crate with no tests: nextest exits 4, which is a SKIP, not a missing tool (no ENV line).
+mkdir -p "$tmp/q/tokenserver-mysql/src" "$tmp/qb"; git -C "$tmp/q" init -q; touch "$tmp/q/Cargo.toml"
+printf 'name = "tokenserver-mysql"\n' > "$tmp/q/tokenserver-mysql/Cargo.toml"
+git -C "$tmp/q" add -A; git -C "$tmp/q" -c user.name=t -c user.email=t@example.com commit -q -m x; git -C "$tmp/q" update-ref refs/remotes/origin/main HEAD
+echo x > "$tmp/q/tokenserver-mysql/src/lib.rs"
+printf '#!/bin/sh\n[ "$1" = nextest ] && case "$*" in *tokenserver-mysql*) echo "error: no tests to run"; exit 4;; esac\nexit 0\n' > "$tmp/qb/cargo"; chmod +x "$tmp/qb/cargo"
+# The row's own command, as the run loop runs it: exit 3 is a SKIP, exit 4 an ENV gap.
+c="$( (cd "$tmp/q" && git add -A && PATH="$tmp/qb:$PATH" SYNC_WORKSPACE="$tmp/q" HOME="$tmp" bash "$v" 2>/dev/null) | sed -n $'s/^  test tokenserver-mysql\t//p')"
+(cd "$tmp/q" && PATH="$tmp/qb:$PATH" bash -c "$c" >/dev/null 2>&1); rc=$?
+check "a crate with no tests is SKIP (exit 3), not an ENV gap (exit 4)" "3" "$rc"
 # spanner.sh unit under 4 GB free: SKIP (exit 3) before it starts anything or builds.
 s="$(dirname "$v")/spanner.sh"; mkdir -p "$tmp/sb"
 printf '#!/bin/sh\necho "Filesystem 1024-blocks Used Available Capacity Mounted"\necho "/dev/root 61000000 59000000 2000000 97%% /"\n' > "$tmp/sb/df"
