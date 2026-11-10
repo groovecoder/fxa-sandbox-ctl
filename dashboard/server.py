@@ -347,23 +347,34 @@ def pr_info(repo, num, now, budget):
     return title, state
 
 
-def recent_runs(rows, snap, now, limit, days, state_dir, sess_dir, hide, admin=False, ended=False, src_only=None):
-    """The newest runs of the stats feed's rows, with a title and an outcome each.
-    Titles and PR numbers come from the snapshot; a secured ticket shows no title or PR; hide(team) drops a run.
-    ended: only pipeline and Slack runs that ended, newest end first (the Sandboxes page's Recently completed).
-    src_only: pipeline, slack or routine (a Slack run of a routine), applied before the limit."""
-    titles, prs = {}, {}
+def snap_titles(snap):
+    """Each ticket's title in a pipeline snapshot, by key."""
+    titles = {}
     for k in ("blocked", "inflight", "review", "open_prs", "merged_prs"):
         for i in (snap or {}).get(k) or []:
             if isinstance(i, dict) and i.get("key"):
                 titles.setdefault(i["key"], i.get("summary") or i.get("title"))
-                n = i.get("number") or i.get("pr")
-                if n:
-                    prs.setdefault(i["key"], (n, "merged" if k == "merged_prs" else "open"))
     for v in ((snap or {}).get("queue") or {}).values():
         for i in v if isinstance(v, list) else []:
             if isinstance(i, dict) and i.get("key"):
                 titles.setdefault(i["key"], i.get("summary"))
+    return titles
+
+
+def recent_runs(rows, snap, now, limit, days, state_dir, sess_dir, hide, admin=False, ended=False, src_only=None, team_snaps=None):
+    """The newest runs of the stats feed's rows, with a title and an outcome each.
+    Titles and PR numbers come from the snapshot; a secured ticket shows no title or PR; hide(team) drops a run.
+    ended: only pipeline and Slack runs that ended, newest end first (the Sandboxes page's Recently completed).
+    src_only: pipeline, slack or routine (a Slack run of a routine), applied before the limit.
+    team_snaps: each other pipeline team's snapshot; a team's run takes its title only from its own team's."""
+    titles, prs = snap_titles(snap), {}
+    for k in ("blocked", "inflight", "review", "open_prs", "merged_prs"):
+        for i in (snap or {}).get(k) or []:
+            if isinstance(i, dict) and i.get("key"):
+                n = i.get("number") or i.get("pr")
+                if n:
+                    prs.setdefault(i["key"], (n, "merged" if k == "merged_prs" else "open"))
+    team_titles = {t: snap_titles(s) for t, s in (team_snaps or {}).items()}
     repo = (snap or {}).get("repo") or "mozilla/fxa"
     since = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now - days * 86400))
     def end_of(r):
@@ -387,7 +398,8 @@ def recent_runs(rows, snap, now, limit, days, state_dir, sess_dir, hide, admin=F
         num = state = None
         routine, fix = False, {}
         if src == "pipeline":
-            title = titles.get(key) or key
+            # Another team's run: a run with no PR has no PR title, so its team's snapshot names it.
+            title = (titles if team == "fxa" else team_titles.get(team) or {}).get(key) or key
             if r.get("pr") and key in prs:
                 num, state = prs[key]
             elif r.get("pr") and r.get("prn"):
@@ -1749,7 +1761,8 @@ class Handler(BaseHTTPRequestHandler):
             admin = signed_user(self.headers, "GET", path, read_hmac_key(), int(time.time())) in team_admins()
             runs = recent_runs(rows, FULL.read()[0], int(time.time()), min(int(lim), 100) if lim.isdigit() and int(lim) else 20,
                                min(int(days), 90) if days.isdigit() and int(days) else 7, os.path.dirname(ERRORS_FILE), str(SESSION_DIR),
-                               lambda t: not admin and team_private(t), admin, ended, src if src in ("pipeline", "slack", "routine") else None)
+                               lambda t: not admin and team_private(t), admin, ended, src if src in ("pipeline", "slack", "routine") else None,
+                               {t: f.read()[0] for t, f in list(TEAM_FEEDS.items())})
             self._json(200, {"runs": runs, "error": None if rows is not None else "stats unavailable"})
         elif path == "/api/live":
             self._live(arg("since"))

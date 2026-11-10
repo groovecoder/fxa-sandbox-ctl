@@ -94,6 +94,11 @@ server.subprocess.run = real_run
 import os; os.makedirs(t + "/teams-state/sync-storage", exist_ok=True); open(t + "/teams-state/sync-storage/STOR-460.secured-noted", "w").close()
 server.STATE_ROOT = t + "/teams-state"
 check("another team's secured ticket shows no title and no PR, from its own state folder", ("Secured ticket", None), (lambda x: (x["title"], x["pr_number"]))(sr()))
+# A team's run with no PR: its own team's snapshot names it, and another team's snapshot does not.
+nopr = [{"at": iso(105), "src": "pipeline", "key": "STOR-776", "end": int(now - 15), "kind": "fix", "usd": 1, "min": 5, "pr": False, "profile": "sync-storage"}]
+tr = lambda snaps: server.recent_runs(nopr, snap, int(now), 20, 7, t + "/state", t + "/sess", lambda team: False, True, False, None, snaps)[0]["title"]
+check("a team's run with no PR takes its title from its team's snapshot", "Use the postgres tokenserver", tr({"sync-storage": {"inflight": [{"key": "STOR-776", "summary": "Use the postgres tokenserver"}]}}))
+check("another team's snapshot does not name it", "STOR-776", tr({"fxa-private": {"inflight": [{"key": "STOR-776", "summary": "Secret words"}]}}))
 server.STATS.data = None
 check("no stats feed: empty with an error", ([], "stats unavailable"), (lambda x: (x["runs"], x["error"]))(get("/api/runs/recent")))
 sys.exit(fail)
