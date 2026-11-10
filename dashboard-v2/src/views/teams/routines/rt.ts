@@ -17,7 +17,12 @@ export const RT_MODES: [string, string, string][] = [
   ['pr', 'Draft PR', 'Opens a draft PR with the fixes. Nothing merges by itself.'],
   ['pr+notes', 'Draft PR with notes', 'The draft PR, plus every finding it did not fix, in the PR description.'],
 ];
-export const RT_FIELDS = ['template', 'name', 'prompt', 'schedule', 'zone', 'repos', 'branch', 'watch', 'channel', 'mode', 'draft', 'max_usd', 'skip_no_commits', 'pr_repo', 'pr_authors', 'pr_label', 'pr_mention', 'pr'];
+export const RT_FIELDS = ['template', 'name', 'prompt', 'schedule', 'zone', 'repos', 'branch', 'watch', 'channel', 'mode', 'draft', 'max_usd', 'model', 'effort', 'skip_no_commits', 'pr_repo', 'pr_authors', 'pr_label', 'pr_mention', 'pr'];
+// As lib/routine.py MODELS and EFFORTS; '' is the host's default.
+export const RT_MODELS: [string, string][] = [['', 'Default (Opus 5.5)'], ['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-haiku-5-5', 'Haiku 5.5']];
+export const RT_EFFORTS: [string, string][] = [['', 'Default'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max']];
+// The model and effort of a routine, set only when picked.
+const own = (d: J): J => ({ ...(d.model ? { model: d.model } : {}), ...(d.effort ? { effort: d.effort } : {}) });
 export const RT_ZONES: [string, string][] = [
   ['America/New_York', 'Eastern'], ['America/Chicago', 'Central'], ['America/Denver', 'Mountain'], ['America/Los_Angeles', 'Pacific'],
   ['UTC', 'UTC'], ['Europe/London', 'UK'], ['Europe/Berlin', 'Central Europe'], ['Asia/Kolkata', 'India'], ['Asia/Tokyo', 'Japan'], ['Australia/Sydney', 'Sydney'],
@@ -55,11 +60,11 @@ export function rtRoutine(d: J): J {
     // An edit keeps the pr fields the form does not show (blender_login, sweep_min).
     const pr: J = { ...(d.pr ?? {}), repo: d.pr_repo, authors: String(d.pr_authors).split(/[\s,]+/).filter(Boolean), label: String(d.pr_label).trim() || 'agent-help' };
     if (String(d.pr_mention ?? '').trim()) pr.blender_mention = String(d.pr_mention).trim(); else delete pr.blender_mention;
-    return { on: 'pr-label', template: 'blank', name: d.name, repos: d.pr_repo ? [d.pr_repo] : [], channel: String(d.channel).trim(), mode: 'pr', max_usd: Number(d.max_usd), pr, ...(d.env ? { env: d.env } : {}) };
+    return { on: 'pr-label', template: 'blank', name: d.name, repos: d.pr_repo ? [d.pr_repo] : [], channel: String(d.channel).trim(), mode: 'pr', max_usd: Number(d.max_usd), pr, ...own(d), ...(d.env ? { env: d.env } : {}) };
   }
   const r: J = {
     template: d.template, name: d.name, prompt: d.prompt, schedule: d.kind === 'weekly' ? `weekly ${d.day} ${d.time}` : `${d.kind} ${d.time}`,
-    zone: d.zone, repos: d.repos, channel: String(d.channel).trim(), mode: d.mode, draft: d.draft !== false, max_usd: Number(d.max_usd), skip_no_commits: !!d.skip_no_commits,
+    zone: d.zone, repos: d.repos, channel: String(d.channel).trim(), mode: d.mode, draft: d.draft !== false, max_usd: Number(d.max_usd), skip_no_commits: !!d.skip_no_commits, ...own(d),
   };
   if (String(d.branch).trim() && d.repos.length === 1) r.branch = String(d.branch).trim();
   if (d.watch && !d.repos.includes(d.watch)) r.watch = d.watch;

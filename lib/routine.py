@@ -37,7 +37,10 @@ TEMPLATES = ("code-review", "ux-review", "perf-review", "security-review", "blan
 MODES = ("report", "pr", "pr+notes")
 DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 KEYS = {"name", "template", "prompt", "schedule", "zone", "repos", "branch", "channel", "mode", "max_usd",
-        "skip_no_commits", "env", "on", "pr", "draft", "watch"}
+        "skip_no_commits", "env", "on", "pr", "draft", "watch", "model", "effort"}
+# Unset: the host's model (Opus) and the CLI's default effort. The models are the ones the LLM proxy prices.
+MODELS = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
 # on='pr-label': the run starts when a dependency PR asks for help, not on a schedule (the pr block).
 PR_KEYS = {"repo", "authors", "label", "blender_login", "blender_mention", "sweep_min"}
 SLUG = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -284,6 +287,11 @@ def check(r, team, profile, index, env, count):
         bad.append("draft: must be true or false")
     if r.get("env", "live") not in ("live", "dev"):
         bad.append("env: must be live or dev")
+    for k, ok in (("model", MODELS), ("effort", EFFORTS)):
+        if r.get(k) in (None, ""):
+            r.pop(k, None)
+        elif r[k] not in ok:
+            bad.append(f"{k}: must be one of {', '.join(ok)}")
     if count >= MOST:
         bad.append(f"routine: A team has at most {MOST} routines")
     r.setdefault("template", "blank")

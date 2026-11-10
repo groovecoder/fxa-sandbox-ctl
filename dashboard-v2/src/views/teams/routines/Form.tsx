@@ -7,7 +7,7 @@ import type { Ctl } from './index';
 import { Choices } from './List';
 import { Field, INPUT, Opt, bad } from './parts';
 import {
-  RT_DAY_NAMES, RT_DAYS, RT_LIMIT, RT_MODES, RT_PROMPT_MAX, RT_ZONES, rtChName, rtCostHint, rtNextText, rtRoutine, rtSched, rtZoneName, textSize,
+  RT_DAY_NAMES, RT_DAYS, RT_EFFORTS, RT_LIMIT, RT_MODELS, RT_MODES, RT_PROMPT_MAX, RT_ZONES, rtChName, rtCostHint, rtNextText, rtRoutine, rtSched, rtZoneName, textSize,
 } from './rt';
 
 const H2 = ({ children }: { children: ReactNode }) => <h2 className="m-0 mb-s3 text-heading">{children}</h2>;
@@ -195,6 +195,14 @@ export function Form({ c }: { c: Ctl }) {
             </>}
             <Channel c={c} d={d} e={e} set={set} setF={setF} paste={!!f.chPaste} />
             {usdField}
+            <div className="grid gap-s3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+              <Field id="rt-model" label={<>Model <Opt /></>} err={e.model}>
+                <select {...inp('model')} className={INPUT}>{RT_MODELS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+              </Field>
+              <Field id="rt-effort" label={<>Effort <Opt /></>} err={e.effort}>
+                <select {...inp('effort')} className={INPUT}>{RT_EFFORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+              </Field>
+            </div>
           </div></Card>
         </div>
         <aside className="flex flex-col gap-s4">

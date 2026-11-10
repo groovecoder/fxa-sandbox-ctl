@@ -49,6 +49,9 @@ check "a security review in pr mode" "mode: A security review only reports; it n
 check "a ninth routine" "routine: A team has at most 8 routines" "$(v secret priv.json '{}' 8)"
 check "a zone that is not a zone, not a silent UTC" "zone: 'Mars/Base' is not a time zone, such as America/New_York" "$(v secret priv.json '{"zone":"Mars/Base"}')"
 check "a cost limit over the ceiling" "max_usd: The cost limit must be more than 0 and at most 50 USD" "$(v secret priv.json '{"max_usd":500}')"
+check "a model off the list" "model: must be one of claude-opus-5-5, claude-sonnet-5-5, claude-haiku-5-5" "$(v secret priv.json '{"model":"gpt-6-astra"}')"
+check "an effort off the list" "effort: must be one of low, medium, high, xhigh, max" "$(v secret priv.json '{"effort":"huge"}')"
+check "a model and an effort on the list" "ok" "$(v secret priv.json '{"model":"claude-haiku-5-5","effort":"xhigh"}')"
 check "a repo the team does not have" "repos: Repo mozilla/x is not one of this team's repos" "$(v secret priv.json '{"repos":["mozilla/x"]}')"
 echo '{"profile":"second","read_only":false,"private":false,"repos":[{"slug":"mozilla/two","role":"work"}]}' > "$tmp/open.json"
 check "a security review on a record team, on a channel it does not bind" "channel: A security review posts only to one of this team's channels" \

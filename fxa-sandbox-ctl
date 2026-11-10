@@ -2510,7 +2510,8 @@ cmd_task() {
     '{key: $key, owner: $owner, source: $source, branch: $key, base: $base, profile: $profile,
       state: "starting", turns: "1", created: now, last_activity: now} + (if $env != "" then {env: $env} else {} end)
      + (if $cfg == null then {} else {routine_run: $run, routine_name: $cfg.name, routine_mode: $cfg.mode, routine_draft: ($cfg.draft != false | tostring), untrusted: "1", cap_usd: ($cfg.max_usd // 10),
-          base: ($cfg.branch // $base)} + (if $cfg.template == "security-review" then {watch_narrow: "1", memory: "off"} else {} end) end)
+          base: ($cfg.branch // $base)} + (if $cfg.template == "security-review" then {watch_narrow: "1", memory: "off"} else {} end)
+          + (if ($cfg.model // "") != "" then {agent_model: $cfg.model} else {} end) + (if ($cfg.effort // "") != "" then {agent_effort: $cfg.effort} else {} end) end)
      + (if $fix == null then {} else {watch_narrow: "1", memory: "off", fix_pr: ($fix.pr | tostring), fix_trigger: $run_trigger, fix_actor: $run_actor,
           fix_head_sha: $fix.head_sha} end)' > "$(_session_file "$key")"
   _session_unlock .task-cap
@@ -2583,6 +2584,10 @@ _cmd_session_boot() {
   fixh="$(session_get "$key" fix_head_sha)"
   [ -z "$fixh" ] || [ -n "${FXA_LLM_PROXY_URL:-}" ] || { echo "ERROR: a fix run needs the LLM proxy" >&2; session_set "$key" state failed; return 1; }
   FXA_AGENT_RUNTIME="$(session_get "$key" runtime)"; FXA_AGENT_RUNTIME="${FXA_AGENT_RUNTIME:-claude}"
+  # A routine's own model and effort (the validator checked them); unset keeps the host's.
+  local own=""
+  own="$(session_get "$key" agent_model)"; [ -z "$own" ] || export FXA_AGENT_MODEL="$own"
+  own="$(session_get "$key" agent_effort)"; [ -z "$own" ] || export FXA_AGENT_EFFORT="$own"
   export FXA_SESSION_MODE=1 # Codex: stream JSON events into the transcript
   export _FXA_SESSION_MCP="$(session_get "$key" mcp)" # a session's own; a fix run's are CI only
   # A fix run reads only its work repos, as a pipeline run does.

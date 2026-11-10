@@ -168,12 +168,28 @@ boot() { # boot <key>   _cmd_session_boot with stubs; agent_run records its pins
     _session_pack_media() { :; }; worktree_copy_secrets() { echo copied > "$tmp/secrets"; }; _session_ticket_context() { echo "TICKET" >> "$tmp/booted"; }
     circleci_digests() { printf '%s\n' "$1" > "$tmp/ci-in"; printf '\n## CircleCI digest\nFailed: token fxl_ABCDEFGHabcdefgh12345678abcdefgh in the log\n'; }; _session_review() { echo "REVIEW-TEXT"; }; check_prerequisites() { :; }; _session_first_prompt() { echo FIRST; }
     _session_prompt_tail() { :; }; _session_wants_stack() { return 1; }; _session_boot_times() { echo null; }; agent_stop() { :; }
-    agent_run() { printf 'pin %s %s\n%s\n' "$FXA_PIN_SHA" "$FXA_PIN_BASE_SHA" "$3" >> "$tmp/booted"; }
+    agent_run() { printf 'pin %s %s\nmodel %s %s\n%s\n' "$FXA_PIN_SHA" "$FXA_PIN_BASE_SHA" "${FXA_AGENT_MODEL:-}" "${FXA_AGENT_EFFORT:-}" "$3" >> "$tmp/booted"; }
     _cmd_session_boot "$1" ) >/dev/null 2>&1
 }
 FXA_LLM_PROXY_URL=http://10.0.0.2:8080 boot agent-fx02
 check "the boot pins the claimed head as sha and base, copies no secret file, and goes active" "pin $PA $PA||active" \
   "$(grep '^pin' "$tmp/booted")|$(cat "$tmp/secrets")|$(session_get agent-fx02 state)"
+# A routine's model and effort: the session record, the boot's env, and each later turn's launch.
+# TURN_DIR, not $tmp: _session_turn has its own local tmp, which the stub would see.
+TURN_DIR="$tmp/turn"
+turn() { rm -rf "$TURN_DIR"; session_set "$1" claude_session_id 11111111-2222-3333-4444-555555555555
+  ( worktree_branch_for() { echo n; }; _claude_auth_line() { echo T; }; circleci_digests() { :; }; trees_session_flags() { :; }
+    vm_exec() { mkdir -p "$TURN_DIR" && tar -xf - -C "$TURN_DIR"; }; _MCP_LAUNCH_SNIPPET="" _MCP_CLAUDE_FLAGS="" _CLAUDE_TOOLS_FLAG=""
+    FXA_AGENT_MODEL="" FXA_AGENT_EFFORT="" _session_turn "$1" hi quiet ) >/dev/null 2>&1
+  grep -oE -- '--model [^ ]+( --effort [^ ]+)?' "$TURN_DIR/.fxa-steer.sh"; }
+f4="$(fixrun)"; db_exec "UPDATE routine_runs SET config = json_set(config, '$.model', 'claude-sonnet-5-5', '$.effort', 'low') WHERE id = $f4;"
+FXA_LLM_PROXY_URL=http://10.0.0.2:8080 ftask agent-fx04 "$f4" >/dev/null 2>&1
+FXA_AGENT_MODEL="" FXA_AGENT_EFFORT="" FXA_LLM_PROXY_URL=http://10.0.0.2:8080 boot agent-fx04
+check "a routine's model and effort reach the session record, the boot's env and a later turn" \
+  "claude-sonnet-5-5|low|model claude-sonnet-5-5 low|--model claude-sonnet-5-5 --effort low" \
+  "$(jq -r '[.agent_model, .agent_effort] | join("|")' "$tmp/agent-fx04.json")|$(grep '^model' "$tmp/booted")|$(turn agent-fx04)"
+check "a routine with no model keeps the host's: no session key, and Opus with no effort on a later turn" \
+  "|--model claude-opus-5-5" "$(jq -r '.agent_model // ""' "$tmp/agent-fx02.json")|$(turn agent-fx02)"
 f3="$(fixrun)"; FXA_LLM_PROXY_URL=http://10.0.0.2:8080 ftask agent-fx03 "$f3" >/dev/null 2>&1
 jq '.headRefOid = "3333333333333333333333333333333333333333"' "$tmp/fx/pr/90001.json" > "$tmp/x" && mv "$tmp/x" "$tmp/fx/pr/90001.json"
 FXA_LLM_PROXY_URL=http://10.0.0.2:8080 boot agent-fx03

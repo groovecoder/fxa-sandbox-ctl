@@ -621,6 +621,10 @@ codex exec resume ${sid} --json --dangerously-bypass-approvals-and-sandbox --ski
 STEER
     else
     local trees; trees="$(trees_session_flags "$key")"
+    # The boot's model and effort: a change on a later turn invalidates the prompt cache.
+    local model="" effort=""
+    model="$(session_get "$key" agent_model)"; model="${model:-${FXA_AGENT_MODEL:-claude-opus-5-5}}"
+    effort="$(session_get "$key" agent_effort)"; effort="${effort:-${FXA_AGENT_EFFORT:-}}"
     # "--": a message that starts with a dash is text, not a flag.
     cat > "${tmp}/.fxa-steer.sh" <<STEER
 export HOME=/home/agent # claude finds the session to resume under \$HOME/.claude
@@ -631,7 +635,7 @@ cd /workspace
 ${trees:+export CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1}
 : > /workspace/.fxa-auto-stream.jsonl
 claude -p --resume ${sid} --permission-mode bypassPermissions${_CLAUDE_TOOLS_FLAG}${_MCP_CLAUDE_FLAGS}${trees} \\
-  --model ${FXA_AGENT_MODEL:-claude-opus-5-5} --output-format stream-json --verbose${_SESSION_CLAUDE_PARTIAL} -- "\$(cat /workspace/.fxa-steer-msg.txt)" 2>&1 \\
+  --model ${model}${effort:+ --effort ${effort}} --output-format stream-json --verbose${_SESSION_CLAUDE_PARTIAL} -- "\$(cat /workspace/.fxa-steer-msg.txt)" 2>&1 \\
   | ${out}
 STEER
     fi

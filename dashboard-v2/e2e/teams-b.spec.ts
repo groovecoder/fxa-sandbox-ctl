@@ -59,6 +59,18 @@ test.describe('routines: links, list and create (page-fixture-routines)', () => 
       if (then) expect(sent[1]!.url).toBe('/api/teams/example/routines/7/run');
     });
   }
+  test('Create posts the picked model and effort', async ({ page }) => {
+    const sent = await open(page, '#teams/example/routines', F, () => ({ body: { out: 'created routine 7' } }));
+    await page.locator('[data-rt-new]').click();
+    await page.locator('[data-rt-tpl="code-review"]').click();
+    await page.locator('#rt-name').fill('Cheap review');
+    await page.locator('#rt-model').selectOption('claude-sonnet-5-5');
+    await page.locator('#rt-effort').selectOption('low');
+
+    await page.locator('[data-rt-save]:not([data-rt-then])').click();
+    await expect.poll(() => sent.length).toBe(1);
+    expect(sent[0]!.body.routine).toMatchObject({ model: 'claude-sonnet-5-5', effort: 'low' });
+  });
 });
 
 test.describe('routines: a dependency PR routine (page-fixture-depfix-routine)', () => {

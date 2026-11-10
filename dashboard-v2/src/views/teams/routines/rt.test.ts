@@ -66,6 +66,13 @@ describe('the draft and the routine', () => {
     expect(rt.rtRoutine(d).pr).toEqual({ repo: 'example/app', authors: ['dependabot[bot]'], label: 'agent-help', blender_login: 'example-blender[bot]', sweep_min: 5 });
   });
   it('rtDraft with no routine equals v1', () => expect(rt.rtDraft()).toEqual(v1.rtDraft()));
+  it('an edit keeps the model and effort on both branches, and an empty pick sends neither', () => {
+    for (const r of [routines[0], routines[2]]) {
+      expect(rt.rtRoutine(rt.rtDraft({ ...r, model: 'claude-sonnet-5-5', effort: 'low' }))).toMatchObject({ model: 'claude-sonnet-5-5', effort: 'low' });
+      const out = rt.rtRoutine({ ...rt.rtDraft(r), model: '', effort: '' });
+      expect('model' in out || 'effort' in out).toBe(false);
+    }
+  });
   it('an edit keeps the watch repo, as v1 does, and drops one that is also a routine repo', () => {
     const r = { ...sched, name: 'W', prompt: 'p', repos: ['a/docs'], watch: 'a/app', max_usd: 5, skip_no_commits: true, mode: 'pr' };
     expect(rt.rtRoutine(rt.rtDraft(r)).watch).toBe('a/app');
