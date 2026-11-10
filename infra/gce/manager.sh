@@ -48,6 +48,8 @@ if [ "$MODE" = sync ]; then
       if [ -n "$(git -C "$d" status --porcelain --untracked-files=no)" ]; then echo "$r: local edits on the VM; not pulled"; continue; fi
       git -C "$d" pull -q --ff-only && echo "$r: $(git -C "$d" log --oneline -1)"
     done
+    # The gateway loads gateway.py once at start: a changed file needs the restart below.
+    git -C ~/Desktop/working2/fxa-sandbox-ctl diff --quiet "$old" HEAD -- infra/mcp-gateway/gateway.py || touch ~/.fxa-gateway-changed
     (cd ~/Desktop/working2/fxa-agent-bot && npm ci --silent --omit=dev)
     for s in ~/Desktop/working2/fxa-sandbox-ctl/skills/*/; do ln -sfn "${s%/}" ~/.claude/skills/"$(basename "$s")"; done
     # The snapshot refresh runs from copies on the Firecracker host; a stopped host gets them on its next fc refresh.
@@ -70,6 +72,10 @@ if [ "$MODE" = sync ]; then
   if sudo test -s $e && sudo grep -qx "EnvironmentFile=-/home/fxa/Desktop/working2/fxa-sandbox-ctl/.env" $u; then
     sudo sed -i "s#^EnvironmentFile=-/home/fxa/Desktop/working2/fxa-sandbox-ctl/.env\$#EnvironmentFile=-$e#" $u && sudo systemctl daemon-reload \
       && echo "the LLM proxy unit now reads llm-proxy.env; when no session is at work: vm.sh sys sudo systemctl restart fxa-llm-proxy"
+  fi
+  # The MCP gateway restarts only for a changed gateway.py: a restart drops the connector calls in flight.
+  if sudo test -e /home/fxa/.fxa-gateway-changed; then
+    sudo rm -f /home/fxa/.fxa-gateway-changed; sudo systemctl restart fxa-mcp-gateway && echo "restarted fxa-mcp-gateway"
   fi
   for u in fxa-agent-bot fxa-dashboard; do systemctl is-active -q $u && sudo systemctl restart $u && echo "restarted $u"; done; true'
   exit 0

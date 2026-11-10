@@ -19,5 +19,16 @@ check "with llm-proxy.env: the unit reads it, daemon-reload runs, and the restar
   "$(sed -n 2p "$t/fxa-llm-proxy.service")|$(grep -c daemon-reload "$t/calls")|$(grep -q 'restart fxa-llm-proxy' <<< "$out" && echo yes)|$(grep -c 'restart fxa-llm-proxy' "$t/calls")"
 run >/dev/null
 check "a unit already moved is left alone" "1" "$(grep -c daemon-reload "$t/calls")"
+# The gateway: the fxa part marks a changed gateway.py, and the root part restarts once for it.
+mark="$(grep 'fxa-gateway-changed$' "$here/manager.sh" | sed "s#~/Desktop/working2/fxa-sandbox-ctl#$t/r#; s#~/#$t/#")"
+gw="$(sed -n '/# The MCP gateway restarts only/,/^  fi$/p' "$here/manager.sh" | sed "s#/home/fxa/#$t/#g")"
+g() { git -C "$t/r" -c user.email=user@example.com -c user.name=t "$@"; }
+git init -q "$t/r"; mkdir -p "$t/r/infra/mcp-gateway"; echo a > "$t/r/infra/mcp-gateway/gateway.py"; echo a > "$t/r/x"; g add -A; g commit -qm one
+old="$(g rev-parse HEAD)"; echo b > "$t/r/x"; g commit -qam two; eval "$mark"
+check "another file changed: no mark" "no" "$([ -e "$t/.fxa-gateway-changed" ] && echo yes || echo no)"
+echo b > "$t/r/infra/mcp-gateway/gateway.py"; g commit -qam three; eval "$mark"
+: > "$t/calls"; gwrun() { ( sudo() { case "$1" in systemctl) echo "$*" >> "$t/calls" ;; *) "$@" ;; esac; }; eval "$gw" ); }
+gwrun >/dev/null; gwrun >/dev/null
+check "gateway.py changed: one restart, and the mark is gone" "1|no" "$(grep -c 'restart fxa-mcp-gateway' "$t/calls")|$([ -e "$t/.fxa-gateway-changed" ] && echo yes || echo no)"
 [ "$fail" = 0 ] && echo "all checks pass"
 exit "$fail"
