@@ -70,9 +70,10 @@ Chat sessions do not have it; do not report that it is missing.
   GitHub, for the team's repos: `github__get_pull_request`, `github__get_pull_request_checks`
   and `github__get_commit_checks` (each check, with its `details_url`, the `job_id` of an Actions job and a failed one's annotations),
   `github__get_job_logs`, `github__get_pull_request_comments` and `github__get_issue`.
-  Slack reads only #fxa (`C4D36CAJW`) and #fxa-team (`CLV3KMZ8B`); pass the ID,
-  not the name. For a thread in another channel, ask the engineer to paste it;
-  do not search the two channels for it. A permalink `/archives/<C>/p1790355024144359` has
+  Slack reads only your team's own channels: for FxA, #fxa (`C4D36CAJW`) and #fxa-team
+  (`CLV3KMZ8B`); for another team, the channels its record lists. Pass the ID, not the name.
+  When the connector refuses a channel, ask the engineer to paste the thread; do not search
+  other channels for it. A permalink `/archives/<C>/p1790355024144359` has
   `channel_id` `<C>` and `message_ts` `1790355024.144359` (a dot before the last 6 digits).
   A Bugzilla bug (`bugzilla.mozilla.org/show_bug.cgi?id=N`, `bugzil.la/N`, "bug N") is
   readable with `bugzilla__get_bugzilla_bug` (`bug_id`: N). It shows public bugs

@@ -466,6 +466,9 @@ def env(rec):
     yield "PIPE_EGRESS_EXTRA", " ".join(rec.get("egress", {}).get("approved", []))
     # Always set, so a team without connectors gets none, not the bot's FxA set.
     yield "PIPE_MCP", ",".join(rec.get("mcp", []))
+    # The Slack connector reads the team's own channels, not FxA's (the gateway's team_rules).
+    if rec.get("access", {}).get("channels"):
+        yield "PIPE_SLACK_CHANNELS", " ".join(rec["access"]["channels"])
     jira = rec.get("jira", {})
     if jira.get("project"):
         yield "PIPE_JIRA_PROJECT", jira["project"]

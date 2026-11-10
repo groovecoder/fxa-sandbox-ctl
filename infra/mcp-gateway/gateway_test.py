@@ -508,6 +508,14 @@ class TeamScope(unittest.TestCase):
         cls.jira, cls.github = conns["jira"]["rules"], conns["github"]["rules"]
         cls.gschema = {"properties": {"owner": {}, "repo": {}}}
 
+    def test_a_team_reads_its_own_slack_channels_not_fxas(self):
+        slack = [{"arg": "channel_id", "one_of": ["CFXA0001"]}]
+        rules = self.g.team_rules(slack, {"jira_projects": ["STOR"], "slack_channels": ["CSTOR1234", "bad id"]})
+        self.assertEqual(self.g.apply_rules(rules, "slack_read_thread", {"properties": {"channel_id": {}}}, {"channel_id": "CSTOR1234"})["channel_id"], "CSTOR1234")
+        with self.assertRaises(self.g.Denied):
+            self.g.apply_rules(rules, "slack_read_thread", {"properties": {"channel_id": {}}}, {"channel_id": "CFXA0001"})
+        self.assertEqual(self.g.team_rules(slack, {"repos": ["mozilla/fxa"]}), slack)
+
     def test_no_scope_keeps_the_rules_as_written(self):
         self.assertIs(self.g.team_rules(self.github, None), self.github)
         out = self.g.apply_rules(self.g.team_rules(self.jira, None), "searchJiraIssuesUsingJql", {}, {"jql": "status = Open"})

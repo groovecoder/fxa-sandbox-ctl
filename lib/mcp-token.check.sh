@@ -73,6 +73,8 @@ check "cmd_jira gives a pipeline run its CI connectors, work repos only, before 
 check "a dependency fix run gets the CI connectors only" "1" "$(grep -c '^  \[ -z "$fix" \] || { mcp="$(mcp_ci_only "${PIPE_MCP:-}")"; mcp_set=1; }$' "$ctl")"
 
 mcp_token_revoke fxa-1
+check "another team's token reads its own Slack channels; FxA's ignores PIPE_SLACK_CHANNELS" '["CSTOR1234"]|null' \
+  "$(PIPE_PROFILE=sync-storage PIPE_JIRA_PROJECT=STOR PIPE_SLACK_CHANNELS=CSTOR1234; PIPE_REPOS=("mozilla-services/syncstorage-rs /home/agent/s work"); jq -c '.scope.slack_channels' "$tmp/gw/tokens/$(mcp_token_for st-1 slack).json")|$(PIPE_PROFILE=fxa PIPE_REPO_SLUG=mozilla/fxa PIPE_SLACK_CHANNELS=CSTOR1234; jq -c '.scope.slack_channels' "$tmp/gw/tokens/$(mcp_token_for fxa-ch slack).json")"
 check "revoke expires the token and keeps its count" "0 0" "$(jq -r '"\(.expires) \(.calls)"' "$tmp/gw/tokens/$t1.json")"
 check "a revoked run gets no MCP lines without connectors" "" "$(mcp_auth_lines fxa-1)"
 exit "$fail"

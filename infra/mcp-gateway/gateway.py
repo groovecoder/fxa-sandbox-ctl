@@ -187,6 +187,7 @@ def scope_jql(jql, project, exclude_labels=()):
 
 PROJECT_RE = re.compile(r"^[A-Z][A-Z0-9]{1,9}$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+CHANNEL_RE = re.compile(r"^C[A-Z0-9]{6,}$")
 
 
 def team_rules(rules, scope):
@@ -195,11 +196,14 @@ def team_rules(rules, scope):
     if not isinstance(scope, dict):
         return rules
     projects = [p for p in scope.get("jira_projects") or [] if isinstance(p, str) and PROJECT_RE.match(p)]
+    chans = [c for c in scope.get("slack_channels") or [] if isinstance(c, str) and CHANNEL_RE.match(c)]
     repos = [r.lower() for r in scope.get("repos") or [] if isinstance(r, str) and SLUG_RE.match(r)]
     out, pair = [], False
     for rule in rules:
         if "jql_project" in rule and projects:
             rule = dict(rule, jql_project=projects)
+        elif chans and rule.get("arg") == "channel_id" and "one_of" in rule:
+            rule = dict(rule, one_of=chans)
         elif repos and rule.get("arg") in ("owner", "repo") and ("equals" in rule or "one_of" in rule):
             # Owner and repo together, for every tool that takes them: a rule bound to one tool must not
             # leave the others with no repo limit, and a mix of two allowed repos is not allowed.

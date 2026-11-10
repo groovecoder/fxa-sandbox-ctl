@@ -46,12 +46,14 @@ mcp_token_for() {
     repos="${repos} ${row%% *}"
   done
   [ -n "$repos" ] || repos="${PIPE_REPO_SLUG:-}"
+  local chans=""; [ "${PIPE_PROFILE:-fxa}" = fxa ] || chans="${PIPE_SLACK_CHANNELS:-}"
   ( umask 077
     jq -n --arg r "$run" --arg c "$connectors" --argjson now "$(date +%s)" \
       --argjson ttl "${FXA_MCP_TOKEN_TTL:-86400}" --argjson cap "${FXA_MCP_RUN_CAP_CALLS:-200}" \
-      --arg p "$projects" --arg rp "$repos" --argjson dl "${dl:-0}" \
+      --arg p "$projects" --arg rp "$repos" --arg ch "$chans" --argjson dl "${dl:-0}" \
       '{run: $r, created: $now, expires: (if $dl > 0 then $dl else $now + $ttl end), connectors: ($c | split(",")), cap_calls: $cap, calls: 0}
-       + (if ($p + $rp | gsub(" "; "")) != "" then {scope: {jira_projects: ($p | split(" ") | map(select(. != ""))), repos: ($rp | split(" ") | map(select(. != "")))}} else {} end)' \
+       + (if ($p + $rp | gsub(" "; "")) != "" then {scope: {jira_projects: ($p | split(" ") | map(select(. != ""))), repos: ($rp | split(" ") | map(select(. != "")))}} else {} end)
+       | if ($ch | gsub(" "; "")) != "" then .scope = ((.scope // {}) + {slack_channels: ($ch | split(" ") | map(select(. != "")))}) else . end' \
       > "${FXA_MCP_GATEWAY_DIR}/tokens/${tok}.json" ) || return 1
   printf '%s\n' "$tok" > "$map"
   printf '%s\n' "$tok"
