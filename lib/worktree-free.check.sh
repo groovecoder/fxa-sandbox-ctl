@@ -13,7 +13,10 @@ eval "$(sed -n '/^worktree_key_for() {/,/^}/p' "$here/worktree.sh")"
 eval "$(sed -n '/^worktree_filtered_status() {/,/^}/p' "$here/worktree.sh")"
 worktree_repo_root() { echo "$tmp/fxa"; }
 worktree_pool_slot_names() { printf 'fxa-auto-1\nfxa-auto-2\n'; }
-_worktree_agent_for_workspace() { :; }; _worktree_pull_if_remote() { :; }; worktree_git_ok() { :; }
+# The running runners: a file lists them, and each read is counted (a read is a gcloud call per runner).
+: > "$tmp/active"; : > "$tmp/reads"
+_worktree_each_active_agent() { echo x >> "$tmp/reads"; cat "$tmp/active"; }
+_worktree_pull_if_remote() { :; }; worktree_git_ok() { :; }
 for s in fxa-auto-1 fxa-auto-2; do
   git init -q "$tmp/$s" && git -C "$tmp/$s" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m init
   echo '{}' > "$tmp/$s/package.json"; git -C "$tmp/$s" add package.json
@@ -21,6 +24,12 @@ for s in fxa-auto-1 fxa-auto-2; do
 done
 git -C "$tmp/fxa-auto-1" checkout -q -b fxa-14727; git -C "$tmp/fxa-auto-2" checkout -q -b fxa-14580
 check "clean idle slots are free" "fxa-auto-1 fxa-auto-2" "$(FXA_VM_BACKEND=gce worktree_free_slots "" | tr '\n' ' ' | sed 's/ $//')"
+: > "$tmp/reads"; echo "fxa-14727 $tmp/fxa-auto-1" > "$tmp/active"
+check "a slot with a running VM is not free, and one VM read serves every slot" "fxa-auto-2|1" \
+  "$(FXA_VM_BACKEND=gce worktree_free_slots "" | tr '\n' ' ' | sed 's/ $//')|$(grep -c . "$tmp/reads")"
+echo "fxa-14727 $tmp/fxa-auto-10" > "$tmp/active"
+check "a runner on another path (fxa-auto-10) does not hold fxa-auto-1" "fxa-auto-1 fxa-auto-2" "$(FXA_VM_BACKEND=gce worktree_free_slots "" | tr '\n' ' ' | sed 's/ $//')"
+: > "$tmp/active"
 # A finish holds a slot with no VM: on gce it looks free, and another ticket would take it.
 : > "$LOG_DIR/fxa-auto-1.finishing"
 check "a clean slot with a fresh .finishing marker is not free" "fxa-auto-2" "$(FXA_VM_BACKEND=gce worktree_free_slots "" | tr '\n' ' ' | sed 's/ $//')"

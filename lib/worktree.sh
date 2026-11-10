@@ -225,6 +225,8 @@ worktree_free_slots() {
   local root parent slot path branch key
   root="$(worktree_repo_root)" || return 1
   parent="$(dirname "$root")"
+  # One VM read for every slot: per slot it was a gcloud call per runner, 80 calls, and the feed timed out.
+  local active; active="$(_worktree_each_active_agent)"
   while IFS= read -r slot; do
     [ -z "$slot" ] && continue
     path="${parent}/${slot}"
@@ -235,7 +237,7 @@ worktree_free_slots() {
     if [ "${FXA_VM_BACKEND:-tart}" != "gce" ] && [ -n "$owned" ] && printf '%s\n' "$owned" | grep -qx "$key"; then
       continue                      # owned by a ticket that may still relaunch
     fi
-    if [ -n "$(_worktree_agent_for_workspace "$path")" ]; then
+    if awk -v t="$path" '{ $1=""; sub(/^ /,""); if ($0 == t) f=1 } END { exit !f }' <<< "$active"; then
       continue                      # a VM still runs here; a launch would abort
     fi
     worktree_finishing "$path" && continue   # a finish holds it, with no VM
