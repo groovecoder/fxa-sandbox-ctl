@@ -19,7 +19,9 @@ PROFILE_USERS=crew:U0AAAA111+U0AAAA222,x:,monitor:U0BBBB333,U0CCCC444:crew
 PROFILE_CHANNELS=C123:ghost,C456:U0DDDD555
 PROFILE_JIRA=PY:pyfxa-team
 ENV
-FXA_BOT_ENV="$tmp/bot.env.base" python3 - "$(dirname "$0")/../dashboard" "$tmp" <<'PY'
+# An empty records folder: the host's own team records must not stand in for the profiles above.
+mkdir -p "$tmp/no-records"
+FXA_TEAMS_DIR="$tmp/no-records" FXA_BOT_ENV="$tmp/bot.env.base" python3 - "$(dirname "$0")/../dashboard" "$tmp" <<'PY'
 import json, os, sys, threading, urllib.error, urllib.request
 from pathlib import Path
 sys.path.insert(0, sys.argv[1]); import server
