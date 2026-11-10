@@ -3365,6 +3365,10 @@ main() {
   local rp; rp="$(_profile_from_args "$@")"; [ -n "$rp" ] && FXA_PIPELINE="$rp"
   # A host with no cached FxA record must still reach profile sync, which fetches it.
   pipeline_load "$FXA_PIPELINE" || [ "${1:-} ${2:-}" = "profile sync" ] || return 1
+  # The manager's gh wrapper mints its token for $FXA_PIPELINE's repo: without the export, a team's
+  # command (the dashboard's fxa-private snapshot) read its private repo with FxA's token and got nothing.
+  # A team that opens no PR mints none, so it keeps the default.
+  [ "${PIPE_PR_OPEN:-1}" = 0 ] || export FXA_PIPELINE
   vm_backend_load || return 1
 
   local command="${1:-help}"
