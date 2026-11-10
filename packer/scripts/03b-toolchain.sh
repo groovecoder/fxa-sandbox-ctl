@@ -136,8 +136,8 @@ syncserver() {
 
 # The one pin for each runtime: manager.sh reads them for the manager, and refresh.sh
 # for the snapshot (lib/claude-pin.check.sh).
-CLAUDE_CODE_VERSION=2.1.304
-CODEX_VERSION=0.163.0
+CLAUDE_CODE_VERSION=2.1.322
+CODEX_VERSION=0.167.0
 
 want="${1:-$(curl -fsSL https://raw.githubusercontent.com/mozilla/fxa/main/.nvmrc)}"
 want="$(printf '%s' "$want" | tr -d 'v \n')"
