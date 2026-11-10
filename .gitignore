@@ -34,3 +34,6 @@ Claude outputs/
 
 # Operator-only data: Jira emails.
 reporters.tsv
+
+# Eval results: transcripts, diffs and scores, kept on the laptop that ran them.
+ai/

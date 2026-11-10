@@ -3,6 +3,8 @@
 #
 #   eval.sh <evals/name.json>                  run it, then judge it
 #   eval.sh <evals/name.json> --judge <dir>    judge a saved run again
+#   eval.sh --harbor <task dir> <trial dir>    judge a Harbor trial of a task a repo keeps
+#                                              (harbor_judge_inputs.py; results in <trial dir>/judge)
 #
 # The run: pin the dev bot's new sessions to the spec's base (newer refs hidden), post
 # the prompt in the test channel, answer each question with the spec's answer, then save
@@ -12,10 +14,16 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 H="$ROOT/skills/fxa-manager/vm.sh" D="$ROOT/skills/fxa-ctl-dev/slack-drive.sh"
-spec="${1:?usage: eval.sh <evals/name.json> [--judge <run dir>]}"
+spec="${1:?usage: eval.sh <evals/name.json> [--judge <run dir>] | eval.sh --harbor <task dir> <trial dir>}"
+# Harbor ran and scored the trial; only the judge is left. The task's files supply the spec.
+if [ "$spec" = --harbor ]; then
+  trial="$(cd "${3:?usage: eval.sh --harbor <task dir> <trial dir>}" && pwd)"
+  python3 -I "$ROOT/skills/fxa-ctl-dev/harbor_judge_inputs.py" "${2:?}" "$trial" "$trial/judge" >/dev/null
+  set -- "$trial/judge/spec.json" --judge "$trial/judge"; spec="$1"
+fi
 s() { jq -r "$1" "$spec"; }
 name="$(s .name)" base="$(s .base)" fix="$(s .fix)"
-FXA="${FXA_CLONE:-$ROOT/../fxa}" JUDGE="${FXA_EVAL_JUDGE:-claude-fable-5-1}"
+JUDGE="${FXA_EVAL_JUDGE:-claude-fable-5-1}"
 
 run() {
   out="$ROOT/ai/evals/$(date +%Y%m%d-%H%M)-$name"; mkdir -p "$out"; cp "$spec" "$out/spec.json"
@@ -44,15 +52,18 @@ run() {
 }
 
 judge() {
-  local p="$out/judge-prompt.md" ref
+  local p="$out/judge-prompt.md" ref src
+  # The fix as a range from the base, so a merge commit works as well as a squash. For FxA's
+  # cases the base is the fix's parent, so this is what git show gave.
+  src="$(bash "$ROOT/skills/fxa-ctl-dev/eval-src.sh" "$spec" "$base" "$fix")"
   # shellcheck disable=SC2046
-  ref="$(git -C "$FXA" show --format='%s%n%n%b' "$fix" -- $(jq -r '.fix_paths[]' "$spec"))"
+  ref="$(git -C "$src" log -1 --format='%s%n%n%b' "$fix"; echo; git -C "$src" diff "$base" "$fix" -- $(jq -r '.fix_paths[]' "$spec"))"
   {
     echo "You grade one run of a coding agent. A person asked it to do a task on the repo at commit ${base}."
     echo "A reference fix from the real history is below. The agent never saw it. Grade what the agent did against the rubric."
     echo "Give credit for a different fix that solves the same problem as well. Base every score on the evidence below, not on what the agent claims."
     echo "Files named .fxa-* (its plan in .fxa-todo.md, its notes) are working files the agent's guide asks for. They are not part of the change: never count them against scope."
-    echo "The repo's pre-commit hook (lint-staged) runs prettier --write on every whole staged file. A change that only formats lines in a file the fix touches is what any commit here does: never count it against scope."
+    echo "A change that only reformats lines in a file the fix touches, as the repo's formatter or pre-commit hook would, is in scope: never count it against scope."
     echo "Also say whether the agent looked past its base commit: a git fetch or pull, a pull request lookup, a web or GitHub request, or reading git objects by hash it could not have found in its history (git cat-file, fsck). That would make the run invalid."
     echo "Its clone has one ref, origin/main at the base, and no remote, so git log --all, git branch -a and git show of a commit in its own history see only the base's past. Those are fine."
     echo
@@ -67,10 +78,13 @@ judge() {
   } > "$p"
   echo "== judging with $JUDGE"
   # An empty folder and no settings: the judge reads only the prompt.
-  local t; t="$(mktemp -d)"
+  local t; t="$(mktemp -d "${TMPDIR:-/tmp}/eval-judge.XXXXXX")"
   ( cd "$t" && claude -p --model "$JUDGE" --output-format json --setting-sources project < "$p" ) > "$out/judge-raw.json"
   rm -rf "$t"
-  jq -r .result "$out/judge-raw.json" | sed -n '/^[[:space:]]*{/,/}[[:space:]]*$/p' | jq . > "$out/judge.json"
+  # The first JSON object in the reply, fenced or not, on one line or many. (A sed range
+  # from "{" to "}" never closes on a one-line object: sed does not test the end on the
+  # start line.)
+  jq -r .result "$out/judge-raw.json" | python3 -I -c 'import json, sys; t = sys.stdin.read(); print(json.dumps(json.JSONDecoder().raw_decode(t, t.index("{"))[0]))' | jq . > "$out/judge.json"
   jq -r '"score \(.total)/\(.max)\(if .looked_past_base then "  (INVALID: looked past the base)" else "" end)", (.scores | to_entries[] | "  \(.key): \(.value)"), "", .summary' "$out/judge.json"
 }
 
