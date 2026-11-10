@@ -209,6 +209,13 @@ EOS
 
 # deploy_record_script <old heads> <new heads>   The VM line that records a promote, or nothing: a
 # promote that moved no commit (or whose heads could not be read) must not become rollback's target.
+# promote_refresh_due <ctl repo> <old sha> <new sha>   True when the range changes a script the snapshot
+# host runs: sync installs it, but a stopped host never runs it until a refresh starts the host.
+promote_refresh_due() {
+  [ -n "$2" ] && [ -n "$3" ] && [ "$2" != "$3" ] || return 1
+  ! git -C "$1" diff --quiet "$2" "$3" -- packer/scripts/03b-toolchain.sh infra/firecracker/refresh.sh 2>/dev/null
+}
+
 deploy_record_script() {
   [ -n "$1" ] && [ -n "$2" ] && [ "$1" != "$2" ] || return 0
   printf 'echo %q >> ~/.fxa-deploys.log\n' "$(date -u +%FT%TZ) promote $1 $2"
@@ -472,6 +479,10 @@ EOF2
       echo "Watching live for ${w} s..."; sleep "$w" || echo "WARN: the live watch wait was cut short; checking live errors now" >&2
       trap - TERM INT
       promote_watch "$errs_before" || exit 1
+    fi
+    if promote_refresh_due "$CTL_ROOT" "${old%% *}" "${new%% *}"; then
+      echo "The snapshot's toolchain or refresh script changed: starting a refresh."
+      "$0" fc refresh || echo "WARN: the snapshot refresh did not start; run vm.sh fc refresh" >&2
     fi
     ;;
   rollback)

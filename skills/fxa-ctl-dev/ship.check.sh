@@ -14,10 +14,16 @@ git clone -q "$tmp/ctl.git" "$tmp/w/ctl"; git clone -q "$tmp/bot.git" "$tmp/w/fx
 mkdir -p "$tmp/w/ctl/skills/fxa-ctl-dev"; cp "$src" "$tmp/w/ctl/skills/fxa-ctl-dev/"
 (cd "$tmp/w/ctl" && echo 'skills/' > .git/info/exclude)
 printf '#!/bin/bash\necho "vm $* bot=$FXA_DEV_BOT_ROOT" >> %q\n' "$tmp/vm.log" > "$tmp/vm.sh"
+# A stub gcloud: the login is good unless $tmp/expired exists.
+mkdir -p "$tmp/bin"; printf '#!/bin/bash\n[ ! -e %q ]\n' "$tmp/expired" > "$tmp/bin/gcloud"; chmod +x "$tmp/bin/gcloud"; export PATH="$tmp/bin:$PATH"
 # main moves on in both repos after the trees were cloned.
 for r in ctl bot; do (cd "$tmp/seed-$r" && echo b > g && git add g && git commit -qm later && git push -q origin HEAD:main); done
 (cd "$tmp/w/ctl" && echo mine > m && git add m && git commit -qm mine)
 run() { FXA_SHIP_VM="$tmp/vm.sh" bash "$tmp/w/ctl/skills/fxa-ctl-dev/ship.sh" "$@" > "$tmp/out" 2>&1; echo $?; }
+touch "$tmp/expired"
+check "an expired gcloud login: refused, nothing pushed, no deploy" "1|later|yes" \
+  "$(run)|$(git -C "$tmp/ctl.git" log --format=%s -1 main)|$([ ! -s "$tmp/vm.log" ] && grep -q 'gcloud auth login' "$tmp/out" && echo yes)"
+rm "$tmp/expired"
 check "ships: exit 0" "0" "$(run)"
 check "the controller commit is on main, on top of the newer main" "mine|later" "$(git -C "$tmp/ctl.git" log --format=%s -2 main | paste -sd'|' -)"
 check "the bot tree is at the bot's main, and nothing was pushed from it" "yes|2" \

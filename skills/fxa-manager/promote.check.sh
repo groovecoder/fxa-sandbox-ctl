@@ -5,7 +5,7 @@ set -u
 fail=0
 check() { if [ "$2" = "$3" ]; then printf 'ok   %s\n' "$1"; else printf 'FAIL %s: want [%s] got [%s]\n' "$1" "$2" "$3"; fail=1; fi; }
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
-eval "$(sed -n '/^worktree_tree() {/,/^}/p;/^promote_diff() {/,/^}/p;/^promote_tests() {/,/^}/p' "$(dirname "$0")/vm.sh")"
+eval "$(sed -n '/^worktree_tree() {/,/^}/p;/^promote_diff() {/,/^}/p;/^promote_tests() {/,/^}/p;/^promote_refresh_due() {/,/^}/p' "$(dirname "$0")/vm.sh")"
 g() { git -C "$tmp/w" -c user.email=user@example.com -c user.name=t "$@"; }
 git init -q --bare "$tmp/remote.git"; git init -q -b main "$tmp/w"
 echo a > "$tmp/w/a.txt"; echo node_modules > "$tmp/w/.gitignore"; g add -A; g commit -qm one
@@ -147,4 +147,9 @@ printf 'PROFILE_OPEN="monitor,pyfxa-team"\nPROFILE_USERS=sync-storage:U9\n' > "$
 check "a team open in dev and closed live is named; one open in both, or by users, is not" "fxa-android" "$(promote_access_drift "$tmp/dev.env" "$tmp/live.env" | paste -sd, -)"
 check "the same access in both: nothing" "" "$(promote_access_drift "$tmp/dev.env" "$tmp/dev.env")"
 check "a missing live env names every dev team" "fxa-android,monitor,pyfxa-team,sync-storage" "$(promote_access_drift "$tmp/dev.env" "$tmp/none.env" | paste -sd, -)"
+r0="$(g rev-parse HEAD)"; echo c > "$tmp/w/c.txt"; g add c.txt; g commit -qm other; r1="$(g rev-parse HEAD)"
+mkdir -p "$tmp/w/packer/scripts"; echo pin > "$tmp/w/packer/scripts/03b-toolchain.sh"; g add -A; g commit -qm pin; r2="$(g rev-parse HEAD)"
+due() { promote_refresh_due "$tmp/w" "$1" "$2" && echo yes || echo no; }
+check "refresh: due only when the range changes a snapshot script; not for no move or an unknown sha" "no|yes|no|no" \
+  "$(due "$r0" "$r1")|$(due "$r0" "$r2")|$(due "$r2" "$r2")|$(due "" "$r2")"
 exit "$fail"

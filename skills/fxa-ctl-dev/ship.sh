@@ -27,6 +27,10 @@ ship_tree() {
     echo "$(basename "$t"): pushed $n commit(s), main is $(git -C "$t" rev-parse --short HEAD)"
   else echo "$(basename "$t"): nothing to push, at main $(git -C "$t" rev-parse --short HEAD)"; fi
 }
+# An expired login fails vm.sh dev after the push, and promote then refuses a main that dev never ran.
+if command -v gcloud >/dev/null && ! gcloud auth print-access-token >/dev/null 2>&1; then
+  echo "ship.sh: the gcloud login expired; run ! gcloud auth login, then ship.sh again. Nothing was pushed." >&2; exit 1
+fi
 ship_tree "$CTL"; ship_tree "$BOT"
 
 vm="${FXA_SHIP_VM:-$CTL/skills/fxa-manager/vm.sh}"

@@ -203,6 +203,8 @@ Buttons cannot be pressed through the API: answer with a reply. The tokens are i
    A change to shared state (`lib/db/` migrations, the MCP gateway, the LLM proxy,
    secrets) reaches live data as soon as dev runs it: test it with `vm.sh test` first.
    Ask the person "Promote now?" and run it yourself on their yes; do not hand them a `!` command.
+   Do not push while a promote runs: the promote refuses a main that moved. Commit follow-up work
+   locally, then ship it in one batch after the promote.
    Run the promote from the main checkout (the shell's start folder), as exactly
    `bash skills/fxa-manager/vm.sh promote`: no `cd`, path, env, pipe, wrapper (`perl alarm`,
    `timeout`) or `&&` chain after a dev smoke, since the allow rule matches only that text. Run the
@@ -280,6 +282,8 @@ either file reaches the host only through those two commands.
 It installs them in `/usr/local`, the prefix that comes first on PATH. It holds the
 one pin for Claude Code and for Codex, which `lib/claude-pin.check.sh` checks. A
 changed pin makes the next refresh run even when fxa main has not moved.
+To bump both pins to the latest npm releases, run `bash skills/fxa-ctl-dev/bump-cli.sh`. Then commit,
+ship and promote: a promote that changes `03b-toolchain.sh` or `refresh.sh` starts `fc refresh` itself.
 
 Causes of a failed refresh, and their fixes:
 
